@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}
+Detalle del cliente
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1">
+                {{ cliente.nombre }} {{ cliente.apellido }}
+            </h1>
+
+            <p class="text-muted mb-0">
+                Información completa del cliente
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a
+                href="{% url 'clientes:lista_clientes' %}"
+                class="btn btn-outline-secondary"
+            >
+                <i class="bi bi-arrow-left"></i>
+                Volver
+            </a>
+
+            <a
+                href="{% url 'clientes:editar_cliente' cliente.pk %}"
+                class="btn btn-primary"
+            >
+                <i class="bi bi-pencil-square"></i>
+                Editar
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Información personal -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 mb-0">
+                        Información personal
+                    </h2>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-4">
+
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">
+                                Nombre
+                            </small>
+
+                            <span class="fw-semibold">
+                                {{ cliente.nombre|default:"No registrado" }}
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">
+                                Apellido
+                            </small>
+
+                            <span class="fw-semibold">
+                                {{ cliente.apellido|default:"No registrado" }}
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">
+                                Teléfono
+                            </small>
+
+                            {% if cliente.telefono %}
+                                <a
+                                    href="tel:{{ cliente.telefono }}"
+                                    class="text-decoration-none fw-semibold"
+                                >
+                                    {{ cliente.telefono }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">No registrado</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">
+                                Correo electrónico
+                            </small>
+
+                            {% if cliente.email %}
+                                <a
+                                    href="mailto:{{ cliente.email }}"
+                                    class="text-decoration-none fw-semibold"
+                                >
+                                    {{ cliente.email }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">No registrado</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">
+                                Fecha de nacimiento
+                            </small>
+
+                            {% if cliente.fecha_nacimiento %}
+                                <span class="fw-semibold">
+                                    {{ cliente.fecha_nacimiento|date:"d/m/Y" }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">No registrada</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">
+                                Estado
+                            </small>
+
+                            {% if cliente.activo %}
+                                <span class="badge text-bg-success">
+                                    Activo
+                                </span>
+                            {% else %}
+                                <span class="badge text-bg-secondary">
+                                    Inactivo
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <small class="text-muted d-block">
+                                Dirección
+                            </small>
+
+                            {% if cliente.direccion %}
+                                <span class="fw-semibold">
+                                    {{ cliente.direccion }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">No registrada</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-12">
+                            <hr>
+                        </div>
+
+                        <div class="col-12">
+                            <small class="text-muted d-block mb-2">
+                                Observaciones
+                            </small>
+
+                            {% if cliente.observaciones %}
+                                <div class="bg-light rounded p-3">
+                                    {{ cliente.observaciones|linebreaksbr }}
+                                </div>
+                            {% else %}
+                                <div class="bg-light rounded p-3 text-muted">
+                                    No hay observaciones registradas.
+                                </div>
+                            {% endif %}
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumen lateral -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body text-center py-4">
+
+                    <div
+                        class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center mb-3"
+                        style="width: 80px; height: 80px;"
+                    >
+                        <span class="fs-2 fw-bold">
+                            {{ cliente.nombre|first|upper }}{{ cliente.apellido|first|upper }}
+                        </span>
+                    </div>
+
+                    <h2 class="h5 mb-1">
+                        {{ cliente.nombre }} {{ cliente.apellido }}
+                    </h2>
+
+                    <p class="text-muted mb-3">
+                        Cliente #{{ cliente.pk }}
+                    </p>
+
+                    {% if cliente.activo %}
+                        <span class="badge rounded-pill text-bg-success">
+                            Cliente activo
+                        </span>
+                    {% else %}
+                        <span class="badge rounded-pill text-bg-secondary">
+                            Cliente inactivo
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 mb-0">
+                        Historial
+                    </h2>
+                </div>
+
+                <div class="card-body">
+                    <p class="text-muted mb-0">
+                        Aquí aparecerán próximamente las citas, los servicios
+                        realizados y los pagos del cliente.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

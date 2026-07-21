@@ -1,190 +1,261 @@
 {% extends "base.html" %}
 
 {% block title %}
-Nuevo Cliente
+{{ titulo|default:"Cliente" }}
 {% endblock %}
 
 {% block content %}
 
 <div class="row justify-content-center">
 
-    <div class="col-lg-9">
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2 class="mb-1">Nuevo cliente</h2>
-                <p class="text-muted mb-0">
-                    Registra la información del cliente.
-                </p>
-            </div>
+<div class="col-lg-9">
 
-            <a
-                href="{% url 'lista_clientes' %}"
-                class="btn btn-outline-secondary"
-            >
-                <i class="bi bi-arrow-left me-1"></i>
-                Volver
-            </a>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+
+            <h2 class="mb-1">
+                {{ titulo|default:"Nuevo cliente" }}
+            </h2>
+
+            <p class="text-muted mb-0">
+                {{ descripcion|default:"Registra la información del cliente." }}
+            </p>
+
         </div>
 
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4">
+        <a
+            href="{% url 'clientes:lista_clientes' %}"
+            class="btn btn-outline-secondary"
+        >
+            <i class="bi bi-arrow-left me-1"></i>
+            Volver
+        </a>
 
-                <form method="post" novalidate>
+    </div>
 
-                    {% csrf_token %}
+    <div class="card shadow-sm border-0">
 
-                    {% if formulario.non_field_errors %}
-                        <div class="alert alert-danger">
-                            {{ formulario.non_field_errors }}
-                        </div>
-                    {% endif %}
+        <div class="card-body p-4">
 
-                    <div class="row g-3">
+            <form method="post" novalidate>
 
-                        <div class="col-md-6">
-                            <label class="form-label">
-                                Nombre
-                            </label>
+                {% csrf_token %}
 
-                            {{ formulario.nombre }}
+                {% if formulario.non_field_errors %}
 
-                            {% for error in formulario.nombre.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
+                    <div class="alert alert-danger">
+                        {{ formulario.non_field_errors }}
+                    </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">
-                                Apellido
-                            </label>
+                {% endif %}
 
-                            {{ formulario.apellido }}
+                <div class="row g-3">
 
-                            {% for error in formulario.apellido.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
+                    <div class="col-md-6">
 
-                        <div class="col-md-6">
-                            <label class="form-label">
-                                Teléfono
-                            </label>
+                        <label
+                            for="{{ formulario.nombre.id_for_label }}"
+                            class="form-label"
+                        >
+                            Nombre
+                        </label>
 
-                            {{ formulario.telefono }}
+                        {{ formulario.nombre }}
 
-                            {% for error in formulario.telefono.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
+                        {% for error in formulario.nombre.errors %}
 
-                        <div class="col-md-6">
-                            <label class="form-label">
-                                Correo electrónico
-                            </label>
-
-                            {{ formulario.email }}
-
-                            {% for error in formulario.email.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="col-md-8">
-                            <label class="form-label">
-                                Dirección
-                            </label>
-
-                            {{ formulario.direccion }}
-
-                            {% for error in formulario.direccion.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">
-                                Fecha de nacimiento
-                            </label>
-
-                            {{ formulario.fecha_nacimiento }}
-
-                            {% for error in formulario.fecha_nacimiento.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label">
-                                Observaciones
-                            </label>
-
-                            {{ formulario.observaciones }}
-
-                            {% for error in formulario.observaciones.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="col-12">
-                            <div class="form-check">
-                                {{ formulario.activo }}
-
-                                <label class="form-check-label">
-                                    Cliente activo
-                                </label>
+                            <div class="text-danger small mt-1">
+                                {{ error }}
                             </div>
 
-                            {% for error in formulario.activo.errors %}
-                                <div class="text-danger small mt-1">
-                                    {{ error }}
-                                </div>
-                            {% endfor %}
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label
+                            for="{{ formulario.apellido.id_for_label }}"
+                            class="form-label"
+                        >
+                            Apellido
+                        </label>
+
+                        {{ formulario.apellido }}
+
+                        {% for error in formulario.apellido.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label
+                            for="{{ formulario.telefono.id_for_label }}"
+                            class="form-label"
+                        >
+                            Teléfono
+                        </label>
+
+                        {{ formulario.telefono }}
+
+                        {% for error in formulario.telefono.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label
+                            for="{{ formulario.email.id_for_label }}"
+                            class="form-label"
+                        >
+                            Correo electrónico
+                        </label>
+
+                        {{ formulario.email }}
+
+                        {% for error in formulario.email.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-md-8">
+
+                        <label
+                            for="{{ formulario.direccion.id_for_label }}"
+                            class="form-label"
+                        >
+                            Dirección
+                        </label>
+
+                        {{ formulario.direccion }}
+
+                        {% for error in formulario.direccion.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label
+                            for="{{ formulario.fecha_nacimiento.id_for_label }}"
+                            class="form-label"
+                        >
+                            Fecha de nacimiento
+                        </label>
+
+                        {{ formulario.fecha_nacimiento }}
+
+                        {% for error in formulario.fecha_nacimiento.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-12">
+
+                        <label
+                            for="{{ formulario.observaciones.id_for_label }}"
+                            class="form-label"
+                        >
+                            Observaciones
+                        </label>
+
+                        {{ formulario.observaciones }}
+
+                        {% for error in formulario.observaciones.errors %}
+
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    <div class="col-12">
+
+                        <div class="form-check">
+
+                            {{ formulario.activo }}
+
+                            <label
+                                for="{{ formulario.activo.id_for_label }}"
+                                class="form-check-label"
+                            >
+                                Cliente activo
+                            </label>
+
                         </div>
 
-                    </div>
+                        {% for error in formulario.activo.errors %}
 
-                    <hr class="my-4">
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
 
-                    <div class="d-flex justify-content-end gap-2">
-
-                        <a
-                            href="{% url 'lista_clientes' %}"
-                            class="btn btn-outline-secondary"
-                        >
-                            Cancelar
-                        </a>
-
-                        <button
-                            type="submit"
-                            class="btn btn-primary"
-                        >
-                            <i class="bi bi-save me-1"></i>
-                            Guardar cliente
-                        </button>
+                        {% endfor %}
 
                     </div>
 
-                </form>
+                </div>
 
-            </div>
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-end gap-2">
+
+                    <a
+                        href="{% url 'clientes:lista_clientes' %}"
+                        class="btn btn-outline-secondary"
+                    >
+                        Cancelar
+                    </a>
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        <i class="bi bi-save me-1"></i>
+                        {{ texto_boton|default:"Guardar cliente" }}
+                    </button>
+
+                </div>
+
+            </form>
+
         </div>
 
     </div>
+
+</div>
+
 
 </div>
 

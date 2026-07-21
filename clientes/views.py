@@ -38,20 +38,38 @@ def lista_clientes(request):
 
 
 @login_required
+def detalle_cliente(request, pk):
+    cliente = get_object_or_404(Cliente, pk=pk)
+
+    return render(
+        request,
+        "clientes/detalle.html",
+        {
+            "cliente": cliente,
+        },
+    )
+
+
+@login_required
 def crear_cliente(request):
     if request.method == "POST":
         formulario = ClienteForm(request.POST)
 
         if formulario.is_valid():
             formulario.save()
-            return redirect("lista_clientes")
+            return redirect("clientes:lista_clientes")
     else:
         formulario = ClienteForm()
 
     return render(
         request,
         "clientes/formulario.html",
-        {"formulario": formulario},
+        {
+            "formulario": formulario,
+            "titulo": "Nuevo cliente",
+            "descripcion": "Registra la información del cliente.",
+            "texto_boton": "Guardar cliente",
+        },
     )
 
 
@@ -67,7 +85,7 @@ def editar_cliente(request, pk):
 
         if formulario.is_valid():
             formulario.save()
-            return redirect("lista_clientes")
+            return redirect("clientes:lista_clientes")
     else:
         formulario = ClienteForm(instance=cliente)
 
@@ -77,6 +95,8 @@ def editar_cliente(request, pk):
         {
             "formulario": formulario,
             "cliente": cliente,
-            "editar": True,
+            "titulo": "Editar cliente",
+            "descripcion": "Actualiza la información del cliente.",
+            "texto_boton": "Guardar cambios",
         },
     )

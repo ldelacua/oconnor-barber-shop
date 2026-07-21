@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}
+Clientes
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+```
+<div>
+    <h2 class="mb-1">Clientes</h2>
+    <p class="text-muted mb-0">
+        Consulta y administra los clientes de O'Connor Barber Shop.
+    </p>
+</div>
+
+<a href="{% url 'crear_cliente' %}" class="btn btn-primary">
+    <i class="bi bi-person-plus me-1"></i>
+    Nuevo Cliente
+</a>
+```
+
+</div>
+
+<div class="card shadow-sm border-0">
+
+```
+<div class="card-body">
+
+    <!-- Buscador -->
+    <form method="get" class="row g-2 mb-4">
+
+        <div class="col-md-8 col-lg-6">
+
+            <div class="input-group">
+
+                <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                </span>
+
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ busqueda }}"
+                    class="form-control"
+                    placeholder="Buscar por nombre, apellido, teléfono o correo"
+                    aria-label="Buscar clientes">
+
+                <button type="submit" class="btn btn-primary">
+                    Buscar
+                </button>
+
+            </div>
+
+        </div>
+
+        {% if busqueda %}
+
+            <div class="col-auto">
+
+                <a
+                    href="{% url 'lista_clientes' %}"
+                    class="btn btn-outline-secondary">
+
+                    <i class="bi bi-x-circle me-1"></i>
+                    Limpiar
+
+                </a>
+
+            </div>
+
+        {% endif %}
+
+    </form>
+
+    <!-- Información de resultados -->
+    {% if clientes.paginator.count > 0 %}
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+
+            <small class="text-muted">
+                Mostrando
+                {{ clientes.start_index }}
+                a
+                {{ clientes.end_index }}
+                de
+                {{ clientes.paginator.count }}
+                cliente{{ clientes.paginator.count|pluralize }}
+            </small>
+
+            {% if busqueda %}
+
+                <small class="text-muted">
+                    Resultados para:
+                    <strong>{{ busqueda }}</strong>
+                </small>
+
+            {% endif %}
+
+        </div>
+
+    {% endif %}
+
+    <!-- Tabla -->
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle mb-0">
+
+            <thead class="table-light">
+
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Teléfono</th>
+                    <th>Email</th>
+                    <th>Estado</th>
+                    <th class="text-end">Acciones</th>
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+                {% for cliente in clientes %}
+
+                    <tr>
+
+                        <td>{{ cliente.id }}</td>
+
+                        <td>
+                            <strong>
+                                {{ cliente.nombre }} {{ cliente.apellido }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ cliente.telefono|default:"-" }}
+                        </td>
+
+                        <td>
+                            {{ cliente.email|default:"-" }}
+                        </td>
+
+                        <td>
+
+                            {% if cliente.activo %}
+
+                                <span class="badge bg-success">
+                                    Activo
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge bg-secondary">
+                                    Inactivo
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="text-end">
+
+                            <a
+                                href="{% url 'editar_cliente' cliente.pk %}"
+                                class="btn btn-warning btn-sm">
+
+                                <i class="bi bi-pencil-square me-1"></i>
+                                Editar
+
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+
+                        <td colspan="6" class="text-center text-muted py-4">
+
+                            {% if busqueda %}
+
+                                <i class="bi bi-search fs-2 d-block mb-2"></i>
+
+                                No se encontraron clientes para
+                                <strong>"{{ busqueda }}"</strong>.
+
+                            {% else %}
+
+                                <i class="bi bi-people fs-2 d-block mb-2"></i>
+
+                                No hay clientes registrados.
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <!-- Paginación -->
+    {% if clientes.paginator.num_pages > 1 %}
+
+        <nav
+            aria-label="Paginación de clientes"
+            class="mt-4">
+
+            <ul class="pagination justify-content-center flex-wrap mb-0">
+
+                <!-- Primera página -->
+                <li class="page-item {% if not clientes.has_previous %}disabled{% endif %}">
+
+                    {% if clientes.has_previous %}
+
+                        <a
+                            class="page-link"
+                            href="?page=1{% if busqueda %}&q={{ busqueda|urlencode }}{% endif %}">
+                            Primera
+                        </a>
+
+                    {% else %}
+
+                        <span class="page-link">
+                            Primera
+                        </span>
+
+                    {% endif %}
+
+                </li>
+
+                <!-- Página anterior -->
+                <li class="page-item {% if not clientes.has_previous %}disabled{% endif %}">
+
+                    {% if clientes.has_previous %}
+
+                        <a
+                            class="page-link"
+                            href="?page={{ clientes.previous_page_number }}{% if busqueda %}&q={{ busqueda|urlencode }}{% endif %}">
+                            Anterior
+                        </a>
+
+                    {% else %}
+
+                        <span class="page-link">
+                            Anterior
+                        </span>
+
+                    {% endif %}
+
+                </li>
+
+                <!-- Números de página -->
+                {% for numero in clientes.paginator.page_range %}
+
+                    {% if numero == clientes.number %}
+
+                        <li class="page-item active" aria-current="page">
+
+                            <span class="page-link">
+                                {{ numero }}
+                            </span>
+
+                        </li>
+
+                    {% elif numero >= clientes.number|add:"-2" and numero <= clientes.number|add:"2" %}
+
+                        <li class="page-item">
+
+                            <a
+                                class="page-link"
+                                href="?page={{ numero }}{% if busqueda %}&q={{ busqueda|urlencode }}{% endif %}">
+                                {{ numero }}
+                            </a>
+
+                        </li>
+
+                    {% endif %}
+
+                {% endfor %}
+
+                <!-- Página siguiente -->
+                <li class="page-item {% if not clientes.has_next %}disabled{% endif %}">
+
+                    {% if clientes.has_next %}
+
+                        <a
+                            class="page-link"
+                            href="?page={{ clientes.next_page_number }}{% if busqueda %}&q={{ busqueda|urlencode }}{% endif %}">
+                            Siguiente
+                        </a>
+
+                    {% else %}
+
+                        <span class="page-link">
+                            Siguiente
+                        </span>
+
+                    {% endif %}
+
+                </li>
+
+                <!-- Última página -->
+                <li class="page-item {% if not clientes.has_next %}disabled{% endif %}">
+
+                    {% if clientes.has_next %}
+
+                        <a
+                            class="page-link"
+                            href="?page={{ clientes.paginator.num_pages }}{% if busqueda %}&q={{ busqueda|urlencode }}{% endif %}">
+                            Última
+                        </a>
+
+                    {% else %}
+
+                        <span class="page-link">
+                            Última
+                        </span>
+
+                    {% endif %}
+
+                </li>
+
+            </ul>
+
+        </nav>
+
+    {% endif %}
+
+</div>
+```
+
+</div>
+
+{% endblock %}

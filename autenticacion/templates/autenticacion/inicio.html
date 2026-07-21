@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Inicio | Barbería</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+</head>
+
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container">
+            <span class="navbar-brand">Barbería</span>
+
+            <a href="{% url 'logout' %}" class="btn btn-outline-light">
+                Cerrar sesión
+            </a>
+        </div>
+    </nav>
+
+    <main class="container py-5">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1>Bienvenido, {{ request.user.username }}</h1>
+
+                <p class="text-secondary mb-0">
+                    Has iniciado sesión correctamente.
+                </p>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>

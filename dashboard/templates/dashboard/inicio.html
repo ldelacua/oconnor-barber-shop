@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <h2 class="mb-4">
+        Bienvenido {{ user.first_name }}
+    </h2>
+
+    <div class="row">
+
+        <div class="col-md-3 mb-3">
+
+            <div class="card shadow border-0">
+
+                <div class="card-body">
+
+                    <h5>Clientes</h5>
+
+                    <h1>0</h1>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3 mb-3">
+
+            <div class="card shadow border-0">
+
+                <div class="card-body">
+
+                    <h5>Barberos</h5>
+
+                    <h1>0</h1>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3 mb-3">
+
+            <div class="card shadow border-0">
+
+                <div class="card-body">
+
+                    <h5>Citas Hoy</h5>
+
+                    <h1>0</h1>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3 mb-3">
+
+            <div class="card shadow border-0">
+
+                <div class="card-body">
+
+                    <h5>Ventas</h5>
+
+                    <h1>$0</h1>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

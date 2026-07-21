@@ -1,0 +1,148 @@
+:root {
+    --oconnor-dark: #1f2937;
+    --oconnor-darker: #111827;
+    --oconnor-gold: #d4af37;
+    --oconnor-light: #f8f9fa;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", sans-serif;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(17, 24, 39, 0.96),
+            rgba(31, 41, 55, 0.92)
+        );
+}
+
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 430px;
+    background-color: #ffffff;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.login-brand {
+    padding: 32px 28px 26px;
+    text-align: center;
+    color: #ffffff;
+    background:
+        linear-gradient(
+            135deg,
+            var(--oconnor-darker),
+            var(--oconnor-dark)
+        );
+}
+
+.brand-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--oconnor-gold);
+    border-radius: 50%;
+    color: var(--oconnor-gold);
+    font-size: 32px;
+}
+
+.login-brand h1 {
+    margin-bottom: 4px;
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.login-brand p {
+    margin: 0;
+    color: #d1d5db;
+}
+
+.login-content {
+    padding: 32px;
+}
+
+.login-content h2 {
+    margin-bottom: 6px;
+    color: var(--oconnor-darker);
+    font-weight: 700;
+}
+
+.login-subtitle {
+    margin-bottom: 24px;
+    color: #6b7280;
+}
+
+.form-label {
+    color: #374151;
+    font-weight: 600;
+}
+
+.input-group-text {
+    background-color: #f3f4f6;
+    border-right: 0;
+}
+
+.form-control {
+    min-height: 48px;
+}
+
+.input-group .form-control {
+    border-left: 0;
+}
+
+.form-control:focus {
+    border-color: var(--oconnor-gold);
+    box-shadow: 0 0 0 0.2rem rgba(212, 175, 55, 0.2);
+}
+
+.btn-login {
+    min-height: 48px;
+    background-color: var(--oconnor-gold);
+    border: 1px solid var(--oconnor-gold);
+    color: var(--oconnor-darker);
+    font-weight: 700;
+}
+
+.btn-login:hover {
+    background-color: #c29d2f;
+    border-color: #c29d2f;
+    color: var(--oconnor-darker);
+}
+
+.login-footer {
+    padding: 18px;
+    text-align: center;
+    color: #9ca3af;
+    background-color: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 576px) {
+    .login-page {
+        padding: 14px;
+    }
+
+    .login-content {
+        padding: 26px 22px;
+    }
+
+    .login-brand {
+        padding: 26px 20px 22px;
+    }
+}

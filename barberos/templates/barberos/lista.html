@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}
+Barberos
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+        <h2 class="mb-1">Barberos</h2>
+
+        <p class="text-muted mb-0">
+            Consulta y administra los barberos de O'Connor Barber Shop.
+        </p>
+    </div>
+
+    <a
+        href="{% url 'barberos:crear_barbero' %}"
+        class="btn btn-primary"
+    >
+        <i class="bi bi-person-plus"></i>
+        Nuevo barbero
+    </a>
+
+</div>
+
+<div class="card shadow-sm border-0">
+
+    <div class="card-body">
+
+        <!-- Buscador -->
+        <form method="get" class="row g-2 mb-4">
+
+            <div class="col-md-8 col-lg-6">
+
+                <div class="input-group">
+
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+
+                    <input
+                        type="search"
+                        name="buscar"
+                        value="{{ busqueda }}"
+                        class="form-control"
+                        placeholder="Buscar por código, nombre, teléfono, correo o silla"
+                        aria-label="Buscar barberos"
+                    >
+
+                    <button type="submit" class="btn btn-primary">
+                        Buscar
+                    </button>
+
+                </div>
+
+            </div>
+
+            {% if busqueda %}
+
+                <div class="col-auto">
+
+                    <a
+                        href="{% url 'barberos:lista_barberos' %}"
+                        class="btn btn-outline-secondary"
+                    >
+                        <i class="bi bi-x-circle me-1"></i>
+                        Limpiar
+                    </a>
+
+                </div>
+
+            {% endif %}
+
+        </form>
+
+        <!-- Información de resultados -->
+        {% if barberos.paginator.count > 0 %}
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+
+                <small class="text-muted">
+                    Mostrando
+                    {{ barberos.start_index }}
+                    a
+                    {{ barberos.end_index }}
+                    de
+                    {{ barberos.paginator.count }}
+                    barbero{{ barberos.paginator.count|pluralize }}
+                </small>
+
+                {% if busqueda %}
+
+                    <small class="text-muted">
+                        Resultados para:
+                        <strong>{{ busqueda }}</strong>
+                    </small>
+
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+        <!-- Tabla -->
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead class="table-light">
+
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Teléfono</th>
+                        <th>Silla</th>
+                        <th>Comisión</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for barbero in barberos %}
+
+                        <tr>
+
+                            <td>
+                                {{ barbero.codigo }}
+                            </td>
+
+                            <td>
+                                <strong>
+                                    {{ barbero.nombre }} {{ barbero.apellido }}
+                                </strong>
+                            </td>
+
+                            <td>
+                                {{ barbero.telefono|default:"-" }}
+                            </td>
+
+                            <td>
+                                {{ barbero.codigo_silla }}
+                            </td>
+
+                            <td>
+                                {{ barbero.porcentaje }}%
+                            </td>
+
+                            <td>
+
+                                {% if barbero.activo %}
+
+                                    <span class="badge bg-success">
+                                        Activo
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="badge bg-secondary">
+                                        Inactivo
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                            <td class="text-end">
+
+                                <div class="d-flex justify-content-end gap-2">
+
+                                    <a
+                                        href="{% url 'barberos:detalle_barbero' barbero.pk %}"
+                                        class="btn btn-sm btn-outline-primary"
+                                        title="Ver barbero"
+                                    >
+                                        <i class="bi bi-eye"></i>
+                                        Ver
+                                    </a>
+
+                                    <a
+                                        href="{% url 'barberos:editar_barbero' barbero.pk %}"
+                                        class="btn btn-warning btn-sm"
+                                        title="Editar barbero"
+                                    >
+                                        <i class="bi bi-pencil-square me-1"></i>
+                                        Editar
+                                    </a>
+
+                                </div>
+
+                            </td>
+
+                        </tr>
+
+                    {% empty %}
+
+                        <tr>
+
+                            <td colspan="7" class="text-center text-muted py-4">
+
+                                {% if busqueda %}
+
+                                    <i class="bi bi-search fs-2 d-block mb-2"></i>
+
+                                    No se encontraron barberos para
+                                    <strong>"{{ busqueda }}"</strong>.
+
+                                {% else %}
+
+                                    <i class="bi bi-people fs-2 d-block mb-2"></i>
+
+                                    No hay barberos registrados.
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- Paginación -->
+        {% if barberos.paginator.num_pages > 1 %}
+
+            <nav
+                aria-label="Paginación de barberos"
+                class="mt-4"
+            >
+
+                <ul class="pagination justify-content-center flex-wrap mb-0">
+
+                    <!-- Primera página -->
+                    <li class="page-item {% if not barberos.has_previous %}disabled{% endif %}">
+
+                        {% if barberos.has_previous %}
+
+                            <a
+                                class="page-link"
+                                href="?page=1{% if busqueda %}&buscar={{ busqueda|urlencode }}{% endif %}"
+                            >
+                                Primera
+                            </a>
+
+                        {% else %}
+
+                            <span class="page-link">
+                                Primera
+                            </span>
+
+                        {% endif %}
+
+                    </li>
+
+                    <!-- Página anterior -->
+                    <li class="page-item {% if not barberos.has_previous %}disabled{% endif %}">
+
+                        {% if barberos.has_previous %}
+
+                            <a
+                                class="page-link"
+                                href="?page={{ barberos.previous_page_number }}{% if busqueda %}&buscar={{ busqueda|urlencode }}{% endif %}"
+                            >
+                                Anterior
+                            </a>
+
+                        {% else %}
+
+                            <span class="page-link">
+                                Anterior
+                            </span>
+
+                        {% endif %}
+
+                    </li>
+
+                    <!-- Números de página -->
+                    {% for numero in barberos.paginator.page_range %}
+
+                        {% if numero == barberos.number %}
+
+                            <li class="page-item active" aria-current="page">
+
+                                <span class="page-link">
+                                    {{ numero }}
+                                </span>
+
+                            </li>
+
+                        {% elif numero >= barberos.number|add:"-2" and numero <= barberos.number|add:"2" %}
+
+                            <li class="page-item">
+
+                                <a
+                                    class="page-link"
+                                    href="?page={{ numero }}{% if busqueda %}&buscar={{ busqueda|urlencode }}{% endif %}"
+                                >
+                                    {{ numero }}
+                                </a>
+
+                            </li>
+
+                        {% endif %}
+
+                    {% endfor %}
+
+                    <!-- Página siguiente -->
+                    <li class="page-item {% if not barberos.has_next %}disabled{% endif %}">
+
+                        {% if barberos.has_next %}
+
+                            <a
+                                class="page-link"
+                                href="?page={{ barberos.next_page_number }}{% if busqueda %}&buscar={{ busqueda|urlencode }}{% endif %}"
+                            >
+                                Siguiente
+                            </a>
+
+                        {% else %}
+
+                            <span class="page-link">
+                                Siguiente
+                            </span>
+
+                        {% endif %}
+
+                    </li>
+
+                    <!-- Última página -->
+                    <li class="page-item {% if not barberos.has_next %}disabled{% endif %}">
+
+                        {% if barberos.has_next %}
+
+                            <a
+                                class="page-link"
+                                href="?page={{ barberos.paginator.num_pages }}{% if busqueda %}&buscar={{ busqueda|urlencode }}{% endif %}"
+                            >
+                                Última
+                            </a>
+
+                        {% else %}
+
+                            <span class="page-link">
+                                Última
+                            </span>
+
+                        {% endif %}
+
+                    </li>
+
+                </ul>
+
+            </nav>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

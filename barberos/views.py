@@ -1,3 +1,119 @@
-from django.shortcuts import render
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect, render
 
-# Create your views here.
+from .forms import BarberoForm
+from .models import Barbero
+
+
+@login_required
+def lista_barberos(request):
+    busqueda = request.GET.get("buscar", "").strip()
+
+    barberos = Barbero.objects.all()
+
+    if busqueda:
+        barberos = barberos.filter(
+            Q(codigo__icontains=busqueda)
+            | Q(nombre__icontains=busqueda)
+            | Q(apellido__icontains=busqueda)
+            | Q(telefono__icontains=busqueda)
+            | Q(correo__icontains=busqueda)
+            | Q(codigo_silla__icontains=busqueda)
+        )
+
+    paginador = Paginator(barberos, 10)
+    numero_pagina = request.GET.get("page")
+    pagina_barberos = paginador.get_page(numero_pagina)
+
+    contexto = {
+        "barberos": pagina_barberos,
+        "busqueda": busqueda,
+    }
+
+    return render(request, "barberos/lista.html", contexto)
+
+
+@login_required
+def crear_barbero(request):
+    if request.method == "POST":
+        formulario = BarberoForm(request.POST)
+
+        if formulario.is_valid():
+            formulario.save()
+
+            messages.success(
+                request,
+                "El barbero fue registrado correctamente.",
+            )
+
+            return redirect("barberos:lista_barberos")
+    else:
+        formulario = BarberoForm()
+
+    contexto = {
+        "formulario": formulario,
+        "titulo": "Nuevo barbero",
+        "descripcion": "Registra la información del barbero.",
+        "texto_boton": "Guardar barbero",
+    }
+
+    return render(
+        request,
+        "barberos/formulario.html",
+        contexto,
+    )
+
+
+@login_required
+def editar_barbero(request, pk):
+    barbero = get_object_or_404(Barbero, pk=pk)
+
+    if request.method == "POST":
+        formulario = BarberoForm(
+            request.POST,
+            instance=barbero,
+        )
+
+        if formulario.is_valid():
+            formulario.save()
+
+            messages.success(
+                request,
+                "La información del barbero fue actualizada correctamente.",
+            )
+
+            return redirect("barberos:lista_barberos")
+    else:
+        formulario = BarberoForm(instance=barbero)
+
+    contexto = {
+        "formulario": formulario,
+        "barbero": barbero,
+        "titulo": "Editar barbero",
+        "descripcion": "Actualiza la información del barbero.",
+        "texto_boton": "Guardar cambios",
+    }
+
+    return render(
+        request,
+        "barberos/formulario.html",
+        contexto,
+    )
+
+
+@login_required
+def detalle_barbero(request, pk):
+    barbero = get_object_or_404(Barbero, pk=pk)
+
+    contexto = {
+        "barbero": barbero,
+    }
+
+    return render(
+        request,
+        "barberos/detalle.html",
+        contexto,
+    )

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}
+Eliminar silla
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="card shadow-sm border-danger">
+
+        <div class="card-header bg-danger text-white">
+
+            Eliminar silla
+
+        </div>
+
+        <div class="card-body">
+
+            <p>
+
+                ¿Deseas eliminar la silla
+
+                <strong>{{ silla.nombre }}</strong>?
+
+            </p>
+
+            <form method="post">
+
+                {% csrf_token %}
+
+                <a href="{% url 'horarios:listar_sillas' %}"
+                   class="btn btn-secondary">
+
+                    Cancelar
+
+                </a>
+
+                <button class="btn btn-danger">
+
+                    Eliminar
+
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ titulo }}
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="card shadow-sm">
+
+        <div class="card-header">
+
+            <h4 class="mb-0">{{ titulo }}</h4>
+
+        </div>
+
+        <div class="card-body">
+
+            <p class="text-muted">
+
+                {{ descripcion }}
+
+            </p>
+
+            <form method="post">
+
+                {% csrf_token %}
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+
+                        {{ formulario.nombre.label }}
+
+                    </label>
+
+                    {{ formulario.nombre }}
+
+                    {{ formulario.nombre.errors }}
+
+                </div>
+
+                <div class="form-check mb-4">
+
+                    {{ formulario.activa }}
+
+                    <label class="form-check-label">
+
+                        {{ formulario.activa.label }}
+
+                    </label>
+
+                </div>
+
+                <a href="{% url 'horarios:listar_sillas' %}"
+                   class="btn btn-secondary">
+
+                    Cancelar
+
+                </a>
+
+                <button class="btn btn-primary">
+
+                    {{ texto_boton }}
+
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

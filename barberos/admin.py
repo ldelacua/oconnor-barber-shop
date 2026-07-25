@@ -3,7 +3,7 @@ from django.contrib import admin
 from .models import Barbero
 
 
-@admin.register(Barbero)
+#@admin.register(Barbero)
 class BarberoAdmin(admin.ModelAdmin):
     list_display = (
         "codigo",

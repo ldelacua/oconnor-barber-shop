@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h2 class="mb-0">{{ titulo }}</h2>
+        </div>
+
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Código
+                    </label>
+                    {{ form.codigo }}
+                    {{ form.codigo.errors }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Nombre
+                    </label>
+                    {{ form.nombre }}
+                    {{ form.nombre.errors }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Descripción
+                    </label>
+                    {{ form.descripcion }}
+                    {{ form.descripcion.errors }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Precio
+                    </label>
+                    {{ form.precio }}
+                    {{ form.precio.errors }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Duración en minutos
+                    </label>
+                    {{ form.duracion }}
+                    {{ form.duracion.errors }}
+                </div>
+
+                <div class="form-check mb-3">
+                    {{ form.activo }}
+                    <label class="form-check-label">
+                        Activo
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    Guardar
+                </button>
+
+                <a href="{% url 'servicios:lista' %}" class="btn btn-secondary">
+                    Cancelar
+                </a>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

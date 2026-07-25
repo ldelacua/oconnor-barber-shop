@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="mb-4">
+        <h1 class="h3 mb-1">{{ titulo }}</h1>
+        <p class="text-muted mb-0">{{ descripcion }}</p>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                {% if formulario.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in formulario.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ formulario.barbero.id_for_label }}">
+                            {{ formulario.barbero.label }}
+                        </label>
+
+                        {{ formulario.barbero }}
+
+                        {% for error in formulario.barbero.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="{{ formulario.silla.id_for_label }}">
+                            {{ formulario.silla.label }}
+                        </label>
+
+                        {{ formulario.silla }}
+
+                        {% for error in formulario.silla.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="{{ formulario.dia_semana.id_for_label }}">
+                            {{ formulario.dia_semana.label }}
+                        </label>
+
+                        {{ formulario.dia_semana }}
+
+                        {% for error in formulario.dia_semana.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="{{ formulario.hora_inicio.id_for_label }}">
+                            {{ formulario.hora_inicio.label }}
+                        </label>
+
+                        {{ formulario.hora_inicio }}
+
+                        {% for error in formulario.hora_inicio.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="{{ formulario.hora_fin.id_for_label }}">
+                            {{ formulario.hora_fin.label }}
+                        </label>
+
+                        {{ formulario.hora_fin }}
+
+                        {% for error in formulario.hora_fin.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-9">
+                        <label class="form-label" for="{{ formulario.observaciones.id_for_label }}">
+                            {{ formulario.observaciones.label }}
+                        </label>
+
+                        {{ formulario.observaciones }}
+
+                        {% for error in formulario.observaciones.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            {{ formulario.activo }}
+
+                            <label
+                                class="form-check-label"
+                                for="{{ formulario.activo.id_for_label }}"
+                            >
+                                {{ formulario.activo.label }}
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <a
+                        href="{% url 'horarios:listar_horarios' %}"
+                        class="btn btn-outline-secondary"
+                    >
+                        Cancelar
+                    </a>
+
+                    <button type="submit" class="btn btn-primary">
+                        {{ texto_boton }}
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+</div>
+{% endblock %}

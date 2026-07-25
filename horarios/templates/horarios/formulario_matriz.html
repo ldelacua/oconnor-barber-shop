@@ -1,0 +1,552 @@
+{% extends "base.html" %}
+
+{% block title %}
+Nuevo horario
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1 class="h3 mb-1">{{ titulo }}</h1>
+            <p class="text-muted mb-0">{{ descripcion }}</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div
+                class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show"
+                role="alert"
+            >
+                {{ message }}
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Cerrar"
+                ></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" id="formulario-horario">
+        {% csrf_token %}
+
+        {{ formulario.bloques }}
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Información general</strong>
+            </div>
+
+            <div class="card-body">
+                {% if formulario.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in formulario.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label
+                            for="{{ formulario.barbero.id_for_label }}"
+                            class="form-label"
+                        >
+                            {{ formulario.barbero.label }}
+                        </label>
+
+                        {{ formulario.barbero }}
+
+                        {% for error in formulario.barbero.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label
+                            for="{{ formulario.silla.id_for_label }}"
+                            class="form-label"
+                        >
+                            {{ formulario.silla.label }}
+                        </label>
+
+                        {{ formulario.silla }}
+
+                        {% for error in formulario.silla.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-9">
+                        <label
+                            for="{{ formulario.observaciones.id_for_label }}"
+                            class="form-label"
+                        >
+                            {{ formulario.observaciones.label }}
+                        </label>
+
+                        {{ formulario.observaciones }}
+
+                        {% for error in formulario.observaciones.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ error }}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            {{ formulario.activo }}
+
+                            <label
+                                for="{{ formulario.activo.id_for_label }}"
+                                class="form-check-label"
+                            >
+                                {{ formulario.activo.label }}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div
+                class="card-header d-flex flex-wrap justify-content-between
+                       align-items-center gap-2"
+            >
+                <div>
+                    <strong>Matriz semanal</strong>
+                    <div class="small text-muted">
+                        Haz clic o arrastra para seleccionar bloques de 30 minutos.
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        id="seleccionar-lunes-viernes"
+                    >
+                        Lunes a viernes
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-danger btn-sm"
+                        id="limpiar-matriz"
+                    >
+                        Limpiar selección
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                {% for error in formulario.bloques.errors %}
+                    <div class="alert alert-danger m-3 mb-0">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+
+                <div class="table-responsive matriz-contenedor">
+                    <table
+                        class="table table-bordered table-sm
+                               text-center align-middle mb-0"
+                        id="matriz-horarios"
+                    >
+                        <thead>
+                            <tr>
+                                <th class="columna-hora">Hora</th>
+
+                                {% for numero, nombre in dias %}
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="boton-dia"
+                                            data-dia="{{ numero }}"
+                                            title="Seleccionar o limpiar {{ nombre }}"
+                                        >
+                                            {{ nombre }}
+                                        </button>
+                                    </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for hora in horas %}
+                                <tr>
+                                    <th class="columna-hora">
+                                        {{ hora }}
+                                    </th>
+
+                                    {% for numero, nombre in dias %}
+                                        <td
+                                            class="celda-horario"
+                                            data-dia="{{ numero }}"
+                                            data-hora="{{ hora }}"
+                                            role="button"
+                                            tabindex="0"
+                                            aria-label="{{ nombre }} a las {{ hora }}"
+                                        ></td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <div class="d-flex flex-wrap justify-content-between gap-3">
+                    <div>
+                        <span class="leyenda-seleccionada"></span>
+                        <small>Bloque seleccionado</small>
+                    </div>
+
+                    <div id="resumen-seleccion" class="text-muted">
+                        No hay bloques seleccionados.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <a
+                href="{% url 'horarios:crear_horario' %}"
+                class="btn btn-outline-secondary"
+            >
+                Cancelar
+            </a>
+
+            <button type="submit" class="btn btn-primary">
+                {{ texto_boton }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock content %}
+
+
+{% block extra_css %}
+<style>
+    .matriz-contenedor {
+        max-height: 650px;
+        overflow: auto;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    #matriz-horarios {
+        min-width: 900px;
+        table-layout: fixed;
+    }
+
+    #matriz-horarios thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: var(--bs-body-bg);
+    }
+
+    #matriz-horarios .columna-hora {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        width: 90px;
+        min-width: 90px;
+        background: var(--bs-body-bg);
+    }
+
+    #matriz-horarios thead .columna-hora {
+        z-index: 4;
+    }
+
+    .celda-horario {
+        height: 34px;
+        min-width: 105px;
+        cursor: pointer;
+        transition:
+            background-color 0.1s ease,
+            box-shadow 0.1s ease;
+    }
+
+    .celda-horario:hover {
+        background-color: rgba(var(--bs-primary-rgb), 0.12);
+    }
+
+    .celda-horario.seleccionada {
+        background-color: var(--bs-primary);
+        box-shadow: inset 0 0 0 1px
+            rgba(var(--bs-light-rgb), 0.4);
+    }
+
+    .celda-horario:focus-visible {
+        outline: 3px solid rgba(var(--bs-primary-rgb), 0.35);
+        outline-offset: -3px;
+    }
+
+    .boton-dia {
+        width: 100%;
+        padding: 0.35rem;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-weight: 600;
+    }
+
+    .boton-dia:hover {
+        color: var(--bs-primary);
+    }
+
+    .leyenda-seleccionada {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        margin-right: 6px;
+        vertical-align: middle;
+        border-radius: 3px;
+        background-color: var(--bs-primary);
+    }
+</style>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const formulario = document.getElementById("formulario-horario");
+    const matriz = document.getElementById("matriz-horarios");
+    const campoBloques = document.getElementById("id_bloques");
+    const resumen = document.getElementById("resumen-seleccion");
+    const botonLimpiar = document.getElementById("limpiar-matriz");
+    const botonSemana = document.getElementById(
+        "seleccionar-lunes-viernes"
+    );
+
+    const celdas = Array.from(
+        matriz.querySelectorAll(".celda-horario")
+    );
+
+    let arrastrando = false;
+    let modoSeleccion = true;
+
+    function establecerEstado(celda, seleccionada) {
+        celda.classList.toggle("seleccionada", seleccionada);
+        celda.setAttribute(
+            "aria-pressed",
+            seleccionada ? "true" : "false"
+        );
+    }
+
+    function obtenerSeleccion() {
+        const seleccion = {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": [],
+            "7": []
+        };
+
+        celdas.forEach(function (celda) {
+            if (!celda.classList.contains("seleccionada")) {
+                return;
+            }
+
+            const dia = celda.dataset.dia;
+            const hora = celda.dataset.hora;
+
+            seleccion[dia].push(hora);
+        });
+
+        return seleccion;
+    }
+
+    function actualizarCampoOculto() {
+        const seleccion = obtenerSeleccion();
+
+        campoBloques.value = JSON.stringify(seleccion);
+
+        const cantidad = Object.values(seleccion).reduce(
+            function (total, bloques) {
+                return total + bloques.length;
+            },
+            0
+        );
+
+        if (cantidad === 0) {
+            resumen.textContent = "No hay bloques seleccionados.";
+            return;
+        }
+
+        const horasTotales = cantidad * 0.5;
+
+        resumen.textContent =
+            cantidad +
+            (cantidad === 1 ? " bloque" : " bloques") +
+            " seleccionados · " +
+            horasTotales +
+            (horasTotales === 1 ? " hora" : " horas");
+    }
+
+    function alternarCelda(celda) {
+        const estaSeleccionada = celda.classList.contains(
+            "seleccionada"
+        );
+
+        establecerEstado(celda, !estaSeleccionada);
+        actualizarCampoOculto();
+    }
+
+    celdas.forEach(function (celda) {
+        celda.addEventListener("mousedown", function (evento) {
+            evento.preventDefault();
+
+            arrastrando = true;
+            modoSeleccion = !celda.classList.contains(
+                "seleccionada"
+            );
+
+            establecerEstado(celda, modoSeleccion);
+            actualizarCampoOculto();
+        });
+
+        celda.addEventListener("mouseenter", function () {
+            if (!arrastrando) {
+                return;
+            }
+
+            establecerEstado(celda, modoSeleccion);
+            actualizarCampoOculto();
+        });
+
+        celda.addEventListener("keydown", function (evento) {
+            if (
+                evento.key === "Enter" ||
+                evento.key === " "
+            ) {
+                evento.preventDefault();
+                alternarCelda(celda);
+            }
+        });
+    });
+
+    document.addEventListener("mouseup", function () {
+        arrastrando = false;
+    });
+
+    matriz.addEventListener("dragstart", function (evento) {
+        evento.preventDefault();
+    });
+
+    matriz.querySelectorAll(".boton-dia").forEach(
+        function (boton) {
+            boton.addEventListener("click", function () {
+                const dia = boton.dataset.dia;
+
+                const celdasDia = celdas.filter(
+                    function (celda) {
+                        return celda.dataset.dia === dia;
+                    }
+                );
+
+                const todasSeleccionadas = celdasDia.every(
+                    function (celda) {
+                        return celda.classList.contains(
+                            "seleccionada"
+                        );
+                    }
+                );
+
+                celdasDia.forEach(function (celda) {
+                    establecerEstado(
+                        celda,
+                        !todasSeleccionadas
+                    );
+                });
+
+                actualizarCampoOculto();
+            });
+        }
+    );
+
+    botonLimpiar.addEventListener("click", function () {
+        celdas.forEach(function (celda) {
+            establecerEstado(celda, false);
+        });
+
+        actualizarCampoOculto();
+    });
+
+    botonSemana.addEventListener("click", function () {
+        celdas.forEach(function (celda) {
+            const dia = Number(celda.dataset.dia);
+
+            if (dia >= 1 && dia <= 5) {
+                establecerEstado(celda, true);
+            }
+        });
+
+        actualizarCampoOculto();
+    });
+
+    formulario.addEventListener("submit", function () {
+        actualizarCampoOculto();
+    });
+
+    /*
+     * Recupera la selección cuando Django devuelve
+     * el formulario con errores.
+     */
+    if (campoBloques.value) {
+        try {
+            const seleccionAnterior = JSON.parse(
+                campoBloques.value
+            );
+
+            Object.entries(seleccionAnterior).forEach(
+                function ([dia, horas]) {
+                    if (!Array.isArray(horas)) {
+                        return;
+                    }
+
+                    horas.forEach(function (hora) {
+                        const celda = matriz.querySelector(
+                            '.celda-horario[data-dia="' +
+                            dia +
+                            '"][data-hora="' +
+                            hora +
+                            '"]'
+                        );
+
+                        if (celda) {
+                            establecerEstado(celda, true);
+                        }
+                    });
+                }
+            );
+        } catch (error) {
+            campoBloques.value = "";
+        }
+    }
+    actualizarCampoOculto();
+
+    setTimeout(function () {
+        document.querySelectorAll(".alert").forEach(function (alerta) {
+            const instancia = bootstrap.Alert.getOrCreateInstance(alerta);
+            instancia.close();
+        });
+    }, 3000);
+});
+</script>
+{% endblock %}

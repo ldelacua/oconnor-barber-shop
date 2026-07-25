@@ -34,6 +34,7 @@ AUTH_USER_MODEL = "seguridad.Usuario"
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
     'barberos',
     'clientes',
     'servicios',
+    'horarios',
 ]
 
 MIDDLEWARE = [
@@ -134,3 +136,18 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
+JAZZMIN_SETTINGS = {
+    "site_title": "Administración Barbería",
+    "site_header": "Sistema de Barbería",
+    "site_brand": "Barbería",
+    "welcome_sign": "Bienvenido al panel administrativo",
+    "copyright": "Barbería",
+
+    "icons": {
+        "auth.Group": "fas fa-users",
+        "seguridad.Usuario": "fas fa-user-shield",
+        "barberos.Barbero": "fas fa-cut",
+        "clientes.Cliente": "fas fa-user",
+        "servicios.Servicio": "fas fa-scissors",
+    },
+}

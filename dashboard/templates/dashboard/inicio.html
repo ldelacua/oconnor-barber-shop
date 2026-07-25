@@ -7,73 +7,96 @@
 <div class="container-fluid">
 
     <h2 class="mb-4">
-        Bienvenido {{ user.first_name }}
+        Bienvenido {{ user.first_name|default:user.username }}
     </h2>
 
     <div class="row">
 
-        <div class="col-md-3 mb-3">
+        <!-- Clientes -->
+        <div class="col-md-4 mb-3">
+            <div class="card shadow border-0 h-100 position-relative">
+                <div class="card-body text-center">
 
-            <div class="card shadow border-0">
+                    <i class="bi bi-people-fill display-4 text-primary"></i>
 
-                <div class="card-body">
+                    <h4 class="mt-3">Clientes</h4>
 
-                    <h5>Clientes</h5>
+                    <p class="text-muted mb-3">
+                        Administración de clientes
+                    </p>
 
-                    <h1>0</h1>
+                    <a href="{% url 'clientes:lista_clientes' %}"
+                       class="btn btn-primary stretched-link">
+                        Abrir clientes
+                    </a>
 
                 </div>
-
             </div>
-
         </div>
 
-        <div class="col-md-3 mb-3">
+        <!-- Barberos -->
+        <div class="col-md-4 mb-3">
+            <div class="card shadow border-0 h-100 position-relative">
+                <div class="card-body text-center">
 
-            <div class="card shadow border-0">
+                    <i class="bi bi-scissors display-4 text-success"></i>
 
-                <div class="card-body">
+                    <h4 class="mt-3">Barberos</h4>
 
-                    <h5>Barberos</h5>
+                    <p class="text-muted mb-3">
+                        Administración de barberos
+                    </p>
 
-                    <h1>0</h1>
+                    <a href="{% url 'barberos:lista_barberos' %}"
+                       class="btn btn-success stretched-link">
+                        Abrir barberos
+                    </a>
 
                 </div>
-
             </div>
-
         </div>
 
-        <div class="col-md-3 mb-3">
+        <!-- Servicios -->
+        <div class="col-md-4 mb-3">
+            <div class="card shadow border-0 h-100 position-relative">
+                <div class="card-body text-center">
 
-            <div class="card shadow border-0">
+                    <i class="bi bi-tools display-4 text-warning"></i>
 
-                <div class="card-body">
+                    <h4 class="mt-3">Servicios</h4>
 
-                    <h5>Citas Hoy</h5>
+                    <p class="text-muted mb-3">
+                        Administración de servicios
+                    </p>
 
-                    <h1>0</h1>
+                    <a href="{% url 'servicios:lista' %}"
+                       class="btn btn-warning stretched-link">
+                        Abrir servicios
+                    </a>
 
                 </div>
-
             </div>
-
         </div>
 
-        <div class="col-md-3 mb-3">
+        <!-- Seguridad -->
+        <div class="col-md-4 mb-3">
+            <div class="card shadow border-0 h-100">
+                <div class="card-body text-center">
 
-            <div class="card shadow border-0">
+                    <i class="bi bi-shield-lock-fill display-4 text-danger"></i>
 
-                <div class="card-body">
+                    <h4 class="mt-3">Seguridad</h4>
 
-                    <h5>Ventas</h5>
+                    <p class="text-muted mb-3">
+                        Usuarios y autenticación
+                    </p>
 
-                    <h1>$0</h1>
+                    <button class="btn btn-outline-secondary" disabled>
+                        Próximamente
+                    </button>
 
                 </div>
-
             </div>
-
         </div>
 
     </div>

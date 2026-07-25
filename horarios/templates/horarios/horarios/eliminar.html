@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar horario{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white">
+            <strong>{{ titulo }}</strong>
+        </div>
+
+        <div class="card-body">
+            <p>{{ descripcion }}</p>
+
+            <div class="alert alert-light border">
+                <strong>{{ horario.get_dia_semana_display }}</strong><br>
+                {{ horario.hora_inicio|time:"H:i" }}
+                a
+                {{ horario.hora_fin|time:"H:i" }}<br>
+                Barbero: {{ horario.barbero }}<br>
+                Silla: {{ horario.silla }}
+            </div>
+
+            <p class="text-danger mb-0">
+                Esta acción no se puede deshacer.
+            </p>
+        </div>
+
+        <div class="card-footer">
+            <form method="post" class="d-flex justify-content-end gap-2">
+                {% csrf_token %}
+
+                <a
+                    href="{% url 'horarios:listar_horarios' %}"
+                    class="btn btn-outline-secondary"
+                >
+                    Cancelar
+                </a>
+
+                <button type="submit" class="btn btn-danger">
+                    Eliminar horario
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

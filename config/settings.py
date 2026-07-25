@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'clientes',
     'servicios',
     'horarios',
+    'citas',
 ]
 
 MIDDLEWARE = [

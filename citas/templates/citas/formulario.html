@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }} | BarberPro{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-calendar-plus"></i>
+                    {{ titulo }}
+                </h4>
+            </div>
+
+            <div class="card-body">
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="row">
+                        {% for field in form %}
+                            <div class="col-md-6 mb-3">
+                                <label
+                                    for="{{ field.id_for_label }}"
+                                    class="form-label"
+                                >
+                                    {{ field.label }}
+                                </label>
+
+                                {{ field }}
+
+                                {% if field.help_text %}
+                                    <div class="form-text">
+                                        {{ field.help_text }}
+                                    </div>
+                                {% endif %}
+
+                                {% for error in field.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ error }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a
+                            href="{% url 'citas:listar_citas' %}"
+                            class="btn btn-secondary"
+                        >
+                            Cancelar
+                        </a>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i>
+                            {{ texto_boton }}
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const barbero = document.getElementById("id_barbero");
+    const servicio = document.getElementById("id_servicio");
+    const fecha = document.getElementById("id_fecha");
+    const hora = document.getElementById("id_hora");
+
+    if (!barbero || !servicio || !fecha || !hora) {
+        return;
+    }
+
+    const citaId = "{{ form.instance.pk|default:'' }}";
+    const horaActual = "{{ form.instance.hora|time:'H:i' }}";
+
+    async function cargarHorasDisponibles() {
+        const barberoId = barbero.value;
+        const servicioId = servicio.value;
+        const fechaSeleccionada = fecha.value;
+
+        if (!barberoId || !servicioId || !fechaSeleccionada) {
+            hora.innerHTML =
+                '<option value="">Seleccione barbero, servicio y fecha</option>';
+            return;
+        }
+
+        hora.innerHTML =
+            '<option value="">Cargando horarios...</option>';
+
+        const parametros = new URLSearchParams({
+            barbero: barberoId,
+            servicio: servicioId,
+            fecha: fechaSeleccionada
+        });
+
+        if (citaId) {
+            parametros.append("cita", citaId);
+        }
+
+        try {
+            const respuesta = await fetch(
+                "{% url 'citas:consultar_disponibilidad' %}?" +
+                parametros.toString()
+            );
+
+            const datos = await respuesta.json();
+
+            if (!respuesta.ok) {
+                throw new Error(
+                    datos.error || "No se pudo consultar la disponibilidad."
+                );
+            }
+
+            hora.innerHTML =
+                '<option value="">Seleccione una hora</option>';
+
+            if (!datos.horas || datos.horas.length === 0) {
+                hora.innerHTML =
+                    '<option value="">No hay horarios disponibles</option>';
+                return;
+            }
+
+            datos.horas.forEach(function (horaDisponible) {
+                const opcion = document.createElement("option");
+
+                opcion.value = horaDisponible;
+                opcion.textContent = horaDisponible;
+
+                if (horaDisponible === horaActual) {
+                    opcion.selected = true;
+                }
+
+                hora.appendChild(opcion);
+            });
+
+        } catch (error) {
+            hora.innerHTML =
+                '<option value="">Error al cargar horarios</option>';
+
+            console.error(error);
+        }
+    }
+
+    barbero.addEventListener("change", cargarHorasDisponibles);
+    servicio.addEventListener("change", cargarHorasDisponibles);
+    fecha.addEventListener("change", cargarHorasDisponibles);
+
+    if (barbero.value && servicio.value && fecha.value) {
+        cargarHorasDisponibles();
+    }
+});
+</script>
+{% endblock %}

@@ -56,6 +56,12 @@
 <i class="bi bi-people me-1"></i>Clientes
 </a>
 
+<a href="{% url 'citas:listar_citas' %}"
+   class="list-group-item list-group-item-action
+   {% if request.resolver_match.namespace == 'citas' %}active{% endif %}">
+    <i class="bi bi-calendar-check me-1"></i>Citas
+</a>
+
 <a href="{% url 'barberos:lista_barberos' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'barberos' %}active{% endif %}">
 <i class="bi bi-person-badge me-1"></i>Barberos
 </a>
@@ -79,6 +85,8 @@
 
 </div>
 </div>
+
+
 
 <a href="{% url 'admin:index' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'admin' %}active{% endif %}">
 <i class="bi bi-shield-lock me-1"></i>Administración

@@ -61,6 +61,11 @@
    {% if request.resolver_match.namespace == 'citas' %}active{% endif %}">
     <i class="bi bi-calendar-check me-1"></i>Citas
 </a>
+<a href="{% url 'citas:agenda_citas' %}"
+   class="list-group-item list-group-item-action
+   {% if request.resolver_match.namespace == 'citas' %}active{% endif %}">
+    <i class="bi bi-calendar-check me-1"></i>Agenda
+</a>
 
 <a href="{% url 'barberos:lista_barberos' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'barberos' %}active{% endif %}">
 <i class="bi bi-person-badge me-1"></i>Barberos

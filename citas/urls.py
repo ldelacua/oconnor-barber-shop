@@ -7,6 +7,11 @@ app_name = "citas"
 
 urlpatterns = [
     path(
+        "agenda/",
+        views.agenda_citas,
+        name="agenda_citas",
+    ),
+    path(
         "",
         views.listar_citas,
         name="listar_citas",

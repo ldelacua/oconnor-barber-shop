@@ -2,10 +2,77 @@
 
 {% block title %}{{ titulo }} | BarberPro{% endblock %}
 
+{% block extra_css %}
+<style>
+    #id_servicios {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    #id_servicios > div,
+    #id_servicios > li {
+        margin-bottom: 10px;
+    }
+
+    #id_servicios label {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background-color: #fff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    #id_servicios label:hover {
+        border-color: #0d6efd;
+        background-color: #f4f8ff;
+    }
+
+    #id_servicios input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        flex-shrink: 0;
+    }
+
+    #id_servicios label:has(
+        input[type="checkbox"]:checked
+    ) {
+        border-color: #0d6efd;
+        background-color: #eef5ff;
+        box-shadow: 0 0 0 1px #0d6efd;
+    }
+
+    .resumen-cita {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        padding: 16px;
+    }
+
+    .resumen-valor {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .servicios-contenedor {
+        max-height: 340px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+</style>
+{% endblock %}
+
+
 {% block content %}
 
 <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
 
         <div class="card shadow-sm">
             <div class="card-header bg-dark text-white">
@@ -17,7 +84,7 @@
 
             <div class="card-body">
 
-                <form method="post">
+                <form method="post" novalidate>
                     {% csrf_token %}
 
                     {% if form.non_field_errors %}
@@ -27,45 +94,184 @@
                     {% endif %}
 
                     <div class="row">
-                        {% for field in form %}
-                            <div class="col-md-6 mb-3">
-                                <label
-                                    for="{{ field.id_for_label }}"
-                                    class="form-label"
-                                >
-                                    {{ field.label }}
-                                </label>
 
-                                {{ field }}
+                        <div class="col-md-6 mb-3">
+                            <label
+                                for="{{ form.cliente.id_for_label }}"
+                                class="form-label"
+                            >
+                                {{ form.cliente.label }}
+                            </label>
 
-                                {% if field.help_text %}
-                                    <div class="form-text">
-                                        {{ field.help_text }}
-                                    </div>
-                                {% endif %}
+                            {{ form.cliente }}
 
-                                {% for error in field.errors %}
-                                    <div class="text-danger small mt-1">
-                                        {{ error }}
-                                    </div>
-                                {% endfor %}
+                            {% for error in form.cliente.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label
+                                for="{{ form.barbero.id_for_label }}"
+                                class="form-label"
+                            >
+                                {{ form.barbero.label }}
+                            </label>
+
+                            {{ form.barbero }}
+
+                            {% for error in form.barbero.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-12 mb-3">
+                            <label class="form-label">
+                                {{ form.servicios.label }}
+                            </label>
+
+                            <div class="servicios-contenedor">
+                                {{ form.servicios }}
                             </div>
-                        {% endfor %}
+
+                            {% if form.servicios.help_text %}
+                                <div class="form-text">
+                                    {{ form.servicios.help_text }}
+                                </div>
+                            {% endif %}
+
+                            {% for error in form.servicios.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-12 mb-4">
+                            <div class="resumen-cita">
+                                <div class="row text-center">
+
+                                    <div class="col-md-6">
+                                        <div class="text-muted small">
+                                            Duración total
+                                        </div>
+
+                                        <div
+                                            id="duracion-total"
+                                            class="resumen-valor"
+                                        >
+                                            0 minutos
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="text-muted small">
+                                            Precio total
+                                        </div>
+
+                                        <div
+                                            id="precio-total"
+                                            class="resumen-valor"
+                                        >
+                                            $0.00
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label
+                                for="{{ form.fecha.id_for_label }}"
+                                class="form-label"
+                            >
+                                {{ form.fecha.label }}
+                            </label>
+
+                            {{ form.fecha }}
+
+                            {% for error in form.fecha.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label
+                                for="{{ form.hora.id_for_label }}"
+                                class="form-label"
+                            >
+                                {{ form.hora.label }}
+                            </label>
+
+                            {{ form.hora }}
+
+                            {% for error in form.hora.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label
+                                for="{{ form.estado.id_for_label }}"
+                                class="form-label"
+                            >
+                                {{ form.estado.label }}
+                            </label>
+
+                            {{ form.estado }}
+
+                            {% for error in form.estado.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="col-12 mb-3">
+                            <label
+                                for="{{ form.observaciones.id_for_label }}"
+                                class="form-label"
+                            >
+                                {{ form.observaciones.label }}
+                            </label>
+
+                            {{ form.observaciones }}
+
+                            {% for error in form.observaciones.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+                        </div>
+
                     </div>
 
                     <div class="d-flex justify-content-end gap-2">
                         <a
-                            href="{% url 'citas:listar_citas' %}"
+                            href="{% url 'citas:agenda_citas' %}"
                             class="btn btn-secondary"
                         >
                             Cancelar
                         </a>
 
-                        <button type="submit" class="btn btn-primary">
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
                             <i class="bi bi-save"></i>
                             {{ texto_boton }}
                         </button>
                     </div>
+
                 </form>
 
             </div>
@@ -76,39 +282,138 @@
 
 {% endblock %}
 
+
 {% block extra_js %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const barbero = document.getElementById("id_barbero");
-    const servicio = document.getElementById("id_servicio");
-    const fecha = document.getElementById("id_fecha");
-    const hora = document.getElementById("id_hora");
+    const barbero =
+        document.getElementById("id_barbero");
 
-    if (!barbero || !servicio || !fecha || !hora) {
+    const fecha =
+        document.getElementById("id_fecha");
+
+    const hora =
+        document.getElementById("id_hora");
+
+    const servicios = Array.from(
+        document.querySelectorAll(
+            'input[name="servicios"]'
+        )
+    );
+
+    const duracionElemento =
+        document.getElementById("duracion-total");
+
+    const precioElemento =
+        document.getElementById("precio-total");
+
+    if (
+        !barbero ||
+        !fecha ||
+        !hora ||
+        servicios.length === 0
+    ) {
         return;
     }
 
-    const citaId = "{{ form.instance.pk|default:'' }}";
-    const horaActual = "{{ form.instance.hora|time:'H:i' }}";
+    const citaId =
+        "{{ form.instance.pk|default:''|escapejs }}";
+
+    const horaActual =
+        "{{ form.instance.hora|time:'H:i'|default:''|escapejs }}";
+
+    const horaInicial =
+        "{{ form.initial.hora|default:''|escapejs }}";
+
+    const catalogoServicios = {
+        {% for servicio in form.fields.servicios.queryset %}
+            "{{ servicio.pk }}": {
+                duracion: {{ servicio.duracion }},
+                precio: "{{ servicio.precio }}"
+            }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    function obtenerServiciosSeleccionados() {
+        return servicios
+            .filter(function (checkbox) {
+                return checkbox.checked;
+            })
+            .map(function (checkbox) {
+                return checkbox.value;
+            });
+    }
+
+    function actualizarResumen() {
+        const seleccionados =
+            obtenerServiciosSeleccionados();
+
+        let duracionTotal = 0;
+        let precioTotal = 0;
+
+        seleccionados.forEach(function (servicioId) {
+            const servicio =
+                catalogoServicios[servicioId];
+
+            if (!servicio) {
+                return;
+            }
+
+            duracionTotal += Number(
+                servicio.duracion
+            );
+
+            precioTotal += Number(
+                servicio.precio
+            );
+        });
+
+        duracionElemento.textContent =
+            duracionTotal === 1
+                ? "1 minuto"
+                : duracionTotal + " minutos";
+
+        precioElemento.textContent =
+            "$" + precioTotal.toFixed(2);
+    }
 
     async function cargarHorasDisponibles() {
         const barberoId = barbero.value;
-        const servicioId = servicio.value;
         const fechaSeleccionada = fecha.value;
 
-        if (!barberoId || !servicioId || !fechaSeleccionada) {
+        const serviciosIds =
+            obtenerServiciosSeleccionados();
+
+        actualizarResumen();
+
+        if (
+            !barberoId ||
+            !fechaSeleccionada ||
+            serviciosIds.length === 0
+        ) {
             hora.innerHTML =
-                '<option value="">Seleccione barbero, servicio y fecha</option>';
+                '<option value="">' +
+                'Seleccione barbero, servicios y fecha' +
+                '</option>';
+
             return;
         }
 
         hora.innerHTML =
-            '<option value="">Cargando horarios...</option>';
+            '<option value="">' +
+            'Cargando horarios...' +
+            '</option>';
 
         const parametros = new URLSearchParams({
             barbero: barberoId,
-            servicio: servicioId,
             fecha: fechaSeleccionada
+        });
+
+        serviciosIds.forEach(function (servicioId) {
+            parametros.append(
+                "servicios",
+                servicioId
+            );
         });
 
         if (citaId) {
@@ -116,54 +421,135 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         try {
-            const respuesta = await fetch(
+            const urlDisponibilidad =
                 "{% url 'citas:consultar_disponibilidad' %}?" +
-                parametros.toString()
+                parametros.toString();
+
+            console.log(
+                "Consultando disponibilidad:",
+                urlDisponibilidad
             );
 
-            const datos = await respuesta.json();
+            const respuesta = await fetch(
+                urlDisponibilidad,
+                {
+                    method: "GET",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Accept": "application/json",
+                    },
+                }
+            );
+
+            const textoRespuesta =
+                await respuesta.text();
+
+            let datos;
+
+            try {
+                datos = JSON.parse(textoRespuesta);
+            } catch (errorJson) {
+                console.error(
+                    "Respuesta recibida:",
+                    textoRespuesta
+                );
+
+                throw new Error(
+                    "El servidor no devolvió JSON válido. " +
+                    "Revisa la terminal de Django."
+                );
+            }
 
             if (!respuesta.ok) {
                 throw new Error(
-                    datos.error || "No se pudo consultar la disponibilidad."
+                    datos.error ||
+                    "No se pudo consultar la disponibilidad."
                 );
             }
 
             hora.innerHTML =
-                '<option value="">Seleccione una hora</option>';
+                '<option value="">' +
+                'Seleccione una hora' +
+                '</option>';
 
-            if (!datos.horas || datos.horas.length === 0) {
+            if (
+                !datos.horas ||
+                datos.horas.length === 0
+            ) {
                 hora.innerHTML =
-                    '<option value="">No hay horarios disponibles</option>';
+                    '<option value="">' +
+                    'No hay horarios disponibles' +
+                    '</option>';
+
                 return;
             }
 
-            datos.horas.forEach(function (horaDisponible) {
-                const opcion = document.createElement("option");
+            datos.horas.forEach(
+                function (horaDisponible) {
+                    const opcion =
+                        document.createElement(
+                            "option"
+                        );
 
-                opcion.value = horaDisponible;
-                opcion.textContent = horaDisponible;
+                    opcion.value = horaDisponible;
+                    opcion.textContent =
+                        horaDisponible;
 
-                if (horaDisponible === horaActual) {
-                    opcion.selected = true;
+                    if (
+                        horaDisponible === horaActual ||
+                        horaDisponible === horaInicial
+                    ) {
+                        opcion.selected = true;
+                    }
+
+                    hora.appendChild(opcion);
                 }
-
-                hora.appendChild(opcion);
-            });
+            );
 
         } catch (error) {
-            hora.innerHTML =
-                '<option value="">Error al cargar horarios</option>';
+            console.error(
+                "Error consultando disponibilidad:",
+                error
+            );
 
-            console.error(error);
+            hora.innerHTML = "";
+
+            const opcionError =
+                document.createElement("option");
+
+            opcionError.value = "";
+            opcionError.textContent =
+                error.message ||
+                "Error al cargar horarios";
+
+            hora.appendChild(opcionError);
         }
     }
 
-    barbero.addEventListener("change", cargarHorasDisponibles);
-    servicio.addEventListener("change", cargarHorasDisponibles);
-    fecha.addEventListener("change", cargarHorasDisponibles);
+    servicios.forEach(function (checkbox) {
+        checkbox.addEventListener(
+            "change",
+            cargarHorasDisponibles
+        );
+    });
 
-    if (barbero.value && servicio.value && fecha.value) {
+    barbero.addEventListener(
+        "change",
+        cargarHorasDisponibles
+    );
+
+    fecha.addEventListener(
+        "change",
+        cargarHorasDisponibles
+    );
+
+    actualizarResumen();
+
+    if (
+        barbero.value &&
+        fecha.value &&
+        obtenerServiciosSeleccionados().length > 0
+    ) {
         cargarHorasDisponibles();
     }
 });

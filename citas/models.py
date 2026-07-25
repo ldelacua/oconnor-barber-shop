@@ -26,10 +26,19 @@ class Cita(models.Model):
         related_name="citas",
     )
 
+    # Campo antiguo. Se mantiene temporalmente para conservar las citas existentes.
     servicio = models.ForeignKey(
         Servicio,
         on_delete=models.PROTECT,
         related_name="citas",
+    )
+
+    # Nuevo campo para permitir varios servicios por cita.
+    servicios = models.ManyToManyField(
+        Servicio,
+        related_name="citas_multiples",
+        verbose_name="Servicios",
+        blank=True,
     )
 
     fecha = models.DateField()
@@ -72,11 +81,39 @@ class Cita(models.Model):
             f"{self.fecha} {self.hora}"
         )
 
+    @property
+    def duracion_total(self):
+        if self.pk and self.servicios.exists():
+            return sum(
+                servicio.duracion
+                for servicio in self.servicios.all()
+            )
+
+        if self.servicio_id:
+            return self.servicio.duracion
+
+        return 0
+
+    @property
+    def precio_total(self):
+        if self.pk and self.servicios.exists():
+            return sum(
+                servicio.precio
+                for servicio in self.servicios.all()
+            )
+
+        if self.servicio_id:
+            return self.servicio.precio
+
+        return 0
+
     def clean(self):
         errores = {}
 
         if self.fecha and self.fecha < timezone.localdate():
-            errores["fecha"] = "No puedes crear una cita en una fecha pasada."
+            errores["fecha"] = (
+                "No puedes crear una cita en una fecha pasada."
+            )
 
         if self.barbero_id and self.fecha and self.hora:
             citas_existentes = Cita.objects.filter(
@@ -92,7 +129,8 @@ class Cita(models.Model):
 
             if citas_existentes.exists():
                 errores["hora"] = (
-                    "El barbero ya tiene una cita programada en esa fecha y hora."
+                    "El barbero ya tiene una cita programada "
+                    "en esa fecha y hora."
                 )
 
         if errores:

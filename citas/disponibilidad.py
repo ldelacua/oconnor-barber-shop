@@ -8,7 +8,7 @@ from .models import Cita
 
 
 INTERVALO_MINUTOS = 15
-
+MARGEN_ENTRE_CITAS = 0
 
 def combinar_fecha_hora(fecha, hora):
     return datetime.combine(fecha, hora)
@@ -126,7 +126,7 @@ def obtener_horas_disponibles(
             continue
 
         fin_cita = inicio_cita + timedelta(
-            minutes=duracion_cita
+            minutes=duracion_cita + MARGEN_ENTRE_CITAS
         )
 
         bloques_ocupados.append(
@@ -152,9 +152,8 @@ def obtener_horas_disponibles(
         hora_candidata = inicio_horario
 
         while hora_candidata < fin_horario:
-            fin_servicios = (
-                hora_candidata
-                + timedelta(minutes=duracion_total)
+            fin_servicios = hora_candidata + timedelta(
+                minutes=duracion_total + MARGEN_ENTRE_CITAS
             )
 
             if fin_servicios > fin_horario:

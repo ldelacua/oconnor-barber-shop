@@ -1,0 +1,13 @@
+import uuid
+from django.db import migrations, models
+from django.utils import timezone
+
+class Migration(migrations.Migration):
+    initial = True
+    dependencies = [("clientes", "__first__"), ("servicios", "__first__")]
+    operations = [
+migrations.CreateModel(name='DocumentoVenta', fields=[('id_documento', models.BigAutoField(primary_key=True)),('tipo_documento', models.CharField(max_length=2, choices=[("FA", "Venta"), ("RE", "Reverso")])),('fecha', models.DateField(default=timezone.localdate)),('cliente', models.ForeignKey("clientes.Cliente", on_delete=models.PROTECT, related_name="documentos_venta")),('tasa_bcv', models.DecimalField(max_digits=18, decimal_places=2)),('impuesto', models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Impuesto (%)")),('documento_original', models.OneToOneField(
+        "ventas.documentoventa", null=True, blank=True, on_delete=models.PROTECT, related_name="reverso"
+    )),('motivo_reverso', models.TextField(blank=True)),('subtotal_usd', models.DecimalField(max_digits=18, decimal_places=2)),('subtotal_bs', models.DecimalField(max_digits=18, decimal_places=2)),('total_impuesto_bs', models.DecimalField(max_digits=18, decimal_places=2)),('total_bs', models.DecimalField(max_digits=18, decimal_places=2)),('clave_operacion', models.UUIDField(default=uuid.uuid4, unique=True, editable=False)),('creado_en', models.DateTimeField(auto_now_add=True)),('registrado_por', models.CharField(max_length=150, editable=False)),('sellado', models.BooleanField(default=False, editable=False))], options={'ordering': ['-fecha', '-id_documento'], 'verbose_name': 'Documento de venta', 'verbose_name_plural': 'Documentos de venta'}),
+migrations.CreateModel(name='DetalleVenta', fields=[('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),('documento', models.ForeignKey("ventas.documentoventa", on_delete=models.PROTECT, related_name="detalles", db_column="id_documento")),('servicio', models.ForeignKey("servicios.Servicio", on_delete=models.PROTECT, related_name="detalles_venta", db_column="id_servicio")),('codigo_servicio', models.CharField(max_length=10)),('descripcion_servicio', models.CharField(max_length=100)),('cantidad_servicio', models.PositiveIntegerField()),('precio_unitario_usd', models.DecimalField(max_digits=18, decimal_places=2)),('monto_servicio', models.DecimalField(max_digits=18, decimal_places=2, verbose_name="Subtotal USD")),('monto_servicio_bs', models.DecimalField(max_digits=18, decimal_places=2)),('monto_impuesto', models.DecimalField(max_digits=18, decimal_places=2, verbose_name="Impuesto Bs."))], options={'ordering': ['pk']})
+]

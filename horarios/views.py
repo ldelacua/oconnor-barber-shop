@@ -9,6 +9,7 @@ from barberos.models import Barbero
 
 from .forms import HorarioForm, MatrizHorarioForm, SillaForm
 from .models import Horario, Silla
+from .matriz_visual import construir_matrices
 from .services.matriz_horarios import crear_horarios_desde_matriz
 
 
@@ -196,7 +197,18 @@ def listar_horarios(request):
     elif estado == "inactivos":
         horarios = horarios.filter(activo=False)
 
+    horarios = list(horarios.order_by(
+        "barbero__nombre", "barbero__apellido", "barbero_id",
+        "dia_semana", "hora_inicio", "pk",
+    ))
+    dias_matriz = [
+        (numero, nombre) for numero, nombre in Horario.DIAS_SEMANA
+        if not dia or str(numero) == str(dia)
+    ]
+
     contexto = {
+        "matrices": construir_matrices(horarios, dias_matriz),
+        "dias_matriz": dias_matriz,
         "horarios": horarios,
         "barberos": Barbero.objects.all().order_by(
             "nombre",

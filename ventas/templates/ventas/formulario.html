@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% load l10n %}
+{% block title %}Nueva venta | BarberPro{% endblock %}
+{% block content %}
+<h2 class="mb-3">Nueva venta FA</h2>
+<p class="text-muted">Servicios en USD. Conversión a bolívares con la tasa BCV de la fecha del documento. USD × tasa BCV = Bs. Impuesto sobre el subtotal en Bs.: {{ porcentaje|monto_venta }}%.</p>
+{% if error_config %}<div class="alert alert-danger">{{ error_config }}</div>{% endif %}
+<form method="post" id="venta-form">
+    {% csrf_token %}{{ form.clave }}
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+    {{ form.clave.errors }}
+    <div class="card card-body mb-4"><div class="row g-3">
+        <div class="col-md-4"><label for="{{ form.fecha.id_for_label }}" class="form-label">Fecha</label>{{ form.fecha }}{{ form.fecha.errors }}<div class="form-text" id="tasa-venta" aria-live="polite"></div></div>
+        <div class="col-md-8"><label for="{{ form.cliente.id_for_label }}" class="form-label">Cliente</label>{{ form.cliente }}{{ form.cliente.errors }}</div>
+    </div></div>
+    <div class="card card-body mb-4">
+        {{ lineas.management_form }}{{ lineas.non_form_errors }}
+        <div class="table-responsive"><table class="table align-middle">
+            <thead><tr><th>Servicio</th><th>Prestador de servicio</th><th style="width: 130px;">Cantidad</th><th class="text-end">Precio USD</th><th class="text-end">Subtotal USD</th><th>Quitar</th></tr></thead>
+            <tbody id="lineas-venta">{% for linea in lineas %}<tr class="linea-venta">
+                <td>{{ linea.non_field_errors }}{{ linea.servicio }}{{ linea.servicio.errors }}</td>
+                <td>{{ linea.barbero }}{{ linea.barbero.errors }}</td>
+                <td>{{ linea.cantidad_servicio }}{{ linea.cantidad_servicio.errors }}</td>
+                <td class="precio-linea text-end">—</td><td class="subtotal-linea text-end">—</td>
+                <td>{{ linea.DELETE }}<label class="small" for="{{ linea.DELETE.id_for_label }}">Quitar</label></td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        <button type="button" class="btn btn-outline-primary align-self-start" id="agregar-linea">Añadir servicio</button>
+    </div>
+    <div class="alert alert-info" id="resumen-venta" aria-live="polite">Selecciona los servicios para calcular una estimación.</div>
+    <p class="small text-muted">Los importes definitivos se calculan en el servidor al guardar, redondeando cada línea a dos decimales.</p>
+    <section class="card card-body mb-4">
+        <h3 class="h5">Pagos</h3>
+        <p class="small text-muted">Introduce cada monto en la moneda de su forma de pago. Deben cubrir el total con impuesto. En pagos mixtos, completa el saldo restante en Bs.</p>
+        {{ pagos.management_form }}
+        {% if pagos.non_form_errors %}<div class="alert alert-danger">{{ pagos.non_form_errors }}</div>{% endif %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle tabla-pagos">
+                <thead><tr><th>Forma de pago</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th>Monto</th><th>Quitar</th></tr></thead>
+                <tbody id="pagos-venta">
+                    {% for pago in pagos %}<tr class="pago-venta">
+                        <td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{{ pago.tipo_pago.errors }}</td>
+                        <td class="moneda-pago">—</td>
+                        <td>{{ pago.fecha }}{{ pago.fecha.errors }}</td>
+                        <td>{{ pago.referencia }}{{ pago.referencia.errors }}</td>
+                        <td>{{ pago.observacion }}{{ pago.observacion.errors }}</td>
+                        <td>{{ pago.monto }}{{ pago.monto.errors }}</td>
+                        <td>{{ pago.DELETE }}<label for="{{ pago.DELETE.id_for_label }}" class="small">Quitar</label></td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm align-self-start" id="agregar-pago">Añadir pago</button>
+        <div class="alert alert-info mt-3 mb-0" id="saldo-pagos" aria-live="polite">Registra los pagos para completar la venta.</div>
+    </section>
+    <div class="alert alert-warning">Después de guardar no podrás editar ni eliminar el documento. Para corregirlo tendrás que emitir un RE.</div>
+    <div class="d-flex justify-content-end gap-2"><a href="{% url 'ventas:lista' %}" class="btn btn-secondary">Cancelar</a><button type="submit" class="btn btn-primary" id="guardar-venta" data-config-valida="{{ error_config|yesno:'false,true' }}" disabled>Guardar venta</button></div>
+</form>
+<template id="linea-vacia"><tr class="linea-venta">
+    <td>{{ lineas.empty_form.servicio }}</td><td>{{ lineas.empty_form.barbero }}</td><td>{{ lineas.empty_form.cantidad_servicio }}</td>
+    <td class="precio-linea text-end">—</td><td class="subtotal-linea text-end">—</td>
+    <td>{{ lineas.empty_form.DELETE }}<label class="small" for="{{ lineas.empty_form.DELETE.id_for_label }}">Quitar</label></td>
+</tr></template>
+<template id="pago-vacio"><tr class="pago-venta">
+    <td>{{ pagos.empty_form.tipo_pago }}</td><td class="moneda-pago">—</td>
+    <td>{{ pagos.empty_form.fecha }}</td><td>{{ pagos.empty_form.referencia }}</td>
+    <td>{{ pagos.empty_form.observacion }}</td><td>{{ pagos.empty_form.monto }}</td>
+    <td>{{ pagos.empty_form.DELETE }}<label for="{{ pagos.empty_form.DELETE.id_for_label }}" class="small">Quitar</label></td>
+</tr></template>
+{{ catalogo_pagos|json_script:"catalogo-pagos" }}
+{{ precios|json_script:"precios-venta" }}
+{% endblock %}
+{% block extra_css %}
+<style>.tabla-pagos { min-width: 1050px; } .tabla-pagos .form-control, .tabla-pagos .form-select { font-size: 12px; } .tabla-pagos .tipo-pago { min-width: 175px; } .tabla-pagos .monto-pago { min-width: 110px; }</style>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const precios = JSON.parse(document.getElementById("precios-venta").textContent);
+    const catalogo = JSON.parse(document.getElementById("catalogo-pagos").textContent);
+    const cuerpo = document.getElementById("lineas-venta");
+    const cuerpoPagos = document.getElementById("pagos-venta");
+    const fecha = document.getElementById("id_fecha");
+    const avisoTasa = document.getElementById("tasa-venta");
+    const resumen = document.getElementById("resumen-venta");
+    const saldo = document.getElementById("saldo-pagos");
+    const guardar = document.getElementById("guardar-venta");
+    let tasa = null;
+    let version = 0;
+    const centavos = valor => {
+        const texto = String(valor || "0").trim();
+        if (!/^\d+(\.\d{1,2})?$/.test(texto)) return null;
+        const partes = texto.split(".");
+        return BigInt(partes[0]) * 100n + BigInt((partes[1] || "").padEnd(2, "0"));
+    };
+    const porcentaje = centavos("{{ porcentaje|default_if_none:'0'|unlocalize }}") || 0n;
+    const dividir = (a, b) => (a + b / 2n) / b;
+    const monto = valor => {
+        const negativo = valor < 0n;
+        const absoluto = negativo ? -valor : valor;
+        return (negativo ? "-" : "") + (absoluto / 100n).toLocaleString("en-US") + "." + String(absoluto % 100n).padStart(2, "0");
+    };
+
+    function actualizar() {
+        let usd = 0n, bs = 0n, impuesto = 0n;
+        let serviciosValidos = true, serviciosActivos = 0;
+        cuerpo.querySelectorAll(".linea-venta").forEach(fila => {
+            const servicio = fila.querySelector(".servicio-venta");
+            const textoCantidad = fila.querySelector(".cantidad-venta").value;
+            const quitar = fila.querySelector('input[name$="-DELETE"]').checked;
+            const precio = centavos(precios[servicio.value] || "0") || 0n;
+            const cantidad = /^\d+$/.test(textoCantidad) ? BigInt(textoCantidad) : 0n;
+            const subtotal = precio * cantidad;
+            fila.style.opacity = quitar ? "0.4" : "1";
+            fila.querySelector(".precio-linea").textContent = monto(precio);
+            fila.querySelector(".subtotal-linea").textContent = monto(subtotal);
+            // Ignora la fila extra intacta del formset.
+            if (!quitar && (servicio.value || cantidad !== 1n)) {
+                serviciosActivos++;
+                if (!servicio.value || cantidad <= 0n || cantidad > 10000n) serviciosValidos = false;
+                usd += subtotal;
+                const bolivares = tasa ? dividir(subtotal * tasa, 100n) : 0n;
+                bs += bolivares;
+                impuesto += dividir(bolivares * porcentaje, 10000n);
+            }
+        });
+        const totalBs = bs + impuesto;
+        const totalUsd = tasa ? dividir(totalBs * 100n, tasa) : 0n;
+        resumen.textContent = "Subtotal USD: " + monto(usd) + (tasa
+            ? " · Total con impuesto USD: " + monto(totalUsd) + " · Subtotal Bs.: " + monto(bs) + " · Impuesto Bs.: " + monto(impuesto) + " · Total Bs.: " + monto(totalBs)
+            : " · Falta una tasa BCV válida.");
+        let pagosUsd = 0n, pagosBs = 0n, pagosActivos = 0;
+        let hayBs = false, pagosValidos = true;
+        cuerpoPagos.querySelectorAll(".pago-venta").forEach(fila => {
+            const tipo = catalogo[fila.querySelector(".tipo-pago").value];
+            const textoMonto = fila.querySelector(".monto-pago").value;
+            const importe = centavos(textoMonto);
+            const quitar = fila.querySelector('input[name$="-DELETE"]').checked;
+            fila.style.opacity = quitar ? "0.4" : "1";
+            fila.querySelector(".moneda-pago").textContent = tipo ? (tipo.moneda === "BS" ? "Bs." : "USD") : "—";
+            if (!quitar && (tipo || textoMonto)) {
+                pagosActivos++;
+                if (!tipo || importe === null || importe <= 0n) { pagosValidos = false; return; }
+                if (tipo.moneda === "USD") pagosUsd += importe;
+                else { pagosBs += importe; hayBs = true; }
+            }
+        });
+        const diferencia = hayBs && tasa ? totalBs - dividir(pagosUsd * tasa, 100n) - pagosBs : totalUsd - pagosUsd;
+        const moneda = hayBs ? "Bs." : "USD";
+        const listo = !!tasa && serviciosValidos && serviciosActivos > 0 && pagosValidos && pagosActivos > 0 && diferencia === 0n;
+        saldo.className = "alert mt-3 mb-0 " + (listo ? "alert-success" : "alert-info");
+        saldo.textContent = "Pagado: " + monto(pagosUsd) + " USD + " + monto(pagosBs) + " Bs. · " + (!tasa
+            ? "Falta la tasa BCV."
+            : diferencia === 0n && pagosActivos > 0 ? "Total cubierto."
+            : (diferencia < 0n ? "Excedente: " : "Pendiente: ") + monto(diferencia < 0n ? -diferencia : diferencia) + " " + moneda);
+        if (tasa && !hayBs && pagosUsd < totalUsd) {
+            saldo.textContent += " · Si completas en Bs.: " + monto(totalBs - dividir(pagosUsd * tasa, 100n)) + " Bs.";
+        }
+        guardar.disabled = !listo || guardar.dataset.configValida !== "true";
+    }
+
+    async function cargarTasa() {
+        const actual = ++version;
+        tasa = null;
+        actualizar();
+        avisoTasa.textContent = "Consultando tasa BCV…";
+        try {
+            const respuesta = await fetch("{% url 'ventas:cotizacion' %}?" + new URLSearchParams({fecha: fecha.value}), {headers: {"Accept": "application/json"}});
+            const datos = await respuesta.json();
+            if (actual !== version) return;
+            if (!respuesta.ok) throw new Error(datos.error || "No se pudo consultar la tasa.");
+            tasa = centavos(datos.tasa);
+            if (!tasa) throw new Error("La tasa BCV debe ser positiva.");
+            avisoTasa.textContent = "Tasa BCV: " + monto(tasa);
+        } catch (error) {
+            if (actual !== version) return;
+            tasa = null;
+            avisoTasa.textContent = error.message;
+        }
+        actualizar();
+    }
+    for (const contenedor of [cuerpo, cuerpoPagos]) {
+        contenedor.addEventListener("input", actualizar);
+        contenedor.addEventListener("change", actualizar);
+    }
+    fecha.addEventListener("change", cargarTasa);
+    function agregar(prefijo, template, contenedor, maximo) {
+        const total = document.getElementById("id_" + prefijo + "-TOTAL_FORMS");
+        const indice = Number(total.value);
+        if (indice >= maximo) { alert("Máximo " + maximo + " líneas."); return; }
+        contenedor.insertAdjacentHTML("beforeend", document.getElementById(template).innerHTML.replaceAll("__prefix__", indice));
+        total.value = indice + 1;
+        actualizar();
+    }
+    document.getElementById("agregar-linea").addEventListener("click", () => agregar("lineas", "linea-vacia", cuerpo, 50));
+    document.getElementById("agregar-pago").addEventListener("click", () => agregar("pagos", "pago-vacio", cuerpoPagos, 20));
+    cargarTasa();
+});
+</script>
+{% endblock %}

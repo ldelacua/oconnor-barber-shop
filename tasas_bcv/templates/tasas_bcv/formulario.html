@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} | BarberPro{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header"><h2 class="h4 mb-0">{{ titulo }}</h2></div>
+            <div class="card-body">
+                <p class="text-muted">Indica los bolívares equivalentes a 1 USD. Solo se admite una tasa por fecha.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                    {% for campo in form %}
+                        <div class="mb-3">
+                            <label for="{{ campo.id_for_label }}" class="form-label">{{ campo.label }}</label>
+                            {{ campo }}
+                            {% if campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}
+                            {% for error in campo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                        </div>
+                    {% endfor %}
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'tasas_bcv:lista' %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Guardar tasa</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

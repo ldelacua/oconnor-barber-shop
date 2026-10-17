@@ -1,3 +1,4 @@
+from django.db.models.deletion import ProtectedError
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -80,13 +81,43 @@ def editar_servicio(request, pk):
 def eliminar_servicio(request, pk):
     servicio = get_object_or_404(Servicio, pk=pk)
 
-    if request.method == "POST":
-        servicio.delete()
-        messages.success(
+    tiene_citas = (
+        servicio.citas.exists()
+        or servicio.citas_multiples.exists()
+    )
+
+    if tiene_citas:
+        messages.warning(
             request,
-            "El servicio fue eliminado correctamente.",
+            "No puedes eliminar este servicio porque tiene "
+            "citas asociadas. Puedes desactivarlo para "
+            "conservar el historial.",
         )
         return redirect("servicios:lista")
+
+    if request.method == "POST":
+        try:
+            servicio.delete()
+        except ProtectedError:
+            messages.warning(
+                request,
+                "No puedes eliminar este servicio porque "
+                "tiene registros asociados.",
+            )
+        else:
+            messages.success(
+                request,
+                "El servicio fue eliminado correctamente.",
+            )
+
+        return redirect("servicios:lista")
+
+    return render(
+        request,
+        "servicios/eliminar.html",
+        {"servicio": servicio},
+    )        
+    return redirect("servicios:lista")
 
     contexto = {
         "servicio": servicio,

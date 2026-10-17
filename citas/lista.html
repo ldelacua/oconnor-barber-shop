@@ -1,0 +1,10 @@
+<input
+    type="date"
+    id="fecha"
+    name="fecha"
+    class="form-control"
+    value="{{ fecha_seleccionada|date:'Y-m-d' }}"
+    min="{{ hoy|date:'Y-m-d' }}"
+    onchange="this.form.requestSubmit()"
+    required
+>

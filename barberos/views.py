@@ -55,9 +55,9 @@ def crear_barbero(request):
 
     contexto = {
         "formulario": formulario,
-        "titulo": "Nuevo barbero",
-        "descripcion": "Registra la información del barbero.",
-        "texto_boton": "Guardar barbero",
+        "titulo": "Nuevo Prest Servicio",
+        "descripcion": "Registra la información del Prestador de Servicio.",
+        "texto_boton": "Guardar Prest Servicio",
     }
 
     return render(

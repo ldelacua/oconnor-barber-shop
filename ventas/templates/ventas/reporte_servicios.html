@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Servicios por prestador | BarberPro{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 acciones-reporte">
+    <h2 class="h4 mb-0">Servicios por Prestador de Servicio</h2>
+    <div class="d-flex gap-2">
+        <a href="{% url 'liquidaciones:crear' %}?{{ request.GET.urlencode }}" class="btn btn-success btn-sm">Liquidar servicios</a>
+        <a href="{% url 'liquidaciones:lista' %}" class="btn btn-outline-success btn-sm">Consultar cancelaciones</a>
+        <a href="{% url 'ventas:lista' %}" class="btn btn-outline-secondary btn-sm">Volver a Ventas</a>
+        {% if grupos %}<button type="button" onclick="window.print()" class="btn btn-primary btn-sm">Imprimir / Guardar PDF</button>{% endif %}
+    </div>
+</div>
+<form method="get" class="card card-body mb-4 acciones-reporte">
+    {{ filtros.non_field_errors }}
+    <div class="filtros-reporte">
+        {% for campo in filtros %}<div class="campo-reporte"><label for="{{ campo.id_for_label }}" class="form-label">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endfor %}
+        <div class="d-flex gap-1"><button type="submit" class="btn btn-primary btn-sm text-nowrap">Generar</button><a href="{% url 'ventas:reporte_servicios' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a></div>
+    </div>
+</form>
+<section class="reporte-servicios">
+    <header class="mb-4">
+        <h1 class="h4">Reporte de servicios por prestador</h1>
+        <p class="text-muted mb-1">Generado: {{ generado_en|date:"d/m/Y H:i" }}</p>
+        <p class="small mb-1">{% for filtro in seleccion %}<strong>{{ filtro.etiqueta }}:</strong> {{ filtro.valor }}{% if not forloop.last %} · {% endif %}{% empty %}Todos los documentos y fechas.{% endfor %}</p>
+        <p class="small text-muted mb-0">Fecha del documento · Importes antes de impuesto · Los RE restan cantidades e importes; FA + RE muestra el neto.</p>
+    </header>
+    {% for grupo in grupos %}
+        <article class="card shadow-sm mb-4 grupo-reporte">
+            <div class="card-header"><h2 class="h5 mb-0">{{ grupo.nombre }}</h2></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0 tabla-reporte">
+                    <colgroup><col style="width:20%"><col style="width:32%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+                    <thead class="table-light"><tr><th>Fecha del servicio</th><th>Servicio</th><th class="text-end">Cantidad</th><th class="text-end">Monto USD</th><th class="text-end">Monto Bs.</th></tr></thead>
+                    <tbody>
+                        {% for fila in grupo.filas %}<tr>
+                            <td class="text-nowrap">{{ fila.fecha|date:"d/m/Y" }}</td>
+                            <td><a href="{% url 'ventas:ver' fila.documento_id %}" title="Ver documento de origen">{{ fila.servicio }}</a>{% if fila.tipo == 'RE' %} <span class="badge bg-danger">RE</span>{% endif %}</td>
+                            <td class="text-end">{{ fila.cantidad }}</td><td class="text-end text-nowrap">{{ fila.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ fila.bs|monto_venta }}</td>
+                        </tr>{% endfor %}
+                    </tbody>
+                    <tfoot class="table-light"><tr class="fw-bold"><th colspan="2">Subtotal {{ grupo.nombre }}</th><td class="text-end">{{ grupo.cantidad }}</td><td class="text-end text-nowrap">{{ grupo.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ grupo.bs|monto_venta }}</td></tr></tfoot>
+                </table>
+            </div>
+        </article>
+    {% empty %}
+        <div class="alert alert-info">{% if filtros_validos %}No hay servicios registrados con estos filtros.{% else %}Corrige los filtros para generar el reporte.{% endif %}</div>
+    {% endfor %}
+    {% if grupos %}
+        <div class="card border-primary"><div class="table-responsive">
+            <table class="table table-sm mb-0 tabla-reporte">
+                <colgroup><col style="width:20%"><col style="width:32%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+                <thead class="table-dark"><tr><th colspan="2">Total general</th><th class="text-end">Cantidad</th><th class="text-end">Monto USD</th><th class="text-end">Monto Bs.</th></tr></thead>
+                <tbody><tr class="fw-bold"><th colspan="2">Todos los prestadores</th><td class="text-end">{{ total.cantidad }}</td><td class="text-end text-nowrap">{{ total.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ total.bs|monto_venta }}</td></tr></tbody>
+            </table>
+        </div></div>
+    {% endif %}
+</section>
+{% endblock %}
+{% block extra_css %}
+<style>
+    .filtros-reporte { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(180px, 1.5fr) auto; gap: 8px; align-items: end; }
+    .campo-reporte { min-width: 0; }
+    .filtros-reporte .form-label { font-size: 12px; margin-bottom: 4px; }
+    .filtros-reporte .form-control, .filtros-reporte .form-select { font-size: 12px; padding: 4px 6px; min-width: 0; }
+    .filtros-reporte .form-select { padding-right: 24px; }
+    .filtros-reporte .btn { font-size: 11px; padding: 7px; }
+    .tabla-reporte { table-layout: fixed; width: 100%; }
+    .tabla-reporte th, .tabla-reporte td { padding: 10px; overflow-wrap: anywhere; }
+    @media (max-width: 991.98px) { .filtros-reporte { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media print {
+        body * { visibility: hidden; }
+        .reporte-servicios, .reporte-servicios * { visibility: visible; }
+        .reporte-servicios { position: absolute; left: 0; top: 0; width: 100%; font-size: 10pt; }
+        .reporte-servicios .table-responsive { overflow: visible; }
+        .grupo-reporte { box-shadow: none !important; }
+        .tabla-reporte thead { display: table-header-group; }
+        .tabla-reporte tfoot { display: table-row-group; }
+        .tabla-reporte tr { break-inside: avoid; }
+        .reporte-servicios a { text-decoration: none; color: inherit; }
+    }
+</style>
+{% endblock %}

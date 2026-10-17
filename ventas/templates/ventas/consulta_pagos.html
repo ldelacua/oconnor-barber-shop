@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Consulta de pagos | BarberPro{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div><h2>Consulta de pagos</h2><p class="text-muted mb-0">Cobros por moneda y documento de origen.</p></div>
+    <a href="{% url 'ventas:lista' %}" class="btn btn-outline-secondary btn-sm">Volver a Ventas</a>
+</div>
+<form method="get" class="card card-body mb-4 filtros-consulta-pagos">
+    {{ filtros.non_field_errors }}
+    <div class="row g-2 align-items-end">
+        {% for campo in filtros %}<div class="col-sm-6 col-lg-3"><label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endfor %}
+        <div class="col-12 d-flex justify-content-end gap-1"><button type="submit" class="btn btn-primary btn-sm">Filtrar</button><a href="{% url 'ventas:consulta_pagos' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a></div>
+    </div>
+</form>
+<div class="row g-3 mb-3">
+    <div class="col-md-6"><div class="card border-primary h-100"><div class="card-body"><p class="text-muted mb-1">Total USD</p><h3 class="mb-0">{{ totales.usd|monto_venta }}</h3></div></div></div>
+    <div class="col-md-6"><div class="card border-success h-100"><div class="card-body"><p class="text-muted mb-1">Total Bs.</p><h3 class="mb-0">{{ totales.bs|monto_venta }}</h3></div></div></div>
+</div>
+<p class="small text-muted">Totales de todos los resultados filtrados, en su moneda original. Los RE restan; no se convierten ni se mezclan USD y Bs. Las fechas del filtro corresponden a la fecha del pago.</p>
+<div class="card card-body">
+    <p class="small text-muted">{{ pagina.paginator.count }} pagos encontrados.</p>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle tabla-consulta-pagos">
+        <thead class="table-dark"><tr><th>Fecha del pago</th><th>Documento</th><th>Cliente</th><th>Forma de pago</th><th>Moneda</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th><th class="text-center">Factura</th></tr></thead>
+        <tbody>{% for pago in pagina %}<tr>
+            <td class="text-nowrap">{{ pago.fecha|date:"d/m/Y" }}</td>
+            <td class="text-nowrap"><span class="badge {% if pago.documento.tipo_documento == 'RE' %}bg-danger{% else %}bg-primary{% endif %}">{{ pago.documento }}</span></td>
+            <td class="text-nowrap" title="{{ pago.documento.cliente }}">{{ pago.documento.cliente|stringformat:"s"|truncatechars:15 }}</td>
+            <td>{{ pago.nombre_tipo_pago }}</td><td>{{ pago.get_moneda_display }}</td>
+            <td title="{{ pago.referencia }}">{{ pago.referencia|default:"—"|truncatechars:20 }}</td>
+            <td title="{{ pago.observacion }}">{{ pago.observacion|default:"—"|truncatechars:25 }}</td>
+            <td class="text-end text-nowrap {% if pago.documento.tipo_documento == 'RE' %}text-danger{% endif %}">{{ pago.monto|monto_venta }}</td>
+            <td class="text-center"><a href="{% url 'ventas:ver' pago.documento_id %}" class="btn btn-outline-primary btn-sm" title="Ver {{ pago.documento }}" aria-label="Ver factura {{ pago.documento }}"><i class="bi bi-receipt" aria-hidden="true"></i></a></td>
+        </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No hay pagos con estos filtros.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if pagina.has_other_pages %}<nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Páginas de pagos">
+        <div>{% if pagina.has_previous %}<a href="?{{ parametros }}&page={{ pagina.previous_page_number }}" class="btn btn-outline-secondary btn-sm">Anterior</a>{% endif %}</div>
+        <span>{{ pagina.number }} / {{ pagina.paginator.num_pages }}</span>
+        <div>{% if pagina.has_next %}<a href="?{{ parametros }}&page={{ pagina.next_page_number }}" class="btn btn-outline-secondary btn-sm">Siguiente</a>{% endif %}</div>
+    </nav>{% endif %}
+</div>
+{% endblock %}
+{% block extra_css %}
+<style>
+    .filtros-consulta-pagos .form-label { font-size: 12px; margin-bottom: 3px; }
+    .filtros-consulta-pagos .form-control, .filtros-consulta-pagos .form-select { font-size: 12px; }
+    .tabla-consulta-pagos { font-size: 12px; min-width: 1050px; }
+</style>
+{% endblock %}

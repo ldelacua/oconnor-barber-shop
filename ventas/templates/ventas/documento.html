@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}{{ documento }} | BarberPro{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between gap-2 mb-4 acciones-documento">
+    <a href="{% url 'ventas:lista' %}" class="btn btn-outline-secondary">Volver a Ventas</a>
+    <div class="d-flex gap-2">
+        {% if documento.tipo_documento == 'FA' and not documento.reverso %}<a href="{% url 'ventas:reversar' documento.pk %}" class="btn btn-outline-danger">Reversar FA</a>{% endif %}
+        <button type="button" class="btn btn-primary" onclick="window.print()">Imprimir</button>
+    </div>
+</div>
+<article class="card shadow-sm factura-venta">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
+            <div><h2>{{ documento }}</h2><p class="mb-0">{% if documento.tipo_documento == 'FA' %}Venta de servicios{% else %}Reverso de venta{% endif %}</p></div>
+            <div><strong>Fecha:</strong> {{ documento.fecha|date:"d/m/Y" }}<br><strong>Tasa BCV:</strong> {{ documento.tasa_bcv|monto_venta }}</div>
+        </div>
+        <p><strong>Cliente:</strong> {{ documento.cliente }}<br><strong>Teléfono:</strong> {{ documento.cliente.telefono }}<br><strong>Dirección:</strong> {{ documento.cliente.direccion|default:"—" }}</p>
+        {% if documento.documento_original_id %}
+            <div class="alert alert-danger">Reverso completo de <a href="{% url 'ventas:ver' documento.documento_original_id %}">{{ documento.documento_original }}</a>.<br><strong>Motivo:</strong> {{ documento.motivo_reverso }}</div>
+        {% elif documento.reverso %}
+            <div class="alert alert-warning">Esta FA fue reversada mediante <a href="{% url 'ventas:ver' documento.reverso.pk %}">{{ documento.reverso }}</a>. Se conserva para consulta.</div>
+        {% endif %}
+        <div class="table-responsive"><table class="table">
+            <thead><tr><th>Servicio</th><th>Prestador de servicio</th><th class="text-end">Cantidad</th><th class="text-end">Precio USD</th><th class="text-end">Subtotal USD</th><th class="text-end">Subtotal Bs.</th></tr></thead>
+            <tbody>{% for linea in documento.detalles.all %}<tr>
+                <td>{{ linea.descripcion_servicio }}</td>
+                <td>{{ linea.descripcion_barbero|nombre_prestador|default:"Sin dato (venta anterior)" }}</td>
+                <td class="text-end">{{ linea.cantidad_servicio }}</td><td class="text-end">{{ linea.precio_unitario_usd|monto_venta }}</td>
+                <td class="text-end">{{ linea.monto_servicio|monto_venta }}</td><td class="text-end">{{ linea.monto_servicio_bs|monto_venta }}</td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        <div class="d-flex justify-content-end">
+            <table class="table table-sm mb-0" style="width: 100%; max-width: 420px;">
+                <tbody>
+                    <tr>
+                        <th scope="row">Subtotal USD</th>
+                        <td class="text-end text-nowrap">{{ documento.subtotal_usd|monto_venta }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Subtotal Bs.</th>
+                        <td class="text-end text-nowrap">{{ documento.subtotal_bs|monto_venta }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Impuesto ({{ documento.impuesto|porcentaje_venta }}%) Bs.</th>
+                        <td class="text-end text-nowrap">{{ documento.total_impuesto_bs|monto_venta }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Total USD (con impuesto)</th>
+                        <td class="text-end text-nowrap">{{ documento.total_usd|monto_venta }}</td>
+                    </tr>
+                    <tr class="table-light">
+                        <th scope="row" class="fs-5">Total Bs.</th>
+                        <td class="text-end text-nowrap fs-5 fw-bold">{{ documento.total_bs|monto_venta }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <section class="mt-4">
+            <h3 class="h5">Pagos{% if documento.tipo_documento == 'RE' %} reversados{% endif %}</h3>
+            {% if pagos %}
+                <div class="table-responsive"><table class="table table-sm align-middle">
+                    <thead><tr><th>Forma de pago</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th></tr></thead>
+                    <tbody>{% for pago in pagos %}<tr>
+                        <td>{{ pago.nombre_tipo_pago }}</td><td>{{ pago.get_moneda_display }}</td>
+                        <td class="text-nowrap">{{ pago.fecha|date:"d/m/Y" }}</td><td>{{ pago.referencia|default:"—" }}</td>
+                        <td>{{ pago.observacion|default:"—" }}</td><td class="text-end text-nowrap">{{ pago.monto|monto_venta }}</td>
+                    </tr>{% endfor %}</tbody>
+                </table></div>
+                <p class="text-end mb-1"><strong>Pagos USD:</strong> {{ resumen_pagos.usd|monto_venta }} · <strong>Pagos Bs.:</strong> {{ resumen_pagos.bs|monto_venta }}</p>
+                {% if resumen_pagos.ajuste_bs %}<p class="text-muted small text-end mb-0">Ajuste de redondeo de conversión: {{ resumen_pagos.ajuste_bs|monto_venta }} Bs. Los montos recibidos se conservan en su moneda.</p>{% endif %}
+            {% else %}
+                <p class="text-muted">Documento anterior al registro de pagos: no hay formas de pago registradas.</p>
+            {% endif %}
+        </section>
+        <p class="text-muted small mt-4 mb-0">Registrado por {{ documento.registrado_por }} · {{ documento.creado_en|date:"d/m/Y H:i" }}. Documento de consulta interna.</p>
+    </div>
+</article>
+{% endblock %}
+{% block extra_css %}
+<style>@media print { body * { visibility: hidden; } .factura-venta, .factura-venta * { visibility: visible; } .factura-venta { position: absolute; left: 0; top: 0; width: 100%; border: 0; box-shadow: none !important; } .factura-venta .table-responsive { overflow: visible; } }</style>
+{% endblock %}

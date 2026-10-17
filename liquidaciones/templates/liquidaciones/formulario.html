@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load ventas_formato l10n %}
+{% block title %}Liquidar servicios | BarberPro{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center gap-2 mb-4"><h2 class="h4 mb-0">Pago a Prestador de Servicio</h2><a href="{% url 'liquidaciones:lista' %}" class="btn btn-outline-primary btn-sm">Consultar cancelaciones</a></div>
+<form method="get" class="card card-body mb-4">
+    {{ cabecera.non_field_errors }}
+    <div class="row g-3 align-items-end">
+        {% for campo in cabecera %}<div class="col-md-3"><label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endfor %}
+        <div class="col-12 text-end"><button class="btn btn-primary btn-sm" type="submit">Consultar pendientes</button></div>
+    </div>
+</form>
+{% for error in errores %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+{% if consultado %}
+<p><strong>Prestador:</strong> {{ datos.prestador.nombre }} {{ datos.prestador.apellido }} · <strong>Comisión actual:</strong> {{ datos.prestador.porcentaje|porcentaje_venta }}% · <strong>Tasa BCV del pago:</strong> {% if tasa %}{{ tasa.tasa_bcv|monto_venta }}{% else %}No registrada{% endif %}</p>
+<form method="post" id="form-liquidacion">
+    {% csrf_token %}
+    <input type="hidden" name="clave" value="{{ clave }}">
+    <input type="hidden" name="prestador" value="{{ datos.prestador.pk }}">
+    <input type="hidden" name="desde" value="{{ datos.desde|date:'Y-m-d' }}">
+    <input type="hidden" name="hasta" value="{{ datos.hasta|date:'Y-m-d' }}">
+    <input type="hidden" name="fecha_cancelacion" value="{{ datos.fecha_cancelacion|date:'Y-m-d' }}">
+    <div class="card card-body mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h3 class="h5 mb-0">Servicios pendientes</h3><button type="button" id="seleccionar-todos" class="btn btn-outline-primary btn-sm">Marcar / desmarcar todos</button></div>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Elegir</th><th>Fecha</th><th>Factura</th><th>Servicio</th><th class="text-end">Monto USD sin impuesto</th><th class="text-end">Comisión USD</th></tr></thead>
+            <tbody>{% for s in servicios %}<tr>
+                <td><input type="checkbox" class="form-check-input elegir-servicio" name="servicios" value="{{ s.linea.pk }}" data-comision="{{ s.comision|unlocalize }}" aria-label="Liquidar {{ s.linea.descripcion_servicio }} de {{ s.linea.documento }}" {% if s.seleccionada %}checked{% endif %}></td>
+                <td>{{ s.linea.documento.fecha|date:"d/m/Y" }}</td><td><a href="{% url 'ventas:ver' s.linea.documento_id %}">{{ s.linea.documento }}</a></td>
+                <td>{{ s.linea.descripcion_servicio }}</td><td class="text-end">{{ s.base|monto_venta }}</td><td class="text-end">{{ s.comision|monto_venta }}</td>
+            </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No hay servicios pendientes en este período. Las ventas reversadas no se incluyen.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div>
+    {% if descuentos %}<div class="card card-body border-warning mb-4">
+        <h3 class="h5">Descuentos pendientes por reversos</h3>
+        <p class="small text-muted">Se aplican obligatoriamente, aunque la venta sea de otro período. Se usa la comisión pagada originalmente.</p>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Reverso</th><th>Servicio</th><th>Cancelación original</th><th class="text-end">Descuento USD</th></tr></thead>
+        <tbody>{% for s in descuentos %}<tr><td><a href="{% url 'ventas:ver' s.linea.documento_id %}">{{ s.linea.documento }}</a></td><td>{{ s.linea.descripcion_servicio }}</td><td><a href="{% url 'liquidaciones:ver' s.ajuste_de.liquidacion_id %}">{{ s.ajuste_de.liquidacion }}</a></td><td class="text-end text-danger">{{ s.comision|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
+    </div>{% endif %}
+    <div id="resumen-liquidacion" class="alert alert-info" aria-live="polite">Marca los servicios para calcular la comisión.</div>
+    <div class="card card-body mb-4">
+        <h3 class="h5">Formas de pago</h3>
+        <p class="small text-muted">Paga en USD, en Bs. o combina monedas. Para pagos mixtos completa el saldo en Bs. Los montos no incluyen impuesto adicional.</p>
+        {{ pagos.management_form }}{{ pagos.non_form_errors }}
+        <div class="table-responsive"><table class="table table-sm tabla-pagos"><thead><tr><th>Forma</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th>Monto</th><th>Quitar</th></tr></thead><tbody id="pagos-liquidacion">
+        {% for pago in pagos %}<tr class="pago-liquidacion"><td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{{ pago.tipo_pago.errors }}</td><td class="moneda-pago">—</td><td>{{ pago.fecha }}{{ pago.fecha.errors }}</td><td>{{ pago.referencia }}{{ pago.referencia.errors }}</td><td>{{ pago.observacion }}{{ pago.observacion.errors }}</td><td>{{ pago.monto }}{{ pago.monto.errors }}</td><td>{{ pago.DELETE }}</td></tr>{% endfor %}
+        </tbody></table></div>
+        <button type="button" id="agregar-pago" class="btn btn-outline-primary btn-sm align-self-start">Añadir pago</button>
+        <p id="saldo-liquidacion" class="mt-3 mb-0" aria-live="polite"></p>
+    </div>
+    <div class="d-flex justify-content-end"><button type="submit" id="guardar-liquidacion" class="btn btn-primary" data-valido="{% if errores %}false{% else %}true{% endif %}" disabled>Registrar cancelación</button></div>
+</form>
+<template id="pago-vacio-liquidacion"><tr class="pago-liquidacion"><td>{{ pagos.empty_form.tipo_pago }}</td><td class="moneda-pago">—</td><td>{{ pagos.empty_form.fecha }}</td><td>{{ pagos.empty_form.referencia }}</td><td>{{ pagos.empty_form.observacion }}</td><td>{{ pagos.empty_form.monto }}</td><td>{{ pagos.empty_form.DELETE }}</td></tr></template>
+{{ catalogo|json_script:"catalogo-liquidacion" }}
+{{ estado|json_script:"estado-liquidacion" }}
+{% endif %}
+{% endblock %}
+{% block extra_css %}<style>.tabla-pagos { min-width: 1000px; } .tabla-pagos .form-control,.tabla-pagos .form-select { font-size: 12px; }</style>{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded",()=>{
+    const estadoNodo=document.getElementById("estado-liquidacion"); if(!estadoNodo)return;
+    const estado=JSON.parse(estadoNodo.textContent), catalogo=JSON.parse(document.getElementById("catalogo-liquidacion").textContent);
+    const centavos=valor=>{const t=String(valor||"0");if(!/^-?\d+(\.\d{1,2})?$/.test(t))return null;const negativo=t.startsWith("-");const p=t.replace("-","").split(".");const n=BigInt(p[0])*100n+BigInt((p[1]||"").padEnd(2,"0"));return negativo?-n:n;};
+    const redondear=(a,b)=>a<0n?-((-a+b/2n)/b):(a+b/2n)/b;
+    const monto=n=>{const v=n<0n?-n:n;return(n<0n?"-":"")+(v/100n).toLocaleString("en-US")+"."+String(v%100n).padStart(2,"0");};
+    const tasa=centavos(estado.tasa)||0n, descuento=centavos(estado.descuento)||0n;
+    const cajas=Array.from(document.querySelectorAll(".elegir-servicio")), cuerpo=document.getElementById("pagos-liquidacion"), guardar=document.getElementById("guardar-liquidacion");
+    function actualizar(){
+        const elegidas=cajas.filter(c=>c.checked);
+        const comision=elegidas.reduce((n,c)=>n+(centavos(c.dataset.comision)||0n),0n);
+        const neto=comision+descuento, bs=redondear(neto*tasa,100n);
+        document.getElementById("resumen-liquidacion").textContent="Comisión seleccionada: "+monto(comision)+" USD · Descuentos: "+monto(descuento)+" USD · Neto: "+monto(neto)+" USD / "+monto(bs)+" Bs."+(neto<=0n?" · El saldo no permite registrar un pago; los descuentos siguen pendientes.":"");
+        let usdPagado=0n,bsPagado=0n,hayBs=false,validos=true,cantidad=0;
+        cuerpo.querySelectorAll(".pago-liquidacion").forEach(f=>{
+            const tipo=catalogo[f.querySelector(".tipo-pago").value], texto=f.querySelector(".monto-pago").value,importe=centavos(texto),quitar=f.querySelector('input[name$="-DELETE"]').checked;
+            f.style.opacity=quitar?"0.4":"1";f.querySelector(".moneda-pago").textContent=tipo?(tipo.moneda==="BS"?"Bs.":"USD"):"—";
+            if(!quitar&&(tipo||texto)){cantidad++;if(!tipo||importe===null||importe<=0n){validos=false;return;}if(tipo.moneda==="USD")usdPagado+=importe;else{bsPagado+=importe;hayBs=true;}}
+        });
+        const diferencia=hayBs?bs-redondear(usdPagado*tasa,100n)-bsPagado:neto-usdPagado;
+        document.getElementById("saldo-liquidacion").textContent="Pagado: "+monto(usdPagado)+" USD + "+monto(bsPagado)+" Bs. · "+(diferencia<0n?"Excedente: ":"Pendiente: ")+monto(diferencia<0n?-diferencia:diferencia)+(hayBs?" Bs.":" USD")+(!hayBs&&neto>usdPagado?" · Si completas en Bs.: "+monto(bs-redondear(usdPagado*tasa,100n))+" Bs.":"");
+        guardar.disabled=!(guardar.dataset.valido==="true"&&tasa>0n&&neto>0n&&elegidas.length&&cantidad&&validos&&diferencia===0n);
+    }
+    cajas.forEach(c=>c.addEventListener("change",actualizar));
+    document.getElementById("seleccionar-todos").addEventListener("click",()=>{const marcar=!cajas.every(c=>c.checked);cajas.forEach(c=>c.checked=marcar);actualizar();});
+    cuerpo.addEventListener("input",actualizar);cuerpo.addEventListener("change",actualizar);
+    document.getElementById("agregar-pago").addEventListener("click",()=>{const total=document.getElementById("id_pagos-TOTAL_FORMS"),i=Number(total.value);if(i>=20){alert("Máximo 20 pagos.");return;}cuerpo.insertAdjacentHTML("beforeend",document.getElementById("pago-vacio-liquidacion").innerHTML.replaceAll("__prefix__",i));total.value=i+1;const f=cuerpo.lastElementChild.querySelector('input[type="date"]');if(f)f.value="{{ datos.fecha_cancelacion|date:'Y-m-d'|escapejs }}";actualizar();});
+    actualizar();
+});
+</script>
+{% endblock %}

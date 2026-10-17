@@ -6,11 +6,14 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-
+from .buscador_clientes import buscar_clientes
 from horarios.models import Horario
 from servicios.models import Servicio
 
-from .disponibilidad import obtener_horas_disponibles
+from .disponibilidad import (
+    obtener_horas_disponibles,
+    MARGEN_ENTRE_CITAS,
+)
 from .forms import CitaForm
 from .models import Cita
 
@@ -30,7 +33,9 @@ def agenda_citas(request):
     else:
         fecha_seleccionada = timezone.localdate()
 
+    ahora = timezone.localtime()
     dia_semana = fecha_seleccionada.isoweekday()
+    
 
     horarios = (
         Horario.objects.select_related(
@@ -94,6 +99,15 @@ def agenda_citas(request):
         )
 
         while momento_actual < momento_final:
+            if (
+                fecha_seleccionada == ahora.date()
+                and momento_actual.time() < ahora.time()
+            ):
+                momento_actual += timedelta(
+                    minutes=intervalo_minutos
+                )
+                continue
+
             hora_texto = momento_actual.strftime("%H:%M")
             celdas = []
 
@@ -130,7 +144,10 @@ def agenda_citas(request):
                     )
 
                     fin_cita = inicio_cita + timedelta(
-                        minutes=cita.duracion_total
+                        minutes=(
+                            cita.duracion_total
+                            + MARGEN_ENTRE_CITAS
+                        )
                     )
 
                     if inicio_cita == inicio_franja:
@@ -188,96 +205,114 @@ def agenda_citas(request):
 
 @login_required
 def listar_citas(request):
-    citas = Cita.objects.select_related(
-        "cliente",
-        "barbero",
-        "servicio",
-    ).all()
+    hoy = timezone.localdate()
+    fecha_seleccionada = hoy
+    fecha_texto = request.GET.get("fecha", "")
 
-    estado = request.GET.get("estado")
-    fecha = request.GET.get("fecha")
-    barbero = request.GET.get("barbero")
+    if fecha_texto:
+        try:
+            fecha_seleccionada = datetime.strptime(fecha_texto, "%Y-%m-%d").date()
+        except ValueError:
+            messages.warning(request, "La fecha no es válida. Se muestran las citas de hoy.")
 
+    if fecha_seleccionada < hoy:
+        messages.warning(request, "No puedes consultar fechas anteriores a hoy.")
+        fecha_seleccionada = hoy
+
+    citas = (
+        Cita.objects.select_related("cliente", "barbero", "servicio")
+        .prefetch_related("servicios")
+        .filter(fecha=fecha_seleccionada)
+        .order_by("hora")
+    )
+    estado = request.GET.get("estado", "")
+    barbero = request.GET.get("barbero", "")
     if estado:
         citas = citas.filter(estado=estado)
-
-    if fecha:
-        citas = citas.filter(fecha=fecha)
-
     if barbero:
         citas = citas.filter(barbero_id=barbero)
 
-    contexto = {
+    return render(request, "citas/lista.html", {
         "citas": citas,
         "estados": Cita.Estado.choices,
-    }
-
-    return render(
-        request,
-        "citas/lista.html",
-        contexto,
-    )
+        "fecha_seleccionada": fecha_seleccionada,
+        "hoy": hoy,
+        "estado_seleccionado": estado,
+        "barbero_seleccionado": barbero,
+    })
 
 
 @login_required
 def crear_cita(request):
-    fecha_inicial = request.GET.get("fecha")
-    hora_inicial = request.GET.get("hora")
-    barbero_inicial = request.GET.get("barbero")
+    from django.core import signing
+    from .agenda_forms import CitaAgendaForm
 
-    initial = {}
-
-    if fecha_inicial:
-        initial["fecha"] = fecha_inicial
-
-    if hora_inicial:
-        initial["hora"] = hora_inicial
-
-    if barbero_inicial:
-        initial["barbero"] = barbero_inicial
+    salt = "citas.seleccion_agenda"
+    token = ""
+    seleccion = None
 
     if request.method == "POST":
-        form = CitaForm(request.POST)
-
-        if form.is_valid():
-            cita = form.save()
-
-            messages.success(
-                request,
-                "La cita fue creada correctamente.",
-            )
-
-            url_agenda = reverse(
-                "citas:agenda_citas"
-            )
-
-            fecha_cita = cita.fecha.strftime(
-                "%Y-%m-%d"
-            )
-
-            return redirect(
-                f"{url_agenda}?fecha={fecha_cita}"
-            )
+        token = request.POST.get("seleccion_agenda", "")
+        if token:
+            try:
+                datos = signing.loads(token, salt=salt, max_age=14400)
+                if datos["usuario"] != request.user.pk:
+                    raise signing.BadSignature("Usuario diferente")
+                seleccion = datos["seleccion"]
+            except (signing.BadSignature, KeyError, TypeError, ValueError):
+                messages.error(request, "La selección ha caducado o no es válida. Elige el hueco de nuevo.")
+                return redirect("citas:agenda_citas")
     else:
-        form = CitaForm(initial=initial)
+        valores = {nombre: request.GET.get(nombre) for nombre in ("barbero", "fecha", "hora")}
+        if any(valores.values()):
+            try:
+                if not all(valores.values()):
+                    raise ValueError("Selección incompleta")
+                seleccion = {
+                    "barbero": str(int(valores["barbero"])),
+                    "fecha": datetime.strptime(valores["fecha"], "%Y-%m-%d").date().isoformat(),
+                    "hora": datetime.strptime(valores["hora"], "%H:%M").strftime("%H:%M"),
+                }
+                if datetime.strptime(seleccion["fecha"], "%Y-%m-%d").date() < timezone.localdate():
+                    raise ValueError("Fecha pasada")
+            except (ValueError, TypeError):
+                messages.error(request, "Selecciona un hueco válido en Agenda.")
+                return redirect("citas:agenda_citas")
+            token = signing.dumps({"usuario": request.user.pk, "seleccion": seleccion}, salt=salt)
 
-    return render(
-        request,
-        "citas/formulario.html",
-        {
-            "form": form,
-            "titulo": "Nueva cita",
-            "texto_boton": "Guardar cita",
-        },
-    )
+    data = request.POST if request.method == "POST" else None
+    if seleccion:
+        form = CitaAgendaForm(data, seleccion=seleccion)
+    else:
+        form = CitaForm(data)
+
+    if request.method == "POST" and form.is_valid():
+        cita = form.save()
+        messages.success(request, "La cita fue creada correctamente.")
+        destino = reverse("citas:agenda_citas")
+        return redirect(f"{destino}?fecha={cita.fecha:%Y-%m-%d}")
+
+    return render(request, "citas/formulario.html", {
+        "form": form,
+        "titulo": "Nueva cita",
+        "texto_boton": "Guardar cita",
+        "bloqueo_agenda": seleccion is not None,
+        "seleccion_agenda": token,
+        "origen": "agenda",
+    })
 
 
 @login_required
 def editar_cita(request, cita_id):
-    cita = get_object_or_404(
-        Cita,
-        pk=cita_id,
+    cita = get_object_or_404(Cita, pk=cita_id)
+
+    origen = request.POST.get(
+        "origen",
+        request.GET.get("origen", "agenda"),
     )
+
+    if origen not in {"citas", "agenda"}:
+        origen = "agenda"
 
     if request.method == "POST":
         form = CitaForm(
@@ -293,17 +328,15 @@ def editar_cita(request, cita_id):
                 "La cita fue actualizada correctamente.",
             )
 
-            url_agenda = reverse(
-                "citas:agenda_citas"
-            )
+            if origen == "citas":
+                destino = reverse("citas:listar_citas")
+            else:
+                destino = reverse("citas:agenda_citas")
 
-            fecha_cita = cita.fecha.strftime(
-                "%Y-%m-%d"
-            )
+            fecha_cita = cita.fecha.strftime("%Y-%m-%d")
 
-            return redirect(
-                f"{url_agenda}?fecha={fecha_cita}"
-            )
+            return redirect(f"{destino}?fecha={fecha_cita}")
+
     else:
         form = CitaForm(instance=cita)
 
@@ -314,9 +347,9 @@ def editar_cita(request, cita_id):
             "form": form,
             "titulo": "Editar cita",
             "texto_boton": "Actualizar cita",
+            "origen": origen,
         },
     )
-
 
 @login_required
 def eliminar_cita(request, cita_id):
@@ -417,7 +450,7 @@ def consultar_disponibilidad(request):
             {
                 "horas": [],
                 "error": (
-                    "Debes seleccionar barbero, "
+                    "Debes seleccionar Prestador de Servicio, "
                     "al menos un servicio y fecha."
                 ),
             },

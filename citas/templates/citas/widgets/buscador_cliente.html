@@ -1,0 +1,102 @@
+<div id="{{ widget.attrs.id }}_contenedor" class="buscador-cliente">
+    <input type="hidden" name="{{ widget.name }}" id="{{ widget.attrs.id }}" value="{{ widget.value|default_if_none:'' }}">
+    <input
+        type="search"
+        id="{{ widget.attrs.id }}_buscar"
+        class="form-control"
+        value="{{ widget.etiqueta_cliente }}"
+        placeholder="Escribe nombre, apellido o teléfono"
+        autocomplete="off"
+        aria-describedby="{{ widget.attrs.id }}_ayuda"
+        aria-controls="{{ widget.attrs.id }}_resultados"
+    >
+    <div class="form-text" id="{{ widget.attrs.id }}_ayuda" aria-live="polite">
+        {% if widget.etiqueta_cliente %}Cliente seleccionado.{% else %}Escribe al menos 2 caracteres y selecciona un resultado.{% endif %}
+    </div>
+    <div class="list-group mt-2" id="{{ widget.attrs.id }}_resultados" hidden></div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const contenedor = document.getElementById("{{ widget.attrs.id|escapejs }}_contenedor");
+    const campo = contenedor.querySelector('input[type="hidden"]');
+    const buscar = contenedor.querySelector('input[type="search"]');
+    const resultados = contenedor.querySelector('.list-group');
+    const ayuda = contenedor.querySelector('.form-text');
+    let temporizador;
+    let controlador;
+    let version = 0;
+
+    function limpiar() {
+        resultados.replaceChildren();
+        resultados.hidden = true;
+    }
+
+    buscar.addEventListener("input", function () {
+        campo.value = "";
+        const actual = ++version;
+        clearTimeout(temporizador);
+        if (controlador) controlador.abort();
+        limpiar();
+        const texto = buscar.value.trim();
+        if (texto.length < 2) {
+            ayuda.textContent = "Escribe al menos 2 caracteres y selecciona un resultado.";
+            return;
+        }
+        ayuda.textContent = "Buscando clientes…";
+        temporizador = setTimeout(async function () {
+            controlador = new AbortController();
+            try {
+                const parametros = new URLSearchParams({q: texto});
+                const respuesta = await fetch("{% url 'citas:buscar_clientes' %}?" + parametros, {
+                    signal: controlador.signal,
+                    headers: {"Accept": "application/json"}
+                });
+                if (!respuesta.ok) throw new Error("Error de búsqueda");
+                const datos = await respuesta.json();
+                if (actual !== version) return;
+                limpiar();
+                for (const cliente of datos.resultados) {
+                    const boton = document.createElement("button");
+                    boton.type = "button";
+                    boton.className = "list-group-item list-group-item-action";
+                    boton.textContent = cliente.texto;
+                    boton.addEventListener("click", function () {
+                        ++version;
+                        campo.value = cliente.id;
+                        buscar.value = cliente.texto;
+                        ayuda.textContent = "Cliente seleccionado.";
+                        limpiar();
+                        buscar.focus();
+                    });
+                    resultados.appendChild(boton);
+                }
+                resultados.hidden = !datos.resultados.length;
+                ayuda.textContent = datos.resultados.length
+                    ? "Selecciona un cliente. Se muestran hasta 20 coincidencias; escribe más para precisar."
+                    : "No se encontraron clientes activos.";
+            } catch (error) {
+                if (error.name !== "AbortError" && actual === version) {
+                    ayuda.textContent = "No se pudo buscar. Vuelve a escribir para intentarlo de nuevo.";
+                }
+            }
+        }, 300);
+    });
+
+    buscar.addEventListener("keydown", function (evento) {
+        if (evento.key === "ArrowDown" && !resultados.hidden) {
+            evento.preventDefault();
+            resultados.querySelector("button")?.focus();
+        }
+        if (evento.key === "Enter") evento.preventDefault();
+    });
+    contenedor.addEventListener("keydown", function (evento) {
+        if (evento.key === "Escape") {
+            ++version;
+            clearTimeout(temporizador);
+            if (controlador) controlador.abort();
+            limpiar();
+            buscar.focus();
+        }
+    });
+});
+</script>

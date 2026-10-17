@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
-
+from tzlocal import get_localzone_name
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -49,6 +49,9 @@ INSTALLED_APPS = [
     'servicios',
     'horarios',
     'citas',
+    'tasas_bcv.apps.TasasBcvConfig',
+    'ventas.apps.VentasConfig',
+    'liquidaciones.apps.LiquidacionesConfig',
 ]
 
 MIDDLEWARE = [
@@ -86,8 +89,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
+
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / 'db_prueba.sqlite3',
     }
 }
 
@@ -116,7 +120,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = get_localzone_name()
+USE_TZ = True
 
 USE_I18N = True
 
@@ -152,3 +157,4 @@ JAZZMIN_SETTINGS = {
         "servicios.Servicio": "fas fa-scissors",
     },
 }
+LOGIN_URL = "iniciar_sesion"

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Reversar {{ documento }}{% endblock %}
+{% block content %}
+<div class="card card-body mx-auto" style="max-width: 650px;">
+    <h2>Reversar {{ documento }}</h2>
+    <p>Cliente: <strong>{{ documento.cliente }}</strong></p>
+    <div class="alert alert-warning">Se creará un RE por <strong>-{{ documento.total_bs|monto_venta }} Bs.</strong>, vinculado a esta FA. Se copiarán todos los servicios, precios, impuesto y tasa originales. También se reversarán automáticamente todos los pagos registrados, con sus monedas y referencias originales. Ambos documentos se conservarán sin edición ni eliminación.</div>
+    <form method="post">
+        {% csrf_token %}{{ form.non_field_errors }}
+        <label class="form-label" for="{{ form.motivo.id_for_label }}">{{ form.motivo.label }}</label>
+        {{ form.motivo }}{{ form.motivo.errors }}
+        <div class="d-flex justify-content-end gap-2 mt-3"><a class="btn btn-secondary" href="{% url 'ventas:ver' documento.pk %}">Cancelar</a><button type="submit" class="btn btn-danger">Confirmar reverso completo</button></div>
+    </form>
+</div>
+{% endblock %}

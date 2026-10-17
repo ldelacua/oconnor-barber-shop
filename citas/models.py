@@ -12,7 +12,7 @@ class Cita(models.Model):
         PENDIENTE = "pendiente", "Pendiente"
         CONFIRMADA = "confirmada", "Confirmada"
         CANCELADA = "cancelada", "Cancelada"
-        FINALIZADA = "finalizada", "Finalizada"
+        FINALIZADA = "finalizada", "Atendido"
 
     cliente = models.ForeignKey(
         Cliente,
@@ -24,6 +24,7 @@ class Cita(models.Model):
         Barbero,
         on_delete=models.PROTECT,
         related_name="citas",
+        verbose_name="Prestador de Servicio",
     )
 
     # Campo antiguo. Se mantiene temporalmente para conservar las citas existentes.
@@ -129,7 +130,7 @@ class Cita(models.Model):
 
             if citas_existentes.exists():
                 errores["hora"] = (
-                    "El barbero ya tiene una cita programada "
+                    "El Prestador de Servicio ya tiene una cita programada "
                     "en esa fecha y hora."
                 )
 

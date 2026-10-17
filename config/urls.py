@@ -11,6 +11,9 @@ urlpatterns = [
     path("servicios/", include("servicios.urls")),
     path("horarios/", include("horarios.urls")),
     path("citas/", include("citas.urls")),
+    path("tasas-bcv/", include("tasas_bcv.urls")),
+    path("ventas/", include("ventas.urls")),
+    path("liquidaciones/", include("liquidaciones.urls")),
 ]
 
 

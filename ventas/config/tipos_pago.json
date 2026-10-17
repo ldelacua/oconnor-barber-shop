@@ -1,0 +1,37 @@
+[
+    {
+        "id": 1,
+        "nombre": "Tarjeta de Crédito",
+        "moneda": "BS"
+    },
+    {
+        "id": 2,
+        "nombre": "Pago móvil",
+        "moneda": "BS"
+    },
+    {
+        "id": 3,
+        "nombre": "Transferencia Bancaria",
+        "moneda": "BS"
+    },
+    {
+        "id": 4,
+        "nombre": "Zelle",
+        "moneda": "USD"
+    },
+    {
+        "id": 5,
+        "nombre": "Efectivo",
+        "moneda": "USD"
+    },
+    {
+        "id": 6,
+        "nombre": "Efectivo",
+        "moneda": "BS"
+    },
+    {
+        "id": 7,
+        "nombre": "USDT",
+        "moneda": "USD"
+    }
+]

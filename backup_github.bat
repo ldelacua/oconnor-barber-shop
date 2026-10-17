@@ -7,7 +7,8 @@ title BarberPro - Respaldo GitHub
 ::==========================
 :: CONFIGURACION
 ::==========================
-set PROYECTO=C:\Users\guerr\Proyectos\Barberia
+
+set PROYECTO=C:\Proyectos\Barbershop\oconnor-barber-shop
 
 ::==========================
 :: FECHA Y HORA

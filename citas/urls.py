@@ -26,6 +26,7 @@ urlpatterns = [
         views.consultar_disponibilidad,
         name="consultar_disponibilidad",
     ),
+    path("buscar-clientes/", views.buscar_clientes, name="buscar_clientes"),
     path(
         "<int:cita_id>/editar/",
         views.editar_cita,

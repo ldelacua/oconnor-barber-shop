@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}
-{{ titulo|default:"Barbero" }}
+{{ titulo|default:"Prestador de Servicio" }}
 {% endblock %}
 
 {% block content %}
@@ -15,11 +15,11 @@
             <div>
 
                 <h2 class="mb-1">
-                    {{ titulo|default:"Nuevo barbero" }}
+                    {{ titulo|default:"Nuevo Prest Servicio" }}
                 </h2>
 
                 <p class="text-muted mb-0">
-                    {{ descripcion|default:"Registra la información del barbero." }}
+                    {{ descripcion|default:"Registra la información del Prestador de Servicio." }}
                 </p>
 
             </div>
@@ -239,7 +239,7 @@
                                     for="{{ formulario.activo.id_for_label }}"
                                     class="form-check-label"
                                 >
-                                    Barbero activo
+                                    Prestador de Servicio activo
                                 </label>
 
                             </div>

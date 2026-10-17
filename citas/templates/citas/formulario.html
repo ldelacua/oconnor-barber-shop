@@ -86,6 +86,14 @@
 
                 <form method="post" novalidate>
                     {% csrf_token %}
+                    <input type="hidden" name="origen" value="{{ origen|default:'agenda' }}">
+                    {% if bloqueo_agenda %}
+                        <input type="hidden" name="seleccion_agenda" value="{{ seleccion_agenda }}">
+                        <div class="alert alert-info">
+                            Prestador de Servicio, fecha y hora fijados desde Agenda.
+                            Para cambiar el hueco, vuelve a Agenda.
+                        </div>
+                    {% endif %}
 
                     {% if form.non_field_errors %}
                         <div class="alert alert-danger">
@@ -257,7 +265,7 @@
 
                     <div class="d-flex justify-content-end gap-2">
                         <a
-                            href="{% url 'citas:agenda_citas' %}"
+                            href="{% if origen == 'citas' %}{% url 'citas:listar_citas' %}{% else %}{% url 'citas:agenda_citas' %}{% endif %}?fecha={{ form.fecha.value|date:'Y-m-d'|default:form.fecha.value }}"
                             class="btn btn-secondary"
                         >
                             Cancelar
@@ -377,7 +385,49 @@ document.addEventListener("DOMContentLoaded", function () {
             "$" + precioTotal.toFixed(2);
     }
 
+    const bloqueoAgenda = {{ bloqueo_agenda|yesno:"true,false" }};
+    const horaFijada = hora.value;
+    const aviso = document.createElement("div");
+    aviso.className = "form-text";
+    aviso.setAttribute("aria-live", "polite");
+    hora.parentElement.appendChild(aviso);
+    let consultaActual = 0;
+
+    async function comprobarHoraFijada() {
+        const consulta = ++consultaActual;
+        actualizarResumen();
+        const ids = obtenerServiciosSeleccionados();
+        if (!ids.length) {
+            aviso.textContent = "Selecciona los servicios para comprobar este horario.";
+            return;
+        }
+        const parametros = new URLSearchParams({barbero: barbero.value, fecha: fecha.value});
+        ids.forEach(id => parametros.append("servicios", id));
+        aviso.textContent = "Comprobando disponibilidad…";
+        try {
+            const respuesta = await fetch("{% url 'citas:consultar_disponibilidad' %}?" + parametros.toString(), {
+                headers: {"Accept": "application/json"}
+            });
+            const datos = await respuesta.json();
+            if (consulta !== consultaActual) return;
+            if (!respuesta.ok) throw new Error(datos.error || "No se pudo comprobar el horario.");
+            const disponible = (datos.horas || []).includes(horaFijada);
+            aviso.className = disponible ? "form-text text-success" : "form-text text-danger";
+            aviso.textContent = disponible
+                ? "Los servicios caben en el horario seleccionado."
+                : "Los servicios no caben o el hueco ya no está disponible. Cambia los servicios o vuelve a Agenda.";
+        } catch (error) {
+            if (consulta !== consultaActual) return;
+            aviso.className = "form-text text-danger";
+            aviso.textContent = "No se pudo comprobar la disponibilidad. Se validará al guardar.";
+        }
+    }
+
     async function cargarHorasDisponibles() {
+        if (bloqueoAgenda) {
+            await comprobarHoraFijada();
+            return;
+        }
         const barberoId = barbero.value;
         const fechaSeleccionada = fecha.value;
 
@@ -393,7 +443,7 @@ document.addEventListener("DOMContentLoaded", function () {
         ) {
             hora.innerHTML =
                 '<option value="">' +
-                'Seleccione barbero, servicios y fecha' +
+                'Seleccione Prestador de Servicio, servicios y fecha' +
                 '</option>';
 
             return;

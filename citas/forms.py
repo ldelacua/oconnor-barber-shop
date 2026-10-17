@@ -1,5 +1,5 @@
 from datetime import date, datetime
-
+from .buscador_clientes import BuscadorClienteWidget
 from django import forms
 
 from servicios.models import Servicio
@@ -54,12 +54,9 @@ class CitaForm(forms.ModelForm):
         ]
 
         widgets = {
-            "cliente": forms.Select(
-                attrs={
-                    "class": "form-select",
-                }
-            ),
-            "barbero": forms.Select(
+            "cliente": BuscadorClienteWidget()
+            ,            
+            "Prestador de Servicio": forms.Select(
                 attrs={
                     "class": "form-select",
                 }

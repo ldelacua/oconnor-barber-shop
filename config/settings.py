@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'tasas_bcv.apps.TasasBcvConfig',
     'ventas.apps.VentasConfig',
     'liquidaciones.apps.LiquidacionesConfig',
+    'gastos.apps.GastosConfig',
 ]
 
 MIDDLEWARE = [

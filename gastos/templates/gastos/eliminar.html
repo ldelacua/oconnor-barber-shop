@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Eliminar | Gastos{% endblock %}
+{% block content %}
+{% include "gastos/nav.html" %}
+<div class="card card-body mx-auto" style="max-width:650px"><h3 class="h5">Confirmar eliminación</h3><p>¿Deseas eliminar <strong>{{ objeto }}</strong>?</p><p class="text-muted">Esta acción elimina el registro. Si tiene datos asociados se impedirá la eliminación.</p><form method="post">{% csrf_token %}<div class="d-flex justify-content-end gap-2">{% if catalogo %}<a class="btn btn-secondary" href="{% url 'gastos:catalogo' catalogo %}">Cancelar</a>{% else %}<a class="btn btn-secondary" href="{% url 'gastos:inicio' %}">Cancelar</a>{% endif %}<button type="submit" class="btn btn-danger">Eliminar definitivamente</button></div></form></div>
+{% endblock %}

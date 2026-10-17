@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Gastos | BarberPro{% endblock %}
+{% block content %}
+{% include "gastos/nav.html" %}
+<form method="get" class="card card-body mb-4">{{ filtros.non_field_errors }}<div class="row g-2 align-items-end">{% for campo in filtros %}<div class="col-sm-6 col-lg-3"><label for="{{ campo.id_for_label }}" class="form-label small">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endfor %}<div class="col-12 text-end"><button type="submit" class="btn btn-primary btn-sm">Filtrar</button> <a href="{% url 'gastos:inicio' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a></div></div></form>
+<div class="row g-3 mb-3"><div class="col-md-6"><div class="card card-body"><p class="text-muted mb-1">Total gastos USD (con impuesto)</p><h3>{{ totales.usd|monto_venta }}</h3></div></div><div class="col-md-6"><div class="card card-body"><p class="text-muted mb-1">Total gastos Bs. (con impuesto)</p><h3>{{ totales.bs|monto_venta }}</h3></div></div></div>
+<p class="small text-muted">Totales de todos los resultados filtrados, separados por moneda. No representan pagos realizados.</p>
+<div class="card card-body"><div class="table-responsive"><table class="table table-sm align-middle">
+<thead class="table-dark"><tr><th>ID</th><th>Fecha</th><th>Tipo de gasto</th><th>Proveedor</th><th>Factura</th><th>Moneda</th><th class="text-end">Monto</th><th class="text-end">Impuesto</th><th class="text-end">Total</th><th>Acciones</th></tr></thead>
+<tbody>{% for g in pagina %}<tr><td>{{ g.pk }}</td><td class="text-nowrap">{{ g.fecha_gasto|date:"d/m/Y" }}</td><td>{{ g.gasto }}</td><td title="{{ g.proveedor }}">{{ g.proveedor.descripcion|truncatechars:25 }}</td><td>{{ g.numero_factura }}</td><td>{{ g.get_moneda_display }}</td><td class="text-end text-nowrap">{{ g.monto_gasto|monto_venta }}</td><td class="text-end text-nowrap">{{ g.monto_impuesto|monto_venta }}</td><td class="text-end text-nowrap">{{ g.total|monto_venta }}</td><td class="text-nowrap"><a class="btn btn-outline-primary btn-sm" href="{% url 'gastos:ver' g.pk %}" title="Consultar" aria-label="Consultar gasto {{ g.pk }}"><i class="bi bi-receipt"></i></a> <a class="btn btn-outline-secondary btn-sm" href="{% url 'gastos:editar' g.pk %}" title="Editar" aria-label="Editar gasto {{ g.pk }}"><i class="bi bi-pencil"></i></a> <a class="btn btn-outline-danger btn-sm" href="{% url 'gastos:eliminar' g.pk %}" title="Eliminar" aria-label="Eliminar gasto {{ g.pk }}"><i class="bi bi-trash"></i></a></td></tr>{% empty %}<tr><td colspan="10" class="text-center text-muted py-4">No hay gastos con estos filtros.</td></tr>{% endfor %}</tbody>
+</table></div>{% include "gastos/paginacion.html" %}</div>
+{% endblock %}

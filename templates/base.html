@@ -73,6 +73,9 @@
                     <a href="{% url 'ventas:reporte_servicios' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'ventas' and request.resolver_match.url_name == 'reporte_servicios' %}active{% endif %}">
                         <i class="bi bi-file-earmark-bar-graph me-1"></i>Servicios por Prestador
                     </a>
+                    <a href="{% url 'gastos:inicio' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'gastos' %}active{% endif %}">
+                    <i class="bi bi-cash-stack me-1"></i>Gastos
+                    </a>
                     <a href="{% url 'admin:index' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'admin' %}active{% endif %}">
                         <i class="bi bi-shield-lock me-1"></i>Administración
                     </a>

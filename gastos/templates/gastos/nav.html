@@ -1,0 +1,7 @@
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h2 class="h4 mb-0">Gastos</h2><a href="{% url 'gastos:crear' %}" class="btn btn-primary btn-sm">Registrar gasto</a></div>
+<nav class="nav nav-pills gap-2 mb-4" aria-label="Opciones de Gastos">
+    <a class="nav-link {% if seccion == 'registros' %}active{% endif %}" href="{% url 'gastos:inicio' %}">Registros</a>
+    <a class="nav-link {% if seccion == 'tipos' %}active{% endif %}" href="{% url 'gastos:catalogo' 'tipos' %}">Tipos de gasto</a>
+    <a class="nav-link {% if seccion == 'grupos' %}active{% endif %}" href="{% url 'gastos:catalogo' 'grupos' %}">Grupos</a>
+    <a class="nav-link {% if seccion == 'proveedores' %}active{% endif %}" href="{% url 'gastos:catalogo' 'proveedores' %}">Proveedores</a>
+</nav>

@@ -1,3 +1,4 @@
+from mysql_nuevo.bloqueos import es_error_transitorio
 import uuid
 from decimal import Decimal
 from django.contrib import messages
@@ -71,7 +72,7 @@ def crear(request):
                     return redirect("liquidaciones:ver",pk=existente.pk)
                 errores.append("Algún servicio ya fue liquidado o ajustado. Vuelve a consultar los pendientes.")
             except OperationalError as error:
-                if "locked" not in str(error).lower():
+                if not es_error_transitorio(error):
                     raise
                 errores.append("Otra operación está guardando datos. Espera unos segundos y vuelve a consultar.")
             else:

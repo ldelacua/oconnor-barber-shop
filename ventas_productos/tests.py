@@ -18,7 +18,7 @@ from .servicios import registrar_venta, registrar_reverso
 class VentaProductosTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.usuario=get_user_model().objects.create_user(username="vendedor",password="prueba")
+        cls.usuario=get_user_model().objects.create_superuser(username="vendedor",password="prueba")
         cls.cliente=Cliente.objects.create(nombre="Cliente",apellido="Prueba",telefono="04121234567")
         for fecha in {date(2026,10,20),timezone.localdate()}:
             TasaBCV.objects.create(fecha=fecha,tasa_bcv=40)
@@ -68,7 +68,7 @@ class VentaProductosTests(TestCase):
         self.assertEqual(respuesta.status_code,302)
         doc=DocumentoProducto.objects.get()
         self.assertRedirects(respuesta,reverse("ventas_productos:ver",args=[doc.pk]))
-        self.assertContains(self.client.get(respuesta.url),"VP-000001")
+        self.assertContains(self.client.get(respuesta.url),f"VP-{doc.pk:06d}")
 
     def test_idempotencia_doble_envio(self):
         clave=uuid.uuid4()

@@ -47,7 +47,7 @@ class DesgloseTests(SimpleTestCase):
 class VentaIvaIncluidoTests(TestCase):
     def setUp(self):
         self.fecha=timezone.localdate()
-        self.usuario=get_user_model().objects.create_user(username='iva',password='prueba')
+        self.usuario=get_user_model().objects.create_superuser(username='iva',password='prueba')
         self.client.force_login(self.usuario)
         self.cliente=Cliente.objects.create(nombre='CLIENTE',apellido='IVA',telefono='04121234567')
         self.prestador=Barbero.objects.create(codigo='IVA',nombre='PRESTADOR',apellido='IVA',direccion='A',telefono='1',fecha_ingreso=self.fecha,porcentaje=50)

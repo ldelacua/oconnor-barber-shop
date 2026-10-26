@@ -13,7 +13,7 @@ def unidad(valor):return Decimal(valor or 0).quantize(Decimal(".001"))
 
 def costo_producto(producto_id,fecha):
     dato=MovimientoStock.objects.filter(producto_id=producto_id,fecha__lte=fecha,
-        costo_unitario_usd__isnull=False).order_by("-registrado_en","-id").values_list("costo_unitario_usd",flat=True).first()
+        costo_unitario_usd__gt=0).order_by("-registrado_en","-id").values_list("costo_unitario_usd",flat=True).first()
     from ventas.calculos import dinero
     return (dinero(dato) if dato is not None else Decimal("0.00"),dato is None)
 
@@ -24,7 +24,7 @@ def reporte_stock(periodo):
     def suma(filtro):
         return Coalesce(Sum(relacion+"delta",filter=filtro),Value(0),output_field=campo)
     ultimos=MovimientoStock.objects.filter(producto_id=OuterRef("pk"),fecha__lt=siguiente_mes(periodo),
-        costo_unitario_usd__isnull=False).order_by("-registrado_en","-id").values("costo_unitario_usd")[:1]
+        costo_unitario_usd__gt=0).order_by("-registrado_en","-id").values("costo_unitario_usd")[:1]
     return Producto.objects.select_related('unidad_medida').annotate(
         inicial=suma(Q(kardex_inventario__fecha__lt=periodo)),
         compras=suma(mes&Q(kardex_inventario__clase="COMPRA")),

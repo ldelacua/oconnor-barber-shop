@@ -17,7 +17,7 @@ class InventarioTests(TestCase):
         for fecha in {date(2026, 10, 20), timezone.localdate()}:
             TasaBCV.objects.create(fecha=fecha, tasa_bcv=40)
         cls.unidad = UnidadMedida.objects.get(codigo="GR")
-        cls.usuario = get_user_model().objects.create_user(username="inventario", password="prueba")
+        cls.usuario = get_user_model().objects.create_superuser(username="inventario", password="prueba")
         cls.proveedor = Proveedor.objects.create(nombre="Proveedor uno", rif="J-1")
         cls.otro_proveedor = Proveedor.objects.create(nombre="Proveedor dos", rif="J-2")
         cls.producto = Producto.objects.create(codigo_producto="P-1", nombre_producto="Champú", modelo="250 ml")
@@ -319,17 +319,27 @@ class InventarioTests(TestCase):
         from clientes.models import Cliente
         cliente = Cliente.objects.create(nombre="Cliente", apellido="Prueba", telefono="04121234567")
         with connection.cursor() as cursor:
-            cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'inv_%' ORDER BY name")
+            if connection.vendor=="mysql":
+                cursor.execute("SELECT trigger_name,action_statement FROM information_schema.triggers WHERE trigger_schema=DATABASE() AND LEFT(trigger_name,4)<>'inv_' ORDER BY trigger_name")
+            else:
+                cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'inv_%' ORDER BY name")
             antes = cursor.fetchall()
         compra = self.compra()
         actualizar_compra(compra.pk, "inventario", 0)
         cliente.refresh_from_db()
         self.assertEqual(cliente.telefono, "04121234567")
         with connection.cursor() as cursor:
-            cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'inv_%' ORDER BY name")
+            if connection.vendor=="mysql":
+                cursor.execute("SELECT trigger_name,action_statement FROM information_schema.triggers WHERE trigger_schema=DATABASE() AND LEFT(trigger_name,4)<>'inv_' ORDER BY trigger_name")
+            else:
+                cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'inv_%' ORDER BY name")
             self.assertEqual(cursor.fetchall(), antes)
-            cursor.execute("PRAGMA foreign_key_check")
-            self.assertEqual(cursor.fetchall(), [])
+            if connection.vendor=="mysql":
+                cursor.execute("SELECT @@foreign_key_checks")
+                self.assertEqual(cursor.fetchone()[0],1)
+            else:
+                cursor.execute("PRAGMA foreign_key_check")
+                self.assertEqual(cursor.fetchall(), [])
 
     def test_unidades_iniciales_y_nueva_unidad(self):
         self.assertEqual(set(UnidadMedida.objects.values_list("codigo", flat=True)), {"GR", "LT", "KG", "ML"})

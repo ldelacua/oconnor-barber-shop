@@ -1,3 +1,4 @@
+from mysql_nuevo.bloqueos import mutacion_mysql
 from datetime import datetime, timedelta
 
 from django.contrib import messages
@@ -243,6 +244,7 @@ def listar_citas(request):
 
 
 @login_required
+@mutacion_mysql
 def crear_cita(request):
     from django.core import signing
     from .agenda_forms import CitaAgendaForm
@@ -303,6 +305,7 @@ def crear_cita(request):
 
 
 @login_required
+@mutacion_mysql
 def editar_cita(request, cita_id):
     cita = get_object_or_404(Cita, pk=cita_id)
 
@@ -352,6 +355,7 @@ def editar_cita(request, cita_id):
     )
 
 @login_required
+@mutacion_mysql
 def eliminar_cita(request, cita_id):
     cita = get_object_or_404(
         Cita,
@@ -388,6 +392,7 @@ def eliminar_cita(request, cita_id):
 
 
 @login_required
+@mutacion_mysql
 def cambiar_estado_cita(request, cita_id):
     cita = get_object_or_404(
         Cita,

@@ -64,6 +64,8 @@ def pendientes(prestador, desde, hasta, fecha):
 
 @transaction.atomic
 def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usuario):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     existente = Liquidacion.objects.filter(clave=clave, sellado=True).first()
     if existente:
         return existente

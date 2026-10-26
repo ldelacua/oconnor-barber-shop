@@ -21,7 +21,7 @@ from .servicios import registrar_venta,registrar_reverso
 class PreciosDescuentosTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.usuario=get_user_model().objects.create_user(username="precios",password="prueba")
+        cls.usuario=get_user_model().objects.create_superuser(username="precios",password="prueba")
         cls.cliente=Cliente.objects.create(nombre="CLIENTE",apellido="PRECIOS",telefono="04121234567")
         cls.a=Producto.objects.create(codigo_producto="PR-A",nombre_producto="PRODUCTO A")
         cls.b=Producto.objects.create(codigo_producto="PR-B",nombre_producto="PRODUCTO B")

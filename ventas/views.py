@@ -1,3 +1,4 @@
+from mysql_nuevo.bloqueos import es_error_transitorio
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
@@ -81,7 +82,7 @@ def nueva_venta(request):
                     return redirect("ventas:ver", pk=existente.pk)
                 form.add_error(None, "No se pudo registrar el documento. Revisa los datos e inténtalo de nuevo.")
             except OperationalError as error:
-                if "locked" not in str(error).lower():
+                if not es_error_transitorio(error):
                     raise
                 form.add_error(None, "Otra operación está guardando datos. Espera unos segundos y vuelve a guardar.")
             else:
@@ -121,7 +122,7 @@ def reversar_documento(request, pk):
         except IntegrityError:
             form.add_error(None, "No se registró el reverso. Comprueba si otra operación ya reversó esta FA.")
         except OperationalError as error:
-            if "locked" not in str(error).lower():
+            if not es_error_transitorio(error):
                 raise
             form.add_error(None, "La base de datos está ocupada. Vuelve a intentarlo en unos segundos.")
         else:

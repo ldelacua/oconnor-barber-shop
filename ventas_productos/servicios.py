@@ -28,6 +28,8 @@ def sellar(doc):
 
 @transaction.atomic
 def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacion=""):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     existente = DocumentoProducto.objects.filter(clave=clave, sellado=True).first()
     if existente: return existente
     # La primera escritura serializa las operaciones en SQLite antes de consultar stock.
@@ -113,6 +115,8 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacio
 
 @transaction.atomic
 def registrar_reverso(*, documento_id, motivo, usuario):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     original=DocumentoProducto.objects.select_for_update().get(pk=documento_id,sellado=True)
     if original.tipo != "VP": raise ValidationError("Solo se reversan ventas de productos.")
     if DocumentoProducto.objects.filter(documento_original=original).exists():

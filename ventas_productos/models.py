@@ -108,6 +108,11 @@ class PagoProducto(models.Model):
     class Meta:
         ordering = ["pk"]
 
+    @property
+    def equivalente_aplicado_bs(self):
+        """Importe conciliado con la factura, incluido el ajuste de conversión."""
+        return self.equivalente_bs + self.ajuste_redondeo_bs
+
     def save(self, *args, **kwargs):
         if not self._state.adding or DocumentoProducto.objects.filter(pk=self.documento_id, sellado=True).exists():
             raise ValidationError("Los pagos del documento están bloqueados.")

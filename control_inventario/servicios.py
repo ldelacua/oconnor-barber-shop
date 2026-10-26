@@ -20,6 +20,8 @@ def validar_fecha(fecha,cierre_id=None):
 
 @transaction.atomic
 def registrar_ajuste(*,tipo,fecha,observacion,lineas,usuario,clave,cierre=None,costos=None):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     existente=DocumentoAjuste.objects.filter(clave=clave,sellado=True).first()
     if existente:return existente
     if tipo not in ["EN","SA"]:raise ValidationError("Selecciona Entrada o Salida.")
@@ -51,6 +53,8 @@ def registrar_ajuste(*,tipo,fecha,observacion,lineas,usuario,clave,cierre=None,c
 
 @transaction.atomic
 def iniciar_cierre(*,periodo,observacion,usuario):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     if periodo.day!=1:raise ValidationError("Selecciona un mes válido.")
     if siguiente_mes(periodo)>timezone.localdate():
         raise ValidationError("Solo se pueden cerrar meses terminados.")
@@ -73,6 +77,8 @@ def iniciar_cierre(*,periodo,observacion,usuario):
 
 @transaction.atomic
 def guardar_conteo(*,cierre_id,revision,filas,ids_pagina):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     if CierreMensual.objects.filter(pk=cierre_id,estado="B",revision=revision).update(revision=revision+1)!=1:
         raise ValidationError("El conteo cambió. Recarga antes de guardar.")
     if {f["renglon"] for f in filas}!=set(ids_pagina) or len(filas)!=len(ids_pagina):
@@ -84,6 +90,8 @@ def guardar_conteo(*,cierre_id,revision,filas,ids_pagina):
 
 @transaction.atomic
 def confirmar_cierre(*,cierre_id,revision,usuario):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     cierre=CierreMensual.objects.get(pk=cierre_id)
     if cierre.estado=="C":return cierre
     if CierreMensual.objects.filter(pk=cierre_id,estado="B",revision=revision).update(revision=revision+1)!=1:
@@ -116,6 +124,8 @@ def confirmar_cierre(*,cierre_id,revision,usuario):
 
 @transaction.atomic
 def cancelar_conteo(*,cierre_id,revision):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     if CierreMensual.objects.filter(pk=cierre_id,estado="B",revision=revision).update(revision=revision+1)!=1:
         raise ValidationError("El conteo cambió o ya está cerrado.")
     CierreMensual.objects.get(pk=cierre_id).delete()

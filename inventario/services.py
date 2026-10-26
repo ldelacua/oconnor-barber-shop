@@ -7,6 +7,8 @@ from ventas.calculos import dinero
 
 @transaction.atomic
 def actualizar_compra(pk, usuario, revision):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     compra = Compra.objects.select_for_update().get(pk=pk)
     if compra.estado == Compra.ACTUALIZADA:
         return False
@@ -44,6 +46,8 @@ def actualizar_compra(pk, usuario, revision):
 
 @transaction.atomic
 def guardar_borrador(formulario, detalles, usuario):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     compra = formulario.instance
     from django.apps import apps
     if apps.is_installed("control_inventario"):
@@ -67,6 +71,8 @@ def guardar_borrador(formulario, detalles, usuario):
 
 @transaction.atomic
 def eliminar_borrador(pk, revision):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     compra = Compra.objects.select_for_update().get(pk=pk)
     if Compra.objects.filter(pk=pk, estado=Compra.BORRADOR, revision=revision).update(revision=revision + 1) != 1:
         raise ValidationError("La compra cambió o está actualizada. No se puede eliminar.")

@@ -29,7 +29,7 @@ class DescuentosTests(TestCase):
                            ("liquidaciones.servicios.leer_tipos_pago",catalogo)]:
             parche=patch(ruta,return_value=valor);parche.start();self.addCleanup(parche.stop)
         self.hoy=timezone.localdate()
-        self.user=get_user_model().objects.create_user(username='prueba',password='prueba')
+        self.user=get_user_model().objects.create_superuser(username='prueba',password='prueba')
         self.client.force_login(self.user)
         self.cliente=Cliente.objects.create(nombre='Cliente',apellido='Prueba',telefono='123')
         self.prestador=Barbero.objects.create(codigo='PS1',nombre='Ana',apellido='Pérez',direccion='a',telefono='1',fecha_ingreso=self.hoy,porcentaje=50)

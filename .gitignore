@@ -60,3 +60,5 @@ staticfiles/
 # Cache de mypy
 # =====================================
 .mypy_cache/
+# Credenciales locales de MySQL
+/mysql.local.json

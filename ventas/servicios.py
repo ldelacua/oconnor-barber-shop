@@ -19,6 +19,8 @@ def _sellar(documento):
 
 @transaction.atomic
 def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_descuento=False, descuento_porcentaje=Decimal("50.00")):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     existente = DocumentoVenta.objects.filter(clave_operacion=clave, sellado=True).first()
     if existente:
         return existente
@@ -99,6 +101,8 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
 
 @transaction.atomic
 def registrar_reverso(*, documento_id, motivo, usuario):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     original = DocumentoVenta.objects.get(pk=documento_id, sellado=True)
     if original.tipo_documento != "FA":
         raise ValidationError("Solo se puede reversar una FA.")

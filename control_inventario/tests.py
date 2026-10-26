@@ -21,7 +21,7 @@ from .saldos import reporte_stock,costo_producto
 class ControlInventarioTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.usuario=get_user_model().objects.create_user(username="control",password="prueba")
+        cls.usuario=get_user_model().objects.create_superuser(username="control",password="prueba")
         cls.cliente=Cliente.objects.create(nombre="CLIENTE",apellido="CONTROL",telefono="04121234567")
         TasaBCV.objects.create(fecha=date(2026,10,10),tasa_bcv=40)
         cls.proveedor=Proveedor.objects.create(nombre="PROVEEDOR",rif="J-CONTROL")
@@ -73,6 +73,19 @@ class ControlInventarioTests(TestCase):
         self.assertEqual(doc.detalles.get().costo_unitario_usd,0)
         self.assertTrue(doc.detalles.get().sin_costo_previo)
         self.assertEqual(existencia_producto(self.otro.pk),4)
+
+    def test_entrada_inicial_sin_costo_no_oculta_compra(self):
+        # Se registra después de la compra, pero con fecha anterior a ella.
+        doc=self.ajuste("EN",12,fecha=date(2026,9,1))
+        self.assertEqual(doc.detalles.get().costo_unitario_usd,0)
+        self.assertEqual(costo_producto(self.producto.pk,date(2026,9,1)),(Decimal("0.00"),True))
+        self.assertEqual(costo_producto(self.producto.pk,date(2026,9,20))[0],2)
+        self.assertEqual(costo_producto(self.producto.pk,date(2026,10,26))[0],3)
+        fila=reporte_stock(date(2026,10,1)).get(pk=self.producto.pk)
+        self.assertEqual(fila.costo,3)
+        self.assertEqual(fila.disponible,42)
+        from ventas_productos.precios import precio_producto
+        self.assertEqual(precio_producto(self.producto,date(2026,10,26))["precio_unitario_usd"],Decimal("10.00"))
 
     def test_salida_sin_stock_no_registra_nada(self):
         with self.assertRaises(ValidationError):self.ajuste("SA",31)

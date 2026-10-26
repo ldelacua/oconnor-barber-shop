@@ -137,6 +137,8 @@ def comprobar_citas(prestador_id, anteriores, nuevos):
 
 @transaction.atomic
 def guardar_semana(*, prestador_id, seleccion, version, observaciones=''):
+    from mysql_nuevo.bloqueos import serializar_operacion
+    serializar_operacion()
     prestador = Barbero.objects.select_for_update().get(pk=prestador_id)
     if not prestador.silla_id:
         raise ValidationError('El prestador no tiene silla asignada. Asígnala en Prest de Servicio.')

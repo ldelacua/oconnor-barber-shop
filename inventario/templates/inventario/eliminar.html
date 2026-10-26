@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Eliminar borrador #{{ compra.pk }}</h2>
+{% if compra.estado == 'B' %}<p>¿Eliminar la factura {{ compra.numero_factura }} de {{ compra.proveedor }}? No afecta las existencias.</p>
+<form method="post">{% csrf_token %}<input type="hidden" name="revision" value="{{ compra.revision }}"><input type="hidden" name="next" value="{{ regresar }}"><button class="btn btn-danger">Eliminar borrador</button> <a class="btn btn-outline-secondary" href="{% url 'inventario:detalle' compra.pk %}?next={{ regresar|urlencode }}">Regresar</a></form>
+{% else %}<p class="alert alert-warning">La compra está actualizada y no puede eliminarse.</p><a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a>{% endif %}
+{% endblock %}

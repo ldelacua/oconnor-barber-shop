@@ -1,0 +1,7 @@
+{% load accesos %}
+<div class="d-flex gap-2 flex-wrap mb-4">
+{% url 'control_inventario:stock' as enlace_control %}{% puede_url enlace_control as mostrar_control %}{% if mostrar_control %}<a class="btn btn-outline-primary" href="{% url 'control_inventario:stock' %}">Consulta de stock</a>{% endif %}
+{% url 'control_inventario:documentos' as enlace_control %}{% puede_url enlace_control as mostrar_control %}{% if mostrar_control %}<a class="btn btn-outline-primary" href="{% url 'control_inventario:documentos' %}">Otras entradas / salidas</a>{% endif %}
+{% url 'control_inventario:cierres' as enlace_control %}{% puede_url enlace_control as mostrar_control %}{% if mostrar_control %}<a class="btn btn-outline-primary" href="{% url 'control_inventario:cierres' %}">Cierres mensuales</a>{% endif %}
+{% url 'inventario:compras' as enlace_control %}{% puede_url enlace_control as mostrar_control %}{% if mostrar_control %}<a class="btn btn-outline-secondary" href="{% url 'inventario:compras' %}">Regresar a Compras</a>{% endif %}
+</div>

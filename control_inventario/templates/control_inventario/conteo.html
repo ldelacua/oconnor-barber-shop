@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% load static l10n %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3"><h2>Inventario {{ cierre.periodo|date:"Y-m" }} · {{ cierre.get_estado_display }}</h2><a class="btn btn-outline-secondary" href="{% url 'control_inventario:cierres' %}">Regresar</a></div>
+{% if cierre.estado == 'B' %}<p class="alert alert-warning">Registra el físico de todos los productos, incluso cero, y guarda cada página. Pendientes en el mes completo: <strong>{{ pendientes }}</strong>.</p>{% else %}
+<p class="alert alert-success">Cierre confirmado. El físico es el saldo de arranque del siguiente mes. Los importes de esta fotografía no cambian con movimientos posteriores.</p>{% endif %}
+{% if posteriores and cierre.estado == 'B' %}<p class="alert alert-info">Hay movimientos posteriores a este mes. Captura el físico que existía al cierre de {{ cierre.periodo|date:"Y-m" }}, no el stock actual.</p>{% endif %}
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+<form method="get" class="d-flex gap-2 mb-3"><input name="q" value="{{ request.GET.q }}" class="form-control" placeholder="CÓDIGO O DESCRIPCIÓN" aria-label="Buscar producto"><button class="btn btn-outline-primary">Buscar</button><a class="btn btn-outline-secondary" href="{% url 'control_inventario:conteo' cierre.pk %}">Limpiar</a></form>
+<div id="conteo-sin-guardar" class="alert alert-danger" hidden>HAY CAMBIOS SIN GUARDAR. Guarda el físico de esta página antes de confirmar el cierre.</div>
+<form method="post" id="form-conteo">{% csrf_token %}<input type="hidden" name="revision" value="{{ cierre.revision }}">{{ formset.management_form }}{{ formset.non_form_errors }}
+<div class="table-responsive card"><table class="table align-middle" style="min-width:1100px"><thead><tr><th>Código</th><th>Descripción</th><th class="text-end">Inicial</th><th class="text-end">Compras</th><th class="text-end">Ventas</th><th class="text-end">Otros (+/−)</th><th class="text-end">Teórico antes del ajuste</th><th class="text-end">Físico</th><th class="text-end">Diferencia</th></tr></thead><tbody>
+{% for d,f in filas %}<tr data-teorico="{{ d.teorico|unlocalize }}"><td>{{ d.codigo }}</td><td>{{ d.descripcion }}</td><td class="text-end">{{ d.inicial|monto_venta }}</td><td class="text-end">{{ d.compras|monto_venta }}</td><td class="text-end">{{ d.ventas|monto_venta }}</td><td class="text-end">{{ d.otros|monto_venta }}</td><td class="text-end">{{ d.teorico|monto_venta }}</td>
+<td class="text-end">{% if cierre.estado == 'B' %}{{ f.renglon }}{{ f.fisico }}{{ f.errors }}{% else %}{{ d.fisico|monto_venta }}{% endif %}</td><td class="text-end diferencia-actual {% if d.diferencia %}text-danger fw-bold{% endif %}">{% if d.diferencia is not None %}{{ d.diferencia|monto_venta }}{% else %}—{% endif %}</td></tr>
+{% empty %}<tr><td colspan="9" class="p-4">No hay productos para el filtro.</td></tr>{% endfor %}</tbody></table></div>
+{% if cierre.estado == 'B' %}<button class="btn btn-primary mt-3">Guardar físico de esta página</button>{% endif %}</form>
+{% include "inventario/paginacion.html" %}
+{% if cierre.estado == 'B' %}
+<hr><p>Confirmar generará otras entradas o salidas por las diferencias y bloqueará el mes. Revisa todos los conteos antes de cerrar.</p>
+<div class="d-flex gap-2 flex-wrap">
+<form method="post" action="{% url 'control_inventario:cerrar' cierre.pk %}" onsubmit="return confirm('¿Cerrar el mes y generar los ajustes por diferencias? El histórico quedará bloqueado.');">{% csrf_token %}<input type="hidden" name="revision" value="{{ cierre.revision }}"><button class="btn btn-success" id="confirmar-cierre">Confirmar cierre mensual</button></form>
+<form method="post" action="{% url 'control_inventario:cancelar' cierre.pk %}" onsubmit="return confirm('¿Cancelar este conteo sin cerrar el mes? Se perderán los físicos capturados.');">{% csrf_token %}<input type="hidden" name="revision" value="{{ cierre.revision }}"><button class="btn btn-outline-danger">Cancelar conteo</button></form>
+</div>
+{% else %}<h4 class="mt-4">Documentos de ajuste generados</h4>
+{% for a in cierre.ajustes.all %}<p><a href="{% url 'control_inventario:ver' a.pk %}">{{ a }} · {{ a.get_tipo_display }}</a></p>{% empty %}<p>No hubo diferencias. No se generaron ajustes.</p>{% endfor %}
+<p class="text-muted">Cerrado por {{ cierre.cerrado_por }} el {{ cierre.cerrado_en|date:"d/m/Y H:i" }}.</p>{% endif %}
+{% endblock %}
+
+{% block extra_js %}<script src="{% static 'control_inventario/conteo.js' %}?v=7"></script>{% endblock %}

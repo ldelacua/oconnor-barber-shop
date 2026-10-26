@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>Nueva entrada / salida</h2><a class="btn btn-outline-secondary" href="{% url 'control_inventario:documentos' %}">Regresar</a></div>
+<p class="alert alert-info">Captura cantidades positivas. El tipo Entrada suma y Salida resta. El costo se toma del último registrado, sin IVA, en USD. Si no existe costo previo se registrará USD 0.00, indicado en el detalle.</p>
+<form method="post" id="ajuste-inventario" class="card card-body" data-costo-url="{% url 'control_inventario:costo' %}" onsubmit="return confirm('¿Registrar este movimiento? Quedará bloqueado y afectará las existencias.');">{% csrf_token %}{{ form.clave }}
+{% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+<div class="row g-3">{% for campo in form.visible_fields %}<div class="{% if campo.name == 'observacion' %}col-12{% else %}col-md-6{% endif %}">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
+<h4 class="mt-4">Productos</h4>
+{{ lineas.management_form }}{{ lineas.non_form_errors }}
+<div class="table-responsive"><table class="table" style="min-width:750px"><thead><tr><th style="width:45%">Producto</th><th class="text-end">Cantidad</th><th class="text-end">Costo unitario USD</th><th></th></tr></thead><tbody id="ajustes-cuerpo">
+{% for fila in lineas %}{% include "control_inventario/fila.html" %}{% endfor %}</tbody></table></div>
+<template id="ajuste-vacio">{% include "control_inventario/fila.html" with fila=lineas.empty_form %}</template>
+<div><button class="btn btn-outline-primary" type="button" id="agregar-ajuste">Agregar producto</button></div>
+<div class="mt-4"><button class="btn btn-success">Registrar documento</button> <a class="btn btn-outline-secondary" href="{% url 'control_inventario:documentos' %}">Regresar</a></div></form>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'inventario/mayusculas.js' %}?v=7"></script>
+<script src="{% static 'inventario/buscador_productos.js' %}?v=7"></script>
+<script src="{% static 'control_inventario/ajuste.js' %}?v=7"></script>
+{% endblock %}

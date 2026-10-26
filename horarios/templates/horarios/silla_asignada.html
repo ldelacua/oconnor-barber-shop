@@ -1,0 +1,17 @@
+{{ formulario.sillas_por_prestador|json_script:"sillas-por-prestador" }}
+<script>
+(() => {
+ const prestador=document.getElementById('{{ formulario.barbero.id_for_label|escapejs }}');
+ const nombre=document.getElementById('silla-asignada-nombre');
+ const aviso=document.getElementById('silla-asignada-aviso');
+ const mapa=JSON.parse(document.getElementById('sillas-por-prestador').textContent);
+ function mostrarSilla(){
+  const silla=mapa[prestador.value];
+  nombre.value=silla?silla.nombre:'Selecciona un Prestador de Servicio';
+  aviso.textContent=!silla?'La silla se toma de la ficha del prestador.':silla.activa?'La silla se asignará automáticamente al guardar.':'Asigna una silla activa a este prestador antes de guardar el horario.';
+  aviso.classList.toggle('text-danger',Boolean(silla&&!silla.activa));
+ }
+ prestador.addEventListener('change',mostrarSilla);
+ mostrarSilla();
+})();
+</script>

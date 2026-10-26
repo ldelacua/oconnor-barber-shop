@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block content %}
+<h2 class="mb-3">Consulta de stock</h2>
+{% include "control_inventario/nav.html" %}
+<form class="card card-body mb-3">{{ filtro.non_field_errors }}<div class="row g-3">{% for campo in filtro %}<div class="col-md-5">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}<div class="col-md-2 align-self-end"><button class="btn btn-primary">Consultar</button></div></div></form>
+{% if cierre %}<p class="alert alert-success">MES CERRADO. <a href="{% url 'control_inventario:conteo' cierre.pk %}">Ver histórico del teórico, físico y ajustes.</a></p>{% endif %}
+<p class="text-muted">Disponible = inicial + compras − ventas + otros movimientos. Las devoluciones por reverso restan a las ventas; otros movimientos tienen signo positivo o negativo.</p>
+<div class="card table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Código</th><th>Descripción</th><th class="text-end">Stock inicial</th><th class="text-end">Compras</th><th class="text-end">Ventas netas</th><th class="text-end">Otros (+/−)</th><th class="text-end">Total disponible</th><th class="text-end">Último costo USD</th></tr></thead>
+<tbody>{% for p in pagina %}<tr><td>{{ p.codigo_producto }}</td><td>{{ p }}</td><td class="text-end">{{ p.inicial|monto_venta }}</td><td class="text-end">{{ p.compras|monto_venta }}</td><td class="text-end">{{ p.ventas|monto_venta }}</td><td class="text-end">{{ p.otros|monto_venta }}</td><td class="text-end fw-bold">{{ p.disponible|monto_venta }}</td><td class="text-end">{{ p.costo|monto_venta }}</td></tr>
+{% empty %}<tr><td colspan="8" class="text-center p-4">No hay productos para la consulta.</td></tr>{% endfor %}</tbody></table></div>
+{% include "inventario/paginacion.html" %}
+{% endblock %}

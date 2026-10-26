@@ -11,7 +11,11 @@ from django.views.decorators.http import require_POST
 from .models import GrupoGasto, TipoGasto, Proveedor, RegistroGasto
 from .forms import GrupoForm, TipoForm, ProveedorForm, RegistroForm, FiltrosForm
 
+from .models import Producto
+from .forms import ProductoForm, DetalleGastoFormSet
+
 CATALOGOS={
+    "productos":(Producto,ProductoForm,"Productos"),
     "grupos":(GrupoGasto,GrupoForm,"Grupos de gastos"),
     "tipos":(TipoGasto,TipoForm,"Tipos de gasto"),
     "proveedores":(Proveedor,ProveedorForm,"Proveedores"),
@@ -25,7 +29,11 @@ def _catalogo(nombre):
 @login_required
 def inicio(request):
     filtros=FiltrosForm(request.GET)
-    registros=RegistroGasto.objects.select_related("gasto__grupo","proveedor")
+    registros = (
+    RegistroGasto.objects
+    .select_related("gasto__grupo", "proveedor")
+    .prefetch_related("detalles__producto")
+    )
     if filtros.is_valid():
         d=filtros.cleaned_data
         if d.get("desde"):registros=registros.filter(fecha_gasto__gte=d["desde"])
@@ -48,22 +56,33 @@ def inicio(request):
 
 @login_required
 def formulario_registro(request,pk=None):
-    registro=get_object_or_404(RegistroGasto,pk=pk) if pk else None
-    form=RegistroForm(request.POST if request.method=="POST" else None,instance=registro)
-    if request.method=="POST" and form.is_valid():
-        try:
-            with transaction.atomic():objeto=form.save()
-        except IntegrityError:
-            form.add_error(None,"No se pudo guardar. Comprueba que no exista esa factura para el mismo proveedor y que los importes sean válidos.")
-        else:
-            messages.success(request,"El gasto fue guardado correctamente.")
-            return redirect("gastos:ver",pk=objeto.pk)
-    return render(request,"gastos/formulario.html",{"form":form,"titulo":"Editar gasto" if registro else "Registrar gasto","seccion":"registros","volver":"gastos:inicio"})
+    registro=get_object_or_404(RegistroGasto,pk=pk) if pk else RegistroGasto()
+    datos=request.POST if request.method=="POST" else None
+    form=RegistroForm(datos,instance=registro)
+    detalles=DetalleGastoFormSet(datos,instance=registro,prefix="detalles")
+    if request.method=="POST":
+        encabezado_valido=form.is_valid()
+        detalles_validos=detalles.is_valid()
+        if encabezado_valido and detalles_validos:
+            try:
+                with transaction.atomic():
+                    objeto=form.save()
+                    detalles.instance=objeto
+                    detalles.save()
+            except IntegrityError:
+                form.add_error(None,"No se pudo guardar. Comprueba la factura del proveedor y los datos de los productos.")
+            else:
+                messages.success(request,"El gasto fue guardado correctamente.")
+                return redirect("gastos:ver",pk=objeto.pk)
+    return render(request,"gastos/formulario.html",{
+        "form":form,"detalles":detalles,"titulo":"Editar gasto" if pk else "Registrar gasto",
+        "seccion":"registros","volver":"gastos:inicio",
+    })
 
 
 @login_required
 def ver_registro(request,pk):
-    objeto=get_object_or_404(RegistroGasto.objects.select_related("gasto__grupo","proveedor"),pk=pk)
+    objeto=get_object_or_404(RegistroGasto.objects.select_related("gasto__grupo","proveedor").prefetch_related("detalles__producto"),pk=pk)
     return render(request,"gastos/documento.html",{"objeto":objeto,"seccion":"registros"})
 
 

@@ -1,0 +1,15 @@
+{% extends "autenticacion/clave_base.html" %}
+{% block title %}Nueva contraseña | BarberPro{% endblock %}
+{% block clave_content %}
+<h2 class="h4 mb-3">Nueva contraseña</h2>
+{% if validlink %}
+<form method="post">{% csrf_token %}
+{{ form.non_field_errors }}
+{% for campo in form %}<div class="mb-3"><label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}{% if campo.help_text %}<div class="helptext mt-1">{{ campo.help_text|safe }}</div>{% endif %}</div>{% endfor %}
+<button class="btn btn-primary" type="submit">Grabar contraseña</button>
+</form>
+{% else %}
+<p>El enlace no es válido, ya se utilizó o ha caducado.</p>
+<a href="{% url 'recuperar_clave' %}" class="btn btn-primary">Solicitar otro enlace</a>
+{% endif %}
+{% endblock %}

@@ -6,23 +6,21 @@ Prestador de Servicio
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
 
     <div>
         <h2 class="mb-1">Prestador de Servicio</h2>
 
         <p class="text-muted mb-0">
-            Consulta y administra los Prestador de Servicio.
+            Consulta y administra los Prestadores de Servicio.
         </p>
     </div>
 
-    <a
-        href="{% url 'barberos:crear_barbero' %}"
-        class="btn btn-primary"
-    >
-        <i class="bi bi-person-plus"></i>
-        Nuevo Prest Servicio
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
+        <a href="{% url 'horarios:listar_sillas' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-grid-3x3-gap me-1"></i>Administrar sillas</a>
+        <a href="{% url 'barberos:crear_barbero' %}" class="btn btn-primary btn-sm"><i class="bi bi-person-plus me-1"></i>Nuevo Prest de Servicio</a>
+    </div>
 
 </div>
 
@@ -88,7 +86,7 @@ Prestador de Servicio
                     {{ barberos.end_index }}
                     de
                     {{ barberos.paginator.count }}
-                    barbero{{ barberos.paginator.count|pluralize }}
+                    prestador{{ barberos.paginator.count|pluralize:"es" }} de servicio
                 </small>
 
                 {% if busqueda %}
@@ -144,7 +142,7 @@ Prestador de Servicio
                             </td>
 
                             <td>
-                                {{ barbero.codigo_silla }}
+                                {% if barbero.silla_id %}{{ barbero.silla.nombre }}{% else %}<span class="text-warning">Por asignar{% if barbero.codigo_silla %} (anterior: {{ barbero.codigo_silla }}){% endif %}</span>{% endif %}
                             </td>
 
                             <td>
@@ -176,7 +174,7 @@ Prestador de Servicio
                                     <a
                                         href="{% url 'barberos:detalle_barbero' barbero.pk %}"
                                         class="btn btn-sm btn-outline-primary"
-                                        title="Ver barbero"
+                                        title="Ver prestador de servicio"
                                     >
                                         <i class="bi bi-eye"></i>
                                         Ver
@@ -185,7 +183,7 @@ Prestador de Servicio
                                     <a
                                         href="{% url 'barberos:editar_barbero' barbero.pk %}"
                                         class="btn btn-warning btn-sm"
-                                        title="Editar barbero"
+                                        title="Editar prestador de servicio"
                                     >
                                         <i class="bi bi-pencil-square me-1"></i>
                                         Editar

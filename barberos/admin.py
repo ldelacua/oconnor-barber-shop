@@ -5,6 +5,8 @@ from .models import Barbero
 
 #@admin.register(Barbero)
 class BarberoAdmin(admin.ModelAdmin):
+    from .forms import BarberoForm
+    form = BarberoForm
     list_display = (
         "codigo",
         "nombre",
@@ -12,7 +14,7 @@ class BarberoAdmin(admin.ModelAdmin):
         "telefono",
         "fecha_ingreso",
         "porcentaje",
-        "codigo_silla",
+        "silla",
         "activo",
     )
 
@@ -22,7 +24,7 @@ class BarberoAdmin(admin.ModelAdmin):
         "apellido",
         "telefono",
         "correo",
-        "codigo_silla",
+        "silla__nombre",
     )
 
     list_filter = (

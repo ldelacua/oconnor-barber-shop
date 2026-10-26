@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3"><h2>{{ documento }} · {{ documento.get_tipo_display }}</h2><a class="btn btn-outline-secondary" href="{% url 'control_inventario:documentos' %}">Regresar</a></div>
+<div class="card card-body"><p><strong>Fecha:</strong> {{ documento.fecha|date:"d/m/Y" }}<br><strong>Observación:</strong> {{ documento.observacion }}<br><strong>Registrado por:</strong> {{ documento.registrado_por }}</p>
+{% if documento.cierre_id %}<p><a href="{% url 'control_inventario:conteo' documento.cierre_id %}">Ver cierre mensual asociado</a></p>{% endif %}
+<div class="table-responsive"><table class="table"><thead><tr><th>Producto</th><th>Signo</th><th class="text-end">Cantidad</th><th class="text-end">Costo unitario USD</th><th class="text-end">Costo total USD</th></tr></thead><tbody>
+{% for d in pagina %}<tr><td>{{ d.descripcion }}{% if d.sin_costo_previo %}<br><small class="text-warning-emphasis">SIN COSTO PREVIO; REGISTRADO EN CERO</small>{% endif %}</td><td>{% if documento.tipo == 'EN' %}+{% else %}−{% endif %}</td><td class="text-end">{{ d.cantidad|monto_venta }}</td><td class="text-end">{{ d.costo_unitario_usd|monto_venta }}</td><td class="text-end">{{ d.total_usd|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="text-muted">Documento registrado y bloqueado.</p></div>
+{% include "inventario/paginacion.html" %}
+{% endblock %}

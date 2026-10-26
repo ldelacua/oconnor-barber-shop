@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3"><h2>Otras entradas / salidas</h2><a class="btn btn-primary" href="{% url 'control_inventario:nuevo' %}">Nuevo documento</a></div>
+{% include "control_inventario/nav.html" %}
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+<form class="card card-body mb-3"><div class="row g-3">
+<div class="col-md-2"><label for="numero">Documento</label><input class="form-control" id="numero" name="numero" type="number" min="1" value="{{ request.GET.numero }}"></div>
+<div class="col-md-2"><label for="tipo">Tipo</label><select class="form-select" name="tipo" id="tipo"><option value="">Todos</option><option value="EN" {% if request.GET.tipo == 'EN' %}selected{% endif %}>Entrada (+)</option><option value="SA" {% if request.GET.tipo == 'SA' %}selected{% endif %}>Salida (−)</option></select></div>
+<div class="col-md-2"><label for="desde">Desde</label><input type="date" class="form-control" id="desde" name="desde" value="{{ request.GET.desde }}"></div>
+<div class="col-md-2"><label for="hasta">Hasta</label><input type="date" class="form-control" id="hasta" name="hasta" value="{{ request.GET.hasta }}"></div>
+<div class="col-md-4"><label for="q">Producto o motivo</label><input class="form-control" id="q" name="q" value="{{ request.GET.q }}"></div></div>
+<div class="mt-3"><button class="btn btn-primary">Consultar</button> <a class="btn btn-outline-secondary" href="{% url 'control_inventario:documentos' %}">Limpiar</a></div></form>
+<div class="card table-responsive"><table class="table align-middle"><thead><tr><th>Documento</th><th>Tipo</th><th>Fecha</th><th>Observación</th><th>Origen</th><th></th></tr></thead><tbody>
+{% for d in pagina %}<tr><td>{{ d }}</td><td class="{% if d.tipo == 'EN' %}text-success{% else %}text-danger{% endif %}">{{ d.get_tipo_display }}</td><td>{{ d.fecha|date:"d/m/Y" }}</td><td>{{ d.observacion|truncatechars:100 }}</td><td>{% if d.cierre_id %}CIERRE MENSUAL{% else %}MANUAL{% endif %}</td><td><a class="btn btn-sm btn-outline-primary" href="{% url 'control_inventario:ver' d.pk %}">Abrir</a></td></tr>
+{% empty %}<tr><td colspan="6" class="text-center p-4">No hay documentos.</td></tr>{% endfor %}</tbody></table></div>
+{% include "inventario/paginacion.html" %}
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Horarios | BarberPro{% endblock %}
+{% block extra_css %}
+<style>
+.matriz-semana {max-height:65vh;overflow:auto;}
+.matriz-semana table {min-width:760px;table-layout:fixed;border-collapse:separate;border-spacing:0;}
+.matriz-semana th,.matriz-semana td {padding:0;border-right:1px solid #dee2e6;border-bottom:1px solid #dee2e6;}
+.matriz-semana thead th {position:sticky;top:0;z-index:3;background:#212529;color:#fff;}
+.matriz-semana .hora {width:78px;position:sticky;left:0;z-index:2;background:#f8f9fa;padding:6px;font-size:.85rem;}
+.matriz-semana thead .hora {z-index:4;background:#212529;}
+.bloque-semanal {display:block;width:100%;height:32px;border:0;background:white;padding:0;}
+.bloque-semanal:hover {background:#e7f1ff;}
+.bloque-semanal[aria-pressed="true"] {background:#0d6efd;}
+.bloque-semanal:focus-visible {outline:3px solid #ffc107;outline-offset:-3px;}
+.dia-semanal {width:100%;padding:9px 4px;background:transparent;color:inherit;border:0;font-weight:600;}
+.leyenda-semana {display:inline-block;width:15px;height:15px;background:#0d6efd;vertical-align:middle;margin-right:5px;border-radius:3px;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div><h2 class="mb-1">Horarios</h2><p class="text-muted mb-0">Consulta y modifica el horario semanal de cada Prestador de Servicio.</p></div>
+    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
+</div>
+<form method="get" action="{% url 'horarios:listar_horarios' %}" class="card card-body mb-3" id="seleccionar-prestador">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-6"><label class="form-label" for="id_barbero">Prestador de Servicio</label>{{ selector.barbero }}{{ selector.barbero.errors }}</div>
+        <div class="col-md-4"><label class="form-label" for="silla-asignada-nombre">Silla asignada</label><input type="text" id="silla-asignada-nombre" readonly class="form-control bg-light" value="{% if prestador.silla_id %}{{ prestador.silla.nombre }}{% elif prestador %}Sin silla asignada{% else %}Selecciona un prestador{% endif %}"></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Consultar</button></div>
+    </div>
+</form>
+{% if error_rejilla %}<div class="alert alert-danger">{% for error in error_rejilla %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+{% if formulario %}
+    {% if not puede_guardar %}<div class="alert alert-warning">Asigna una silla activa a este prestador en <a href="{% url 'barberos:editar_barbero' prestador.pk %}">Prest de Servicio</a> para guardar sus horarios.</div>{% endif %}
+    {% if sillas_anteriores %}<div class="alert alert-info">Hay horarios activos con otra silla: {{ sillas_anteriores|join:", " }}. Al guardar se aplicará la silla actual del prestador a los bloques seleccionados.</div>{% endif %}
+    <form method="post" action="{% url 'horarios:listar_horarios' %}" id="guardar-semana">
+        {% csrf_token %}
+        <input type="hidden" name="barbero" value="{{ prestador.pk }}" id="prestador-cargado">
+        {{ formulario.bloques }}{{ formulario.revision }}
+        {% if formulario.non_field_errors %}<div class="alert alert-danger" role="alert">{{ formulario.non_field_errors }}</div>{% endif %}
+        {% if formulario.bloques.errors %}<div class="alert alert-danger">{{ formulario.bloques.errors }}</div>{% endif %}
+        {% if formulario.revision.errors %}<div class="alert alert-danger">{{ formulario.revision.errors }} Pulsa Recargar.</div>{% endif %}
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div><strong>Matriz semanal</strong><div class="small text-muted">Bloques de {{ paso }} minutos. Marca para agregar y desmarca para quitar.</div></div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="marcar-semana">Lunes a viernes</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="limpiar-semana">Limpiar selección</button>
+                    <a href="{{ recargar }}" class="btn btn-outline-secondary btn-sm" id="recargar-semana">Recargar</a>
+                </div>
+            </div>
+            <div class="matriz-semana">
+                <table class="table mb-0 text-center" id="matriz-semanal" aria-label="Horario semanal del prestador">
+                    <thead><tr><th class="hora">Hora</th>{% for numero,nombre in dias %}<th><button type="button" class="dia-semanal" data-dia="{{ numero }}" title="Marcar o desmarcar {{ nombre }}">{{ nombre }}</button></th>{% endfor %}</tr></thead>
+                    <tbody>{% for fila in filas %}<tr><th class="hora" scope="row">{{ fila.hora }}</th>{% for celda in fila.celdas %}<td><button type="button" class="bloque-semanal" data-dia="{{ celda.dia }}" data-hora="{{ fila.hora }}" aria-label="{% for numero,nombre in dias %}{% if numero == celda.dia %}{{ nombre }}{% endif %}{% endfor %} {{ fila.hora }}" aria-pressed="{% if celda.seleccionada %}true{% else %}false{% endif %}"></button></td>{% endfor %}</tr>{% endfor %}</tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex flex-wrap justify-content-between gap-2"><span class="small"><span class="leyenda-semana"></span>Horario activo</span><span class="small text-muted" id="resumen-semana" aria-live="polite"></span></div>
+        </div>
+        <div class="mt-3"><label class="form-label" for="{{ formulario.observaciones.id_for_label }}">{{ formulario.observaciones.label }}</label>{{ formulario.observaciones }}{{ formulario.observaciones.errors }}<div class="form-text">Los bloques que no cambien conservan sus observaciones actuales.</div></div>
+        <p class="text-muted small mt-3">Los cambios se aplican al pulsar Guardar cambios. No se pueden quitar horas que dejen citas pendientes o confirmadas fuera del horario.</p>
+        <div class="d-flex justify-content-end mt-3 mb-4"><button class="btn btn-primary" type="submit" {% if not puede_guardar %}disabled{% endif %}>Guardar cambios</button></div>
+    </form>
+    {{ seleccion_guardada|json_script:"semana-guardada" }}
+{% elif not error_rejilla %}
+    <div class="card card-body text-center text-muted py-5">Selecciona un Prestador de Servicio para consultar, crear o modificar su horario semanal.</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(() => {
+ const selector=document.getElementById('id_barbero');
+ const formulario=document.getElementById('guardar-semana');
+ const seleccionForm=document.getElementById('seleccionar-prestador');
+ if(!formulario){selector.addEventListener('change',()=>seleccionForm.requestSubmit());return;}
+ const tabla=document.getElementById('matriz-semanal');
+ const celdas=Array.from(tabla.querySelectorAll('.bloque-semanal'));
+ const almacenado=JSON.parse(document.getElementById('semana-guardada').textContent);
+ const campo=document.getElementById('id_bloques');
+ const prestador=document.getElementById('prestador-cargado').value;
+ const notas=document.getElementById('id_observaciones');
+ let saliendo=false,arrastrando=false,modo=true,suprimirClick=false;
+ const leer=()=>{
+  const datos={'1':[],'2':[],'3':[],'4':[],'5':[],'6':[],'7':[]};
+  celdas.forEach(c=>{if(c.getAttribute('aria-pressed')==='true')datos[c.dataset.dia].push(c.dataset.hora);});
+  return datos;
+ };
+ const normalizar=d=>JSON.stringify(Object.keys(d).sort().map(k=>[k,[...d[k]].sort()]));
+ const original=normalizar(almacenado);
+ const cambiado=()=>normalizar(leer())!==original||notas.value.trim()!=='';
+ const marcar=(c,estado)=>c.setAttribute('aria-pressed',estado?'true':'false');
+ const actualizar=()=>{
+  const datos=leer();campo.value=JSON.stringify(datos);
+  const total=Object.values(datos).reduce((n,v)=>n+v.length,0);
+  document.getElementById('resumen-semana').textContent=total+' bloques seleccionados · '+(total*{{ paso }}/60).toLocaleString('es',{maximumFractionDigits:2})+' horas';
+ };
+ tabla.addEventListener('pointerdown',e=>{
+  const c=e.target.closest('.bloque-semanal');
+  if(!c||e.pointerType!=='mouse'||e.button!==0)return;
+  e.preventDefault();arrastrando=true;suprimirClick=true;modo=c.getAttribute('aria-pressed')!=='true';marcar(c,modo);actualizar();
+ });
+ tabla.addEventListener('pointerover',e=>{const c=e.target.closest('.bloque-semanal');if(arrastrando&&c){marcar(c,modo);actualizar();}});
+ document.addEventListener('pointerup',()=>{arrastrando=false;setTimeout(()=>{suprimirClick=false;},0);});
+ document.addEventListener('pointercancel',()=>{arrastrando=false;suprimirClick=false;});
+ tabla.addEventListener('click',e=>{const c=e.target.closest('.bloque-semanal');if(c&&!suprimirClick){marcar(c,c.getAttribute('aria-pressed')!=='true');actualizar();}});
+ tabla.querySelectorAll('.dia-semanal').forEach(b=>b.addEventListener('click',()=>{
+  const grupo=celdas.filter(c=>c.dataset.dia===b.dataset.dia);const marcarDia=!grupo.every(c=>c.getAttribute('aria-pressed')==='true');grupo.forEach(c=>marcar(c,marcarDia));actualizar();
+ }));
+ document.getElementById('marcar-semana').addEventListener('click',()=>{celdas.filter(c=>Number(c.dataset.dia)<=5).forEach(c=>marcar(c,true));actualizar();});
+ document.getElementById('limpiar-semana').addEventListener('click',()=>{if(confirm('¿Quieres desmarcar todos los bloques? Solo se aplicará al guardar.')){celdas.forEach(c=>marcar(c,false));actualizar();}});
+ seleccionForm.addEventListener('submit',e=>{if(cambiado()&&!confirm('Hay cambios sin guardar. ¿Quieres consultar otro horario y descartarlos?')){e.preventDefault();selector.value=prestador;}else{saliendo=true;}});
+ selector.addEventListener('change',()=>seleccionForm.requestSubmit());
+ document.getElementById('recargar-semana').addEventListener('click',e=>{if(cambiado()&&!confirm('¿Descartar los cambios y cargar el horario guardado?'))e.preventDefault();else saliendo=true;});
+ formulario.addEventListener('submit',e=>{
+  actualizar();
+  if(!celdas.some(c=>c.getAttribute('aria-pressed')==='true')&&Object.values(almacenado).some(v=>v.length)&&!confirm('La semana quedará sin horarios activos. ¿Quieres guardar?')){e.preventDefault();return;}
+  saliendo=true;
+ });
+ window.addEventListener('beforeunload',e=>{if(!saliendo&&cambiado()){e.preventDefault();e.returnValue='';}});
+ actualizar();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,5 @@
+<tr class="detalle-fila">
+<td>{% for hidden in fila.hidden_fields %}{{ hidden }}{{ hidden.errors }}{% endfor %}{{ fila.producto }}{{ fila.producto.errors }}{{ fila.non_field_errors }}</td>
+<td class="text-end">{{ fila.cantidad }}{{ fila.cantidad.errors }}</td><td class="text-end">{{ fila.precio_unitario }}{{ fila.precio_unitario.errors }}</td>
+<td class="importe-fila text-nowrap">—</td><td>{{ fila.DELETE }} <span class="small">Quitar</span></td>
+</tr>

@@ -39,11 +39,16 @@
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label" for="{{ form.modo_precio.id_for_label }}">Tipo de precio</label>
+                    {{ form.modo_precio }}{{ form.modo_precio.errors }}
+                </div>
+                <div class="mb-3">
                     <label class="form-label">
                         Precio
                     </label>
                     {{ form.precio }}
                     {{ form.precio.errors }}
+                    <div class="form-text">{{ form.precio.help_text }}</div>
                 </div>
 
                 <div class="mb-3">
@@ -54,6 +59,12 @@
                     {{ form.duracion.errors }}
                 </div>
 
+                <div class="form-check mb-3">
+                    {{ form.retencion_impuesto }}
+                    <label class="form-check-label" for="{{ form.retencion_impuesto.id_for_label }}">Retención de impuesto</label>
+                    {{ form.retencion_impuesto.errors }}
+                    <div class="form-text">Marcado: desglosa el IVA incluido en el precio. Sin marcar: calcula el IVA normal y lo suma al precio. La comisión conserva el monto original.</div>
+                </div>
                 <div class="form-check mb-3">
                     {{ form.activo }}
                     <label class="form-check-label">

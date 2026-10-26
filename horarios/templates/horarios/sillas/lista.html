@@ -8,18 +8,17 @@ Sillas
 
 <div class="container py-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
 
         <div>
             <h2>{{ titulo }}</h2>
             <p class="text-muted mb-0">{{ descripcion }}</p>
         </div>
 
-        <a href="{% url 'horarios:crear_silla' %}"
-           class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i>
-            Nueva silla
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'barberos:lista_barberos' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
+            <a href="{% url 'horarios:crear_silla' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle me-1"></i>Nueva silla</a>
+        </div>
 
     </div>
 

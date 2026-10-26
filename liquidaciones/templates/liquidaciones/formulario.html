@@ -2,7 +2,27 @@
 {% load ventas_formato l10n %}
 {% block title %}Liquidar servicios | BarberPro{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center gap-2 mb-4"><h2 class="h4 mb-0">Pago a Prestador de Servicio</h2><a href="{% url 'liquidaciones:lista' %}" class="btn btn-outline-primary btn-sm">Consultar cancelaciones</a></div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h2 class="h4 mb-0">Pago a Prestador de Servicio</h2>
+
+    <div class="d-flex flex-wrap gap-2">
+        <a
+            href="{% url 'ventas:reporte_servicios' %}"
+            class="btn btn-outline-secondary btn-sm"
+        >
+            <i class="bi bi-arrow-left me-1"></i>
+            Regresar
+        </a>
+
+        <a
+            href="{% url 'liquidaciones:lista' %}"
+            class="btn btn-outline-primary btn-sm"
+        >
+            Consultar cancelaciones
+        </a>
+    </div>
+</div>
+<p class="small text-muted">La comisión usa el monto original antes del descuento. Cuando el servicio calcula IVA inverso, ese monto incluye el IVA; no se utiliza la base imponible.</p>
 <form method="get" class="card card-body mb-4">
     {{ cabecera.non_field_errors }}
     <div class="row g-3 align-items-end">
@@ -23,7 +43,7 @@
     <div class="card card-body mb-4">
         <div class="d-flex justify-content-between align-items-center mb-2"><h3 class="h5 mb-0">Servicios pendientes</h3><button type="button" id="seleccionar-todos" class="btn btn-outline-primary btn-sm">Marcar / desmarcar todos</button></div>
         <div class="table-responsive"><table class="table table-sm align-middle">
-            <thead><tr><th>Elegir</th><th>Fecha</th><th>Factura</th><th>Servicio</th><th class="text-end">Monto USD sin impuesto</th><th class="text-end">Comisión USD</th></tr></thead>
+            <thead><tr><th>Elegir</th><th>Fecha</th><th>Factura</th><th>Servicio</th><th class="text-end">Monto original USD</th><th class="text-end">Comisión USD</th></tr></thead>
             <tbody>{% for s in servicios %}<tr>
                 <td><input type="checkbox" class="form-check-input elegir-servicio" name="servicios" value="{{ s.linea.pk }}" data-comision="{{ s.comision|unlocalize }}" aria-label="Liquidar {{ s.linea.descripcion_servicio }} de {{ s.linea.documento }}" {% if s.seleccionada %}checked{% endif %}></td>
                 <td>{{ s.linea.documento.fecha|date:"d/m/Y" }}</td><td><a href="{% url 'ventas:ver' s.linea.documento_id %}">{{ s.linea.documento }}</a></td>
@@ -37,20 +57,20 @@
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Reverso</th><th>Servicio</th><th>Cancelación original</th><th class="text-end">Descuento USD</th></tr></thead>
         <tbody>{% for s in descuentos %}<tr><td><a href="{% url 'ventas:ver' s.linea.documento_id %}">{{ s.linea.documento }}</a></td><td>{{ s.linea.descripcion_servicio }}</td><td><a href="{% url 'liquidaciones:ver' s.ajuste_de.liquidacion_id %}">{{ s.ajuste_de.liquidacion }}</a></td><td class="text-end text-danger">{{ s.comision|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
     </div>{% endif %}
-    <div id="resumen-liquidacion" class="alert alert-info" aria-live="polite">Marca los servicios para calcular la comisión.</div>
+    <div id="resumen-liquidacion" class="text-end alert alert-info" aria-live="polite">Marca los servicios para calcular la comisión.</div>
     <div class="card card-body mb-4">
         <h3 class="h5">Formas de pago</h3>
         <p class="small text-muted">Paga en USD, en Bs. o combina monedas. Para pagos mixtos completa el saldo en Bs. Los montos no incluyen impuesto adicional.</p>
         {{ pagos.management_form }}{{ pagos.non_form_errors }}
-        <div class="table-responsive"><table class="table table-sm tabla-pagos"><thead><tr><th>Forma</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th>Monto</th><th>Quitar</th></tr></thead><tbody id="pagos-liquidacion">
-        {% for pago in pagos %}<tr class="pago-liquidacion"><td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{{ pago.tipo_pago.errors }}</td><td class="moneda-pago">—</td><td>{{ pago.fecha }}{{ pago.fecha.errors }}</td><td>{{ pago.referencia }}{{ pago.referencia.errors }}</td><td>{{ pago.observacion }}{{ pago.observacion.errors }}</td><td>{{ pago.monto }}{{ pago.monto.errors }}</td><td>{{ pago.DELETE }}</td></tr>{% endfor %}
+        <div class="table-responsive"><table class="table table-sm tabla-pagos"><thead><tr><th>Forma</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th><th>Quitar</th></tr></thead><tbody id="pagos-liquidacion">
+        {% for pago in pagos %}<tr class="pago-liquidacion"><td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{{ pago.tipo_pago.errors }}</td><td class="moneda-pago">—</td><td>{{ pago.fecha }}{{ pago.fecha.errors }}</td><td>{{ pago.referencia }}{{ pago.referencia.errors }}</td><td>{{ pago.observacion }}{{ pago.observacion.errors }}</td><td class="text-end">{{ pago.monto }}{{ pago.monto.errors }}</td><td>{{ pago.DELETE }}</td></tr>{% endfor %}
         </tbody></table></div>
         <button type="button" id="agregar-pago" class="btn btn-outline-primary btn-sm align-self-start">Añadir pago</button>
         <p id="saldo-liquidacion" class="mt-3 mb-0" aria-live="polite"></p>
     </div>
     <div class="d-flex justify-content-end"><button type="submit" id="guardar-liquidacion" class="btn btn-primary" data-valido="{% if errores %}false{% else %}true{% endif %}" disabled>Registrar cancelación</button></div>
 </form>
-<template id="pago-vacio-liquidacion"><tr class="pago-liquidacion"><td>{{ pagos.empty_form.tipo_pago }}</td><td class="moneda-pago">—</td><td>{{ pagos.empty_form.fecha }}</td><td>{{ pagos.empty_form.referencia }}</td><td>{{ pagos.empty_form.observacion }}</td><td>{{ pagos.empty_form.monto }}</td><td>{{ pagos.empty_form.DELETE }}</td></tr></template>
+<template id="pago-vacio-liquidacion"><tr class="pago-liquidacion"><td>{{ pagos.empty_form.tipo_pago }}</td><td class="moneda-pago">—</td><td>{{ pagos.empty_form.fecha }}</td><td>{{ pagos.empty_form.referencia }}</td><td>{{ pagos.empty_form.observacion }}</td><td class="text-end">{{ pagos.empty_form.monto }}</td><td>{{ pagos.empty_form.DELETE }}</td></tr></template>
 {{ catalogo|json_script:"catalogo-liquidacion" }}
 {{ estado|json_script:"estado-liquidacion" }}
 {% endif %}

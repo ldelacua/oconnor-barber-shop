@@ -5,5 +5,10 @@
 {% include "gastos/nav.html" %}
 <div class="card card-body"><div class="d-flex justify-content-between align-items-center mb-3"><h3 class="h5">Registro de gasto {{ objeto.pk }}</h3><a href="{% url 'gastos:editar' objeto.pk %}" class="btn btn-outline-primary btn-sm">Editar</a></div>
 <dl class="row"><dt class="col-md-4">Fecha</dt><dd class="col-md-8">{{ objeto.fecha_gasto|date:"d/m/Y" }}</dd><dt class="col-md-4">Grupo</dt><dd class="col-md-8">{{ objeto.gasto.grupo }}</dd><dt class="col-md-4">Tipo de gasto</dt><dd class="col-md-8">{{ objeto.gasto }}</dd><dt class="col-md-4">Proveedor</dt><dd class="col-md-8">{{ objeto.proveedor.descripcion }}</dd><dt class="col-md-4">RIF</dt><dd class="col-md-8">{{ objeto.proveedor.rif }}</dd><dt class="col-md-4">Factura</dt><dd class="col-md-8">{{ objeto.numero_factura }}</dd><dt class="col-md-4">Número de control</dt><dd class="col-md-8">{{ objeto.numero_control|default:"—" }}</dd><dt class="col-md-4">Moneda</dt><dd class="col-md-8">{{ objeto.get_moneda_display }}</dd><dt class="col-md-4">Monto del gasto</dt><dd class="col-md-8">{{ objeto.monto_gasto|monto_venta }}</dd><dt class="col-md-4">Impuesto manual ({{ objeto.porcentaje_impuesto|porcentaje_venta }}%)</dt><dd class="col-md-8">{{ objeto.monto_impuesto|monto_venta }}</dd><dt class="col-md-4">Total</dt><dd class="col-md-8 fw-bold">{{ objeto.total|monto_venta }} {{ objeto.get_moneda_display }}</dd></dl>
+<h4 class="h5 mt-3">Productos del gasto</h4>
+<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Producto</th><th class="text-end">Cantidad</th></tr></thead><tbody>
+{% for detalle in objeto.detalles.all %}<tr><td>{{ detalle.producto.descripcion }}</td><td class="text-end">{{ detalle.cantidad|floatformat:"-3" }}</td></tr>
+{% empty %}<tr><td colspan="2" class="text-muted">Este gasto no tiene productos registrados.</td></tr>{% endfor %}
+</tbody></table></div>
 <a href="{% url 'gastos:inicio' %}" class="btn btn-outline-secondary align-self-start">Volver</a></div>
 {% endblock %}

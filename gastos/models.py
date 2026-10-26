@@ -80,3 +80,46 @@ class RegistroGasto(models.Model):
 
     def __str__(self):
         return f"Gasto {self.pk} · {self.numero_factura}"
+
+
+class Producto(models.Model):
+    id_producto = models.BigAutoField(primary_key=True)
+    descripcion = models.CharField(max_length=150, verbose_name="Descripción")
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["descripcion", "id_producto"]
+        verbose_name = "Producto"
+        verbose_name_plural = "Productos"
+
+    def __str__(self):
+        return self.descripcion
+    unidad_medida = models.CharField(
+        max_length=10,
+        choices=[
+            ("kg", "Kg"),
+            ("gr", "gr"),
+            ("metro", "Metro"),
+            ("unidad", "Unidad"),
+        ],
+        default="unidad",
+        verbose_name="Unidad de medida",
+    )
+
+class DetalleRegistroGasto(models.Model):
+    id_detalle_registro = models.BigAutoField(primary_key=True)
+    registro_gasto = models.ForeignKey(RegistroGasto, on_delete=models.CASCADE,
+        related_name="detalles", db_column="id_registro_gasto")
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT,
+        related_name="detalles_gasto", db_column="id_producto")
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))])
+
+    class Meta:
+        ordering = ["id_detalle_registro"]
+        constraints = [models.CheckConstraint(condition=models.Q(cantidad__gt=0),
+            name="detalle_gasto_cantidad_positiva")]
+
+    
+    def __str__(self):
+        return f"{self.descripcion} ({self.get_unidad_medida_display()})"

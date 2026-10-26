@@ -12,7 +12,7 @@ from .models import Barbero
 def lista_barberos(request):
     busqueda = request.GET.get("buscar", "").strip()
 
-    barberos = Barbero.objects.all()
+    barberos = Barbero.objects.select_related("silla").all()
 
     if busqueda:
         barberos = barberos.filter(
@@ -22,6 +22,7 @@ def lista_barberos(request):
             | Q(telefono__icontains=busqueda)
             | Q(correo__icontains=busqueda)
             | Q(codigo_silla__icontains=busqueda)
+            | Q(silla__nombre__icontains=busqueda)
         )
 
     paginador = Paginator(barberos, 10)
@@ -46,7 +47,7 @@ def crear_barbero(request):
 
             messages.success(
                 request,
-                "El barbero fue registrado correctamente.",
+                "El prestador de servicio fue registrado correctamente.",
             )
 
             return redirect("barberos:lista_barberos")
@@ -82,7 +83,7 @@ def editar_barbero(request, pk):
 
             messages.success(
                 request,
-                "La información del barbero fue actualizada correctamente.",
+                "La información del prestador de servicio fue actualizada correctamente.",
             )
 
             return redirect("barberos:lista_barberos")
@@ -92,8 +93,8 @@ def editar_barbero(request, pk):
     contexto = {
         "formulario": formulario,
         "barbero": barbero,
-        "titulo": "Editar barbero",
-        "descripcion": "Actualiza la información del barbero.",
+        "titulo": "Editar prestador de servicio",
+        "descripcion": "Actualiza la información del prestador de servicio.",
         "texto_boton": "Guardar cambios",
     }
 

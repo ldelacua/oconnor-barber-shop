@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{{ titulo }}</h2><div>
+{% if es_producto %}
+<a class="btn btn-outline-primary conservar-maestro" href="{% url 'inventario:productos' %}?next={{ ruta_actual|urlencode }}">Consulta de productos</a>
+<a class="btn btn-outline-primary conservar-maestro" href="{% url 'inventario:unidades' %}?next={{ ruta_actual|urlencode }}">Unidades de medida</a>
+{% endif %}
+<a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div></div>
+<form method="post" id="maestro-form" class="card card-body">{% csrf_token %}<input type="hidden" name="next" value="{{ regresar }}">
+{{ form.non_field_errors }}
+<div class="row g-3">{% for campo in form %}<div class="col-md-6">{{ campo.label_tag }} {{ campo }} {{ campo.errors }}</div>{% endfor %}</div>
+<div class="mt-4"><button class="btn btn-primary">Guardar</button> <a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div>
+</form>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'inventario/mayusculas.js' %}?v=7"></script>{% endblock %}

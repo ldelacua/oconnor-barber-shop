@@ -12,7 +12,20 @@ from citas.buscador_clientes import BuscadorClienteWidget
 class VentaForm(forms.Form):
     fecha = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control"}))
     cliente = forms.ModelChoiceField(queryset=Cliente.objects.filter(activo=True), widget=BuscadorClienteWidget())
+    aplicar_descuento = forms.BooleanField(required=False, label="Aplicar descuento al cliente", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
+    descuento_porcentaje = forms.DecimalField(required=False, initial=Decimal("50.00"), max_digits=5, decimal_places=2,
+        min_value=Decimal("0.01"), max_value=Decimal("100.00"), label="Descuento (%)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "0.01", "max": "100", "step": "0.01"}))
     clave = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
+
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get("aplicar_descuento") and datos.get("descuento_porcentaje") is None and "descuento_porcentaje" not in self.errors:
+            self.add_error("descuento_porcentaje", "Introduce el porcentaje de descuento.")
+        if not datos.get("aplicar_descuento"):
+            datos["descuento_porcentaje"] = Decimal("0.00")
+        return datos
 
 
 class PrestadorChoiceField(forms.ModelChoiceField):
@@ -33,6 +46,19 @@ class LineaForm(forms.Form):
     )
     servicio = ServicioChoiceField(queryset=Servicio.objects.filter(activo=True), widget=forms.Select(attrs={"class": "form-select servicio-venta"}))
     cantidad_servicio = forms.IntegerField(label="Cantidad", min_value=1, max_value=10000, initial=1, widget=forms.NumberInput(attrs={"class": "form-control cantidad-venta", "min": 1}))
+
+    precio_unitario_usd = forms.DecimalField(required=False, max_digits=18, decimal_places=2, min_value=Decimal("0.00"),
+        label="Precio USD", widget=forms.NumberInput(attrs={"class": "form-control precio-manual", "min": "0.01", "step": "0.01"}))
+
+    def clean(self):
+        datos = super().clean()
+        servicio = datos.get("servicio")
+        if servicio and servicio.modo_precio == "manual":
+            if datos.get("precio_unitario_usd") is None and "precio_unitario_usd" not in self.errors:
+                self.add_error("precio_unitario_usd", "Introduce el precio de este servicio manual.")
+            elif datos.get("precio_unitario_usd") is not None and datos["precio_unitario_usd"] <= 0:
+                self.add_error("precio_unitario_usd", "El precio manual debe ser mayor que cero.")
+        return datos
 
 
 LineasFormSet = formset_factory(LineaForm, extra=1, min_num=1, validate_min=True, max_num=50, validate_max=True, absolute_max=60, can_delete=True)
@@ -78,3 +104,5 @@ class PagoForm(forms.Form):
 
 
 PagosFormSet = formset_factory(PagoForm, extra=0, min_num=1, validate_min=True, max_num=20, validate_max=True, absolute_max=25, can_delete=True)
+# Solo Ventas admite no recibir pagos cuando el descuento deja el total en cero.
+PagosVentaFormSet = formset_factory(PagoForm, extra=1, min_num=0, validate_min=True, max_num=20, validate_max=True, absolute_max=25, can_delete=True)

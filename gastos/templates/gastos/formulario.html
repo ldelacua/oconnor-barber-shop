@@ -5,6 +5,7 @@
 <div class="card card-body"><h3 class="h5 mb-3">{{ titulo }}</h3>
 <form method="post">{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
 <div class="row g-3">{% for campo in form %}<div class="col-md-6">{% if campo.field.widget.input_type == 'checkbox' %}<div class="form-check mt-4">{{ campo }}<label class="form-check-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label></div>{% else %}<label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{% endif %}{% if campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}{% for error in campo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}</div>
+{% if detalles %}{% include "gastos/detalles_form.html" %}{% endif %}
 <div class="d-flex justify-content-end gap-2 mt-4">{% if catalogo %}<a href="{% url 'gastos:catalogo' catalogo %}" class="btn btn-secondary">Cancelar</a>{% else %}<a href="{% url 'gastos:inicio' %}" class="btn btn-secondary">Cancelar</a>{% endif %}<button type="submit" class="btn btn-primary">Guardar</button></div>
 </form></div>
 {% endblock %}

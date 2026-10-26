@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block extra_css %}<style>@media print{nav,.col-md-2,.no-imprimir{display:none!important}main{width:100%!important;max-width:100%!important;flex:0 0 100%!important}}</style>{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{{ documento }}</h2><div class="no-imprimir">
+<button class="btn btn-outline-primary" onclick="window.print()">Imprimir</button>
+<a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div></div>
+<div class="card card-body mb-3"><p><strong>Cliente:</strong> {{ documento.descripcion_cliente }}<br><strong>Fecha:</strong> {{ documento.fecha|date:"d/m/Y" }}<br><strong>BCV:</strong> {{ documento.tasa_bcv|monto_venta }}</p>
+{% if documento.observacion %}<p>{{ documento.observacion|linebreaksbr }}</p>{% endif %}
+{% if documento.documento_original %}<p>Reverso de <a href="{% url 'ventas_productos:ver' documento.documento_original_id %}">{{ documento.documento_original }}</a>. Motivo: {{ documento.motivo }}</p>
+{% elif documento.reverso %}<p class="text-danger">Venta reversada por <a href="{% url 'ventas_productos:ver' documento.reverso.pk %}">{{ documento.reverso }}</a>.</p>{% endif %}
+<div class="table-responsive"><table class="table"><thead><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Precio Unitario USD</th><th class="text-end">Subtotal USD</th></tr></thead><tbody>{% for l in documento.detalles.all %}<tr><td>{{ l.descripcion }}</td><td class="text-end">{{ l.cantidad|monto_venta }}</td><td class="text-end">{{ l.precio_unitario_usd|monto_venta }}</td><td class="text-end">{{ l.subtotal_usd|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="ms-auto" style="max-width:470px">
+<p class="text-end"><strong>Unidades de la factura:</strong> {{ documento.total_unidades|monto_venta }}</p>
+<table class="table"><tbody>
+<tr><th class="text-end">Subtotal</th><td class="text-end">Bs {{ documento.subtotal_bs|monto_venta }}</td></tr>
+{% if documento.descuento_porcentaje %}<tr><th class="text-end">Descuento {{ documento.descuento_porcentaje|monto_venta }} %{% if documento.umbral_descuento is not None %}<br><small class="fw-normal">Umbral: {{ documento.umbral_descuento|monto_venta }} unidades</small>{% endif %}</th><td class="text-end">Bs {{ documento.descuento_bs|monto_venta }}</td></tr>{% endif %}
+<tr><th class="text-end">Base imponible</th><td class="text-end">Bs {{ documento.base_bs|monto_venta }}</td></tr>
+<tr><th class="text-end">IVA {{ documento.iva|monto_venta }} %</th><td class="text-end">Bs {{ documento.impuesto_bs|monto_venta }}</td></tr>
+<tr class="table-light fs-5"><th class="text-end">Total general</th><td class="text-end fw-bold">Bs {{ documento.total_bs|monto_venta }}</td></tr>
+<tr><th class="text-end">Equivalente USD</th><td class="text-end">USD {{ documento.total_usd|monto_venta }}</td></tr>
+</tbody></table></div></div>
+<div class="card card-body"><h4>Pagos</h4><div class="table-responsive"><table class="table"><thead><tr><th>Forma</th><th>Fecha</th><th>Referencia</th><th class="text-end">Monto</th><th class="text-end">Equivalente Bs</th></tr></thead><tbody>{% for p in documento.pagos.all %}<tr><td>{{ p.nombre_tipo_pago }}</td><td>{{ p.fecha|date:"d/m/Y" }}</td><td>{{ p.referencia }}</td><td class="text-end">{{ p.monto|monto_venta }} {{ p.moneda }}</td><td class="text-end">{{ p.equivalente_bs|monto_venta }}</td></tr>{% empty %}<tr><td colspan="5">No requiere pagos; total cero.</td></tr>{% endfor %}</tbody></table></div></div>
+<p class="text-muted mt-3">Registrado por {{ documento.registrado_por }} · {{ documento.creado_en|date:"d/m/Y H:i" }}</p>
+{% if documento.tipo == 'VP' and not documento.reverso %}<a class="btn btn-outline-danger no-imprimir" href="{% url 'ventas_productos:reversar' documento.pk %}">Reversar venta</a>{% endif %}
+{% endblock %}

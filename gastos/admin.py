@@ -32,3 +32,21 @@ class RegistroAdmin(admin.ModelAdmin):
         from .forms import RegistroForm
         kwargs["form"]=RegistroForm
         return super().get_form(request,obj,**kwargs)
+
+
+from .models import Producto, DetalleRegistroGasto
+from .forms import ProductoForm, DetalleGastoForm
+
+@admin.register(Producto)
+class ProductoAdmin(admin.ModelAdmin):
+    form = ProductoForm
+    list_display = ("id_producto", "descripcion", "activo")
+    list_filter = ("activo",)
+    search_fields = ("descripcion",)
+
+class DetalleGastoInline(admin.TabularInline):
+    model = DetalleRegistroGasto
+    form = DetalleGastoForm
+    extra = 1
+
+RegistroAdmin.inlines = [DetalleGastoInline]

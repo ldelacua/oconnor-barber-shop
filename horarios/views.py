@@ -128,7 +128,7 @@ def eliminar_silla(request, silla_id):
                 request,
                 (
                     f'No se puede eliminar la silla "{nombre}" porque '
-                    "tiene horarios asociados. Puedes desactivarla "
+                    "tiene horarios o prestadores asociados. Puedes desactivarla "
                     "en lugar de eliminarla."
                 ),
             )
@@ -271,7 +271,7 @@ def crear_horario(request):
         "formulario": formulario,
         "titulo": "Nuevo horario",
         "descripcion": (
-            "Selecciona el barbero, la silla y los bloques "
+            "Selecciona el prestador de servicio, la silla y los bloques "
             "de trabajo en la matriz semanal."
         ),
         "texto_boton": "Guardar horarios",
@@ -316,7 +316,7 @@ def editar_horario(request, horario_id):
         "horario": horario,
         "titulo": "Editar horario",
         "descripcion": (
-            "Modifica el día, las horas, el barbero o la silla."
+            "Modifica el día, las horas, el prestador de servicio o la silla."
         ),
         "texto_boton": "Guardar cambios",
     }

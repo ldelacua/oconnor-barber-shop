@@ -1,0 +1,33 @@
+<section class="mt-4" id="detalle-gasto">
+<h4 class="h5">Productos del gasto</h4>
+<p class="text-muted small">Registra únicamente productos y cantidades. Los montos e impuestos permanecen en el encabezado.</p>
+{{ detalles.management_form }}
+{% if detalles.non_form_errors %}<div class="alert alert-danger">{{ detalles.non_form_errors }}</div>{% endif %}
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Producto</th><th style="width:160px;">Cantidad</th><th>Quitar</th></tr></thead>
+<tbody id="filas-productos">
+{% for linea in detalles %}
+<tr><td>{% for oculto in linea.hidden_fields %}{{ oculto }}{% endfor %}{{ linea.non_field_errors }}{{ linea.producto }}{{ linea.producto.errors }}</td>
+<td>{{ linea.cantidad }}{{ linea.cantidad.errors }}</td>
+<td>{{ linea.DELETE }}{{ linea.DELETE.errors }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<button type="button" class="btn btn-outline-primary btn-sm" id="agregar-producto">Agregar producto</button>
+<template id="producto-vacio"><tr>
+<td>{% for oculto in detalles.empty_form.hidden_fields %}{{ oculto }}{% endfor %}{{ detalles.empty_form.producto }}</td>
+<td>{{ detalles.empty_form.cantidad }}</td><td>{{ detalles.empty_form.DELETE }}</td>
+</tr></template>
+</section>
+<script>
+(() => {
+ const boton=document.getElementById('agregar-producto');
+ const total=document.getElementById('id_detalles-TOTAL_FORMS');
+ const limite=Number(document.getElementById('id_detalles-MAX_NUM_FORMS').value);
+ boton.addEventListener('click', () => {
+  const indice=Number(total.value);
+  if(indice>=limite){alert('Puedes registrar hasta 100 líneas por gasto.');return;}
+  const html=document.getElementById('producto-vacio').innerHTML.replaceAll('__prefix__',String(indice));
+  document.getElementById('filas-productos').insertAdjacentHTML('beforeend',html);
+  total.value=indice+1;
+ });
+})();
+</script>

@@ -7,7 +7,7 @@
 
     <div class="mb-4">
         <h1 class="h3 mb-1">{{ titulo }}</h1>
-        <p class="text-muted mb-0">{{ descripcion }}</p>
+        <p class="text-muted mb-0">Selecciona el Prestador de Servicio y los horarios. Su silla se asigna automáticamente.</p>
     </div>
 
     <div class="card shadow-sm">
@@ -39,11 +39,13 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label" for="{{ formulario.silla.id_for_label }}">
+                        <label class="form-label" for="silla-asignada-nombre">
                             {{ formulario.silla.label }}
                         </label>
 
                         {{ formulario.silla }}
+                        <input type="text" class="form-control bg-light" id="silla-asignada-nombre" value="{{ formulario.nombre_silla_asignada }}" readonly aria-label="Silla asignada">
+                        <div class="form-text" id="silla-asignada-aviso">La silla se toma de la ficha del prestador.</div>
 
                         {% for error in formulario.silla.errors %}
                             <div class="text-danger small mt-1">{{ error }}</div>
@@ -126,6 +128,7 @@
                     </button>
                 </div>
             </form>
+    {% include "horarios/silla_asignada.html" %}
 
         </div>
     </div>

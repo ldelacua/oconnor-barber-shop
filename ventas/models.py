@@ -36,6 +36,7 @@ class DocumentoVenta(Inmutable):
     fecha = models.DateField(default=timezone.localdate)
     cliente = models.ForeignKey("clientes.Cliente", on_delete=models.PROTECT, related_name="documentos_venta")
     tasa_bcv = models.DecimalField(max_digits=18, decimal_places=2)
+    iva_incluido = models.BooleanField(default=True, editable=False)
     impuesto = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Impuesto (%)")
     documento_original = models.OneToOneField(
         "self", null=True, blank=True, on_delete=models.PROTECT, related_name="reverso"
@@ -45,6 +46,9 @@ class DocumentoVenta(Inmutable):
     subtotal_bs = models.DecimalField(max_digits=18, decimal_places=2)
     total_impuesto_bs = models.DecimalField(max_digits=18, decimal_places=2)
     total_bs = models.DecimalField(max_digits=18, decimal_places=2)
+    descuento_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    descuento_usd = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    descuento_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     clave_operacion = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     creado_en = models.DateTimeField(auto_now_add=True)
     registrado_por = models.CharField(max_length=150, editable=False)
@@ -54,6 +58,18 @@ class DocumentoVenta(Inmutable):
         ordering = ["-fecha", "-id_documento"]
         verbose_name = "Documento de venta"
         verbose_name_plural = "Documentos de venta"
+
+    @property
+    def subtotal_bruto_usd(self):
+        if self.iva_incluido:
+            return sum((l.monto_servicio for l in self.detalles.all()), 0)
+        return self.subtotal_usd + self.descuento_usd
+
+    @property
+    def subtotal_bruto_bs(self):
+        if self.iva_incluido:
+            return sum((l.monto_servicio_bs for l in self.detalles.all()), 0)
+        return self.subtotal_bs + self.descuento_bs
 
     @property
     def total_usd(self):
@@ -79,6 +95,28 @@ class DetalleVenta(Inmutable):
     monto_servicio = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="Subtotal USD")
     monto_servicio_bs = models.DecimalField(max_digits=18, decimal_places=2)
     monto_impuesto = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="Impuesto Bs.")
+
+    retencion_impuesto = models.BooleanField(null=True, editable=False)
+    impuesto_normal = models.BooleanField(default=False, editable=False)
+
+    # Nullable únicamente para documentos históricos que sumaban IVA al precio.
+    base_imponible_usd = models.DecimalField(max_digits=18, decimal_places=2, null=True, editable=False)
+    base_imponible_bs = models.DecimalField(max_digits=18, decimal_places=2, null=True, editable=False)
+
+    precio_manual = models.BooleanField(default=False)
+    monto_descuento_usd = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    monto_descuento_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    linea_original = models.OneToOneField(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="linea_reverso",
+    )
+
+    @property
+    def monto_neto_usd(self):
+        return self.monto_servicio - self.monto_descuento_usd
+
+    @property
+    def monto_neto_bs(self):
+        return self.monto_servicio_bs - self.monto_descuento_bs
 
     class Meta:
         ordering = ["pk"]

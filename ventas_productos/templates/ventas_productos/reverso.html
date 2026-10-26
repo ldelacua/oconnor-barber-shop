@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<h2>Reversar {{ documento }}</h2><p class="alert alert-warning">El reverso completo repondrá los productos y registrará la devolución de los pagos originales. La venta se conservará en el historial.</p>
+<form method="post" class="card card-body" onsubmit="return confirm('¿Reversar toda la venta y reponer sus productos?');">{% csrf_token %}{{ form.as_p }}<div><button class="btn btn-danger">Registrar reverso</button> <a class="btn btn-outline-secondary" href="{% url 'ventas_productos:ver' documento.pk %}">Regresar</a></div></form>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'inventario/mayusculas.js' %}?v=7"></script>{% endblock %}

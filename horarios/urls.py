@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from .matriz_unificada import pantalla_horarios, abrir_horario
 
 app_name = "horarios"
 
@@ -39,27 +40,27 @@ urlpatterns = [
     # ===========================
     path(
         "",
-        views.listar_horarios,
+        pantalla_horarios,
         name="listar_horarios",
     ),
     path(
         "nuevo/",
-        views.crear_horario,
+        pantalla_horarios,
         name="crear_horario",
     ),
     path(
         "<int:horario_id>/editar/",
-        views.editar_horario,
+        abrir_horario,
         name="editar_horario",
     ),
     path(
         "<int:horario_id>/eliminar/",
-        views.eliminar_horario,
+        abrir_horario,
         name="eliminar_horario",
     ),
     path(
         "<int:horario_id>/estado/",
-        views.cambiar_estado_horario,
+        abrir_horario,
         name="cambiar_estado_horario",
     ),
 ]

@@ -159,24 +159,15 @@
                     </div>
 
                     <div class="col-md-4">
-
-                        <label
-                            for="{{ formulario.fecha_nacimiento.id_for_label }}"
-                            class="form-label"
-                        >
-                            Fecha de nacimiento
-                        </label>
-
-                        {{ formulario.fecha_nacimiento }}
-
-                        {% for error in formulario.fecha_nacimiento.errors %}
-
-                            <div class="text-danger small mt-1">
-                                {{ error }}
-                            </div>
-
-                        {% endfor %}
-
+                        <label for="{{ formulario.dia_nacimiento.id_for_label }}" class="form-label">Día de nacimiento</label>
+                        {{ formulario.dia_nacimiento }}
+                        {{ formulario.dia_nacimiento.errors }}
+                    </div>
+                    <div class="col-md-4">
+                        <label for="{{ formulario.mes_nacimiento.id_for_label }}" class="form-label">Mes de nacimiento</label>
+                        {{ formulario.mes_nacimiento }}
+                        {{ formulario.mes_nacimiento.errors }}
+                        <div class="form-text">Opcional. Indica día y mes, sin año.</div>
                     </div>
 
                     <div class="col-12">
@@ -259,4 +250,16 @@
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-mayusculas]').forEach(function(campo) {
+    campo.addEventListener('input', function() {
+        const inicio = this.selectionStart, fin = this.selectionEnd;
+        this.value = this.value.toUpperCase();
+        if (inicio !== null && this.type !== 'email') this.setSelectionRange(inicio, fin);
+    });
+});
+</script>
 {% endblock %}

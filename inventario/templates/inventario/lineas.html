@@ -1,0 +1,10 @@
+{% load ventas_formato %}
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+<thead><tr><th>Código</th><th>Nombre</th><th class="text-end">Volumen</th><th>Unidad</th><th class="text-end">Cantidad</th><th class="text-end">Precio Unitario</th><th class="text-end">Total</th></tr></thead>
+<tbody>{% for d in compra.detalles.all %}
+<tr><td>{{ d.producto.codigo_producto }}</td><td>{{ d.producto.nombre_producto }}</td><td class="text-end">{{ d.producto.volumen|monto_venta }}</td><td>{{ d.producto.unidad_medida.codigo|default:"—" }}</td><td class="text-end">{{ d.cantidad|monto_venta }}</td><td class="text-end">{{ d.precio_unitario|monto_venta }}</td><td class="text-end">{{ d.total|monto_venta }}</td></tr>
+{% empty %}<tr><td colspan="7">Sin productos.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="text-end mb-1"><strong>Total {{ compra.get_divisa_display }}:</strong> {{ compra.total|monto_venta }}</p>
+<p class="text-end text-muted">Equivalentes: USD {{ compra.total_usd|monto_venta }} · Bs {{ compra.total_bs|monto_venta }}. Tasa BCV: {{ compra.tasa_cambio|monto_venta }}.</p>

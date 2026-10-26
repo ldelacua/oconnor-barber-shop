@@ -21,36 +21,42 @@
         {% elif documento.reverso %}
             <div class="alert alert-warning">Esta FA fue reversada mediante <a href="{% url 'ventas:ver' documento.reverso.pk %}">{{ documento.reverso }}</a>. Se conserva para consulta.</div>
         {% endif %}
+        {% if documento.iva_incluido %}<p class="small text-muted">Los servicios con Retención de impuesto marcada desglosan IVA incluido; los demás calculan IVA normal adicional. El desglose inverso no aumenta el precio. La liquidación del prestador conserva el monto original antes del descuento.</p>{% endif %}
         <div class="table-responsive"><table class="table">
-            <thead><tr><th>Servicio</th><th>Prestador de servicio</th><th class="text-end">Cantidad</th><th class="text-end">Precio USD</th><th class="text-end">Subtotal USD</th><th class="text-end">Subtotal Bs.</th></tr></thead>
+            <thead><tr><th>Servicio</th><th>Prestador de servicio</th><th class="text-end">Cantidad</th><th class="text-end">Precio USD</th><th class="text-end">Neto USD</th><th class="text-end">Neto Bs.</th></tr></thead>
             <tbody>{% for linea in documento.detalles.all %}<tr>
-                <td>{{ linea.descripcion_servicio }}</td>
+                <td>{{ linea.descripcion_servicio }}{% if documento.iva_incluido %}<div class="small text-muted">{% if linea.impuesto_normal %}IVA adicional · {{ documento.impuesto|porcentaje_venta }}%{% elif linea.retencion_impuesto == False %}Sin IVA (documento anterior){% else %}IVA incluido · {{ documento.impuesto|porcentaje_venta }}%{% endif %}</div>{% endif %}{% if linea.precio_manual %}<div class="small text-muted">Precio manual</div>{% endif %}</td>
                 <td>{{ linea.descripcion_barbero|nombre_prestador|default:"Sin dato (venta anterior)" }}</td>
                 <td class="text-end">{{ linea.cantidad_servicio }}</td><td class="text-end">{{ linea.precio_unitario_usd|monto_venta }}</td>
-                <td class="text-end">{{ linea.monto_servicio|monto_venta }}</td><td class="text-end">{{ linea.monto_servicio_bs|monto_venta }}</td>
+                <td class="text-end">{{ linea.monto_neto_usd|monto_venta }}{% if linea.monto_descuento_usd %}<div class="small text-muted">Descuento: {{ linea.monto_descuento_usd|monto_venta }}</div>{% endif %}</td><td class="text-end">{{ linea.monto_neto_bs|monto_venta }}</td>
             </tr>{% endfor %}</tbody>
         </table></div>
         <div class="d-flex justify-content-end">
             <table class="table table-sm mb-0" style="width: 100%; max-width: 420px;">
                 <tbody>
+                    {% if documento.descuento_porcentaje %}
+                    <tr><th scope="row" class="text-end">Importe completo USD</th><td class="text-end text-nowrap">{{ documento.subtotal_bruto_usd|monto_venta }}</td></tr>
+                    <tr><th scope="row" class="text-end">Descuento ({{ documento.descuento_porcentaje|porcentaje_venta }}%) USD</th><td class="text-end text-nowrap">{{ documento.descuento_usd|monto_venta }}</td></tr>
+                    <tr><th scope="row" class="text-end">Descuento Bs.</th><td class="text-end text-nowrap">{{ documento.descuento_bs|monto_venta }}</td></tr>
+                    {% endif %}
                     <tr>
-                        <th scope="row">Subtotal USD</th>
+                        <th scope="row">{% if documento.iva_incluido %}Base imponible USD{% else %}Subtotal neto USD{% endif %}</th>
                         <td class="text-end text-nowrap">{{ documento.subtotal_usd|monto_venta }}</td>
                     </tr>
                     <tr>
-                        <th scope="row">Subtotal Bs.</th>
+                        <th scope="row">{% if documento.iva_incluido %}Base imponible Bs.{% else %}Subtotal neto Bs.{% endif %}</th>
                         <td class="text-end text-nowrap">{{ documento.subtotal_bs|monto_venta }}</td>
                     </tr>
                     <tr>
-                        <th scope="row">Impuesto ({{ documento.impuesto|porcentaje_venta }}%) Bs.</th>
+                        <th scope="row">{% if documento.iva_incluido %}IVA aplicado{% else %}Impuesto{% endif %} ({{ documento.impuesto|porcentaje_venta }}%) Bs.</th>
                         <td class="text-end text-nowrap">{{ documento.total_impuesto_bs|monto_venta }}</td>
                     </tr>
                     <tr>
-                        <th scope="row">Total USD (con impuesto)</th>
+                        <th scope="row" class="text-end">Total USD (con impuesto)</th>
                         <td class="text-end text-nowrap">{{ documento.total_usd|monto_venta }}</td>
                     </tr>
                     <tr class="table-light">
-                        <th scope="row" class="fs-5">Total Bs.</th>
+                        <th scope="row" class="text-end fs-5">Total Bs.</th>
                         <td class="text-end text-nowrap fs-5 fw-bold">{{ documento.total_bs|monto_venta }}</td>
                     </tr>
                 </tbody>
@@ -70,7 +76,7 @@
                 <p class="text-end mb-1"><strong>Pagos USD:</strong> {{ resumen_pagos.usd|monto_venta }} · <strong>Pagos Bs.:</strong> {{ resumen_pagos.bs|monto_venta }}</p>
                 {% if resumen_pagos.ajuste_bs %}<p class="text-muted small text-end mb-0">Ajuste de redondeo de conversión: {{ resumen_pagos.ajuste_bs|monto_venta }} Bs. Los montos recibidos se conservan en su moneda.</p>{% endif %}
             {% else %}
-                <p class="text-muted">Documento anterior al registro de pagos: no hay formas de pago registradas.</p>
+                <p class="text-muted">{% if documento.total_bs == 0 %}El total es cero; no requiere pagos.{% else %}Documento anterior al registro de pagos: no hay formas de pago registradas.{% endif %}</p>
             {% endif %}
         </section>
         <p class="text-muted small mt-4 mb-0">Registrado por {{ documento.registrado_por }} · {{ documento.creado_en|date:"d/m/Y H:i" }}. Documento de consulta interna.</p>

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Venta de productos{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><div><h2>Venta de productos</h2><p class="text-muted">Ventas y reversos con control de existencias.</p></div><div>
+<a class="btn btn-primary" href="{% url 'ventas_productos:nueva' %}">Nueva venta</a>
+<a class="btn btn-outline-secondary" href="{% url 'inventario:productos' %}?next={{ request.get_full_path|urlencode }}">Consulta de productos</a>
+<a class="btn btn-outline-primary" href="{% url 'ventas_productos:porcentajes' %}">Porcentajes de venta</a>
+<a class="btn btn-outline-primary" href="{% url 'ventas_productos:descuentos' %}">Descuentos por cantidad</a>
+<a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Regresar</a></div></div>
+<form class="card card-body mb-3">{{ filtros.non_field_errors }}<div class="row g-3">{% for campo in filtros %}<div class="col-md-4 col-lg-2">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
+<div class="mt-3"><button class="btn btn-primary">Consultar</button> <a class="btn btn-outline-secondary" href="{% url 'ventas_productos:lista' %}">Limpiar</a></div></form>
+<div class="card table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Documento</th><th>Fecha</th><th>Cliente</th><th class="text-end">Total USD</th><th class="text-end">Total Bs</th><th>Estado</th><th></th></tr></thead><tbody>
+{% for d in pagina %}<tr><td>{{ d }}</td><td>{{ d.fecha|date:"d/m/Y" }}</td><td>{{ d.descripcion_cliente }}</td><td class="text-end">{{ d.total_usd|monto_venta }}</td><td class="text-end">{{ d.total_bs|monto_venta }}</td><td>{% if d.tipo == 'RP' %}REVERSO{% elif d.reverso %}REVERSADA{% else %}REGISTRADA{% endif %}</td><td><a class="btn btn-sm btn-outline-primary" href="{% url 'ventas_productos:ver' d.pk %}?next={{ request.get_full_path|urlencode }}">Abrir</a></td></tr>
+{% empty %}<tr><td colspan="7" class="text-center p-5">No hay documentos para estos filtros.</td></tr>{% endfor %}
+</tbody></table></div>
+{% include "inventario/paginacion.html" %}
+{% endblock %}

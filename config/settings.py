@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+import os
 from tzlocal import get_localzone_name
 from pathlib import Path
 
@@ -34,6 +35,9 @@ AUTH_USER_MODEL = "seguridad.Usuario"
 # Application definition
 
 INSTALLED_APPS = [
+    'control_inventario.apps.ControlInventarioConfig',
+    'ventas_productos.apps.VentasProductosConfig',
+    'inventario.apps.InventarioConfig',
     'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -61,6 +65,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'seguridad.middleware.PermisosModulosMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -158,4 +163,15 @@ JAZZMIN_SETTINGS = {
         "servicios.Servicio": "fas fa-scissors",
     },
 }
+LOGIN_URL = "iniciar_sesion"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = os.environ.get("BARBER_GMAIL_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("BARBER_GMAIL_APP_PASSWORD", "").replace(" ", "")
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+EMAIL_TIMEOUT = 30
+PASSWORD_RESET_TIMEOUT = 3600
 LOGIN_URL = "iniciar_sesion"

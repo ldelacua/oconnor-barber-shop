@@ -26,6 +26,8 @@ def pendientes(prestador, desde, hasta, fecha):
         documento__reverso__isnull=True, documento__fecha__range=(desde, hasta),
         comision_liquidada__isnull=True,
     ).select_related("documento").order_by("documento__fecha", "pk")
+    # monto_servicio conserva el precio original (IVA incluido cuando corresponde),
+    # antes del descuento. Nunca usar base_imponible_usd para la comisión.
     servicios = [{"linea": l, "porcentaje": porcentaje, "base": l.monto_servicio,
                   "comision": comision(l.monto_servicio, porcentaje), "ajuste_de": None} for l in lineas]
     pagadas = DetalleLiquidacion.objects.filter(

@@ -2,7 +2,26 @@
 {% load ventas_formato %}
 {% block title %}Pagos a prestadores{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4"><h2 class="h4">Cancelaciones a Prestadores</h2><a class="btn btn-primary btn-sm" href="{% url 'liquidaciones:crear' %}">Nueva cancelación</a></div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h2 class="h4 mb-0">Cancelaciones a Prestadores</h2>
+
+    <div class="d-flex gap-2">
+        <a
+            href="{% url 'ventas:reporte_servicios' %}"
+            class="btn btn-outline-secondary btn-sm"
+        >
+            <i class="bi bi-arrow-left me-1"></i>
+            Regresar
+        </a>
+
+        <a
+            href="{% url 'liquidaciones:crear' %}"
+            class="btn btn-primary btn-sm"
+        >
+            Nueva cancelación
+        </a>
+    </div>
+</div>
 <form method="get" class="card card-body mb-4">{{ filtros.non_field_errors }}<div class="row g-2 align-items-end">{% for campo in filtros %}<div class="col-md-3"><label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endfor %}<div class="col-12 text-end"><button class="btn btn-primary btn-sm" type="submit">Filtrar</button> <a href="{% url 'liquidaciones:lista' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a></div></div></form>
 <div class="card card-body"><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>N.º cancelación</th><th>Fecha</th><th>Prestador</th><th>Período</th><th class="text-end">Comisión USD</th><th class="text-end">Equivalente Bs.</th><th>Comprobante</th></tr></thead><tbody>
 {% for d in pagina %}<tr><td>{{ d }}</td><td>{{ d.fecha_cancelacion|date:"d/m/Y" }}</td><td>{{ d.nombre_prestador }}</td><td>{{ d.periodo_desde|date:"d/m/Y" }}–{{ d.periodo_hasta|date:"d/m/Y" }}</td><td class="text-end">{{ d.total_comision_usd|monto_venta }}</td><td class="text-end">{{ d.total_bs|monto_venta }}</td><td><a href="{% url 'liquidaciones:ver' d.pk %}" class="btn btn-outline-primary btn-sm" title="Ver {{ d }}" aria-label="Ver {{ d }}"><i class="bi bi-receipt"></i></a></td></tr>{% empty %}<tr><td colspan="7" class="text-muted text-center py-4">No hay cancelaciones registradas.</td></tr>{% endfor %}

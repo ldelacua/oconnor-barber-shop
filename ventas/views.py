@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET
 from tasas_bcv.models import TasaBCV
 from .calculos import leer_impuesto
 from .pagos_calculos import leer_tipos_pago
-from .forms import VentaForm, LineasFormSet, ReversoForm, FiltrosForm, PagosFormSet
+from .forms import VentaForm, LineasFormSet, ReversoForm, FiltrosForm, PagosVentaFormSet
 from .models import DocumentoVenta
 from .servicios import registrar_venta, registrar_reverso
 
@@ -33,10 +33,10 @@ def lista_documentos(request):
             documentos = documentos.filter(Q(cliente__nombre__icontains=palabra) | Q(cliente__apellido__icontains=palabra))
     else:
         documentos = documentos.none()
-    pagina = Paginator(documentos, 30).get_page(request.GET.get("page"))
+    pagina = Paginator(documentos, 25).get_page(request.GET.get("page"))
     parametros = request.GET.copy()
     parametros.pop("page", None)
-    return render(request, "ventas/lista.html", {"pagina": pagina, "filtros": filtros, "parametros": parametros.urlencode()})
+    return render(request, "ventas/lista.html", {"pagina": pagina, "filtros": filtros, "parametros": parametros.urlencode(), "paginas": pagina.paginator.get_elided_page_range(pagina.number, on_each_side=2, on_ends=1)})
 
 
 @login_required
@@ -50,7 +50,7 @@ def nueva_venta(request):
     except (ValueError, KeyError, OSError, TypeError):
         catalogo = {}
         error_pagos = "Revisa ventas/config/tipos_pago.json: cada tipo debe tener id, nombre y moneda USD o BS."
-    pagos = PagosFormSet(datos, prefix="pagos", form_kwargs={"catalogo": catalogo})
+    pagos = PagosVentaFormSet(datos, prefix="pagos", form_kwargs={"catalogo": catalogo})
     try:
         porcentaje = leer_impuesto()
         error_config = ""
@@ -68,6 +68,7 @@ def nueva_venta(request):
             try:
                 documento = registrar_venta(
                     fecha=form.cleaned_data["fecha"], cliente=form.cleaned_data["cliente"],
+                    aplicar_descuento=form.cleaned_data["aplicar_descuento"], descuento_porcentaje=form.cleaned_data["descuento_porcentaje"],
                     lineas=filas, pagos=[p.cleaned_data for p in pagos if p.cleaned_data and not p.cleaned_data.get("DELETE")], clave=form.cleaned_data["clave"], usuario=request.user,
                 )
             except ValidationError as error:
@@ -87,7 +88,9 @@ def nueva_venta(request):
                 messages.success(request, f"Documento {documento} registrado.")
                 return redirect("ventas:ver", pk=documento.pk)
     precios = {str(s.pk): str(s.precio) for s in lineas.empty_form.fields["servicio"].queryset}
-    return render(request, "ventas/formulario.html", {"form": form, "lineas": lineas, "pagos": pagos, "catalogo_pagos": catalogo, "porcentaje": porcentaje, "error_config": error_config, "precios": precios})
+    retenciones = {str(s.pk): s.retencion_impuesto for s in lineas.empty_form.fields["servicio"].queryset}
+    modos_precio = {str(s.pk): s.modo_precio for s in lineas.empty_form.fields["servicio"].queryset}
+    return render(request, "ventas/formulario.html", {"retenciones": retenciones, "modos_precio": modos_precio, "form": form, "lineas": lineas, "pagos": pagos, "catalogo_pagos": catalogo, "porcentaje": porcentaje, "error_config": error_config, "precios": precios})
 
 
 @login_required

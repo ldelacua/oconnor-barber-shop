@@ -1,0 +1,6 @@
+{% extends "autenticacion/clave_base.html" %}
+{% block title %}{{ titulo }} | BarberPro{% endblock %}
+{% block clave_content %}
+<h2 class="h4 mb-3">{{ titulo }}</h2><p>{{ texto }}</p>
+{% if user.is_authenticated %}<a class="btn btn-primary" href="{% url 'dashboard' %}">Regresar al inicio</a>{% else %}<a class="btn btn-primary" href="{% url 'iniciar_sesion' %}">Iniciar sesión</a>{% endif %}
+{% endblock %}

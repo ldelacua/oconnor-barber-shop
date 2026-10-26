@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>Compra #{{ compra.pk }} · {{ compra.get_estado_display }}</h2><a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div>
+<div class="card card-body mb-3">
+<div class="row g-3"><div class="col-md-6"><strong>Proveedor:</strong> {{ compra.proveedor }}<br><strong>Factura:</strong> {{ compra.numero_factura }}<br><strong>Control:</strong> {{ compra.numero_control|default:"—" }}</div>
+<div class="col-md-6"><strong>Fecha:</strong> {{ compra.fecha_compra|date:"d/m/Y" }}<br><strong>Divisa:</strong> {{ compra.get_divisa_display }}<br><strong>Tasa:</strong> {{ compra.tasa_cambio|monto_venta }}</div></div>
+{% if compra.observacion %}<p class="mt-3">{{ compra.observacion|linebreaksbr }}</p>{% endif %}
+</div>
+<div class="card card-body">{% include "inventario/lineas.html" %}</div>
+{% if compra.estado == 'B' %}
+<div class="d-flex flex-wrap gap-2 mt-3">
+<a class="btn btn-outline-primary" href="{% url 'inventario:editar_compra' compra.pk %}?next={{ regresar|urlencode }}">Editar borrador</a>
+<form method="post" action="{% url 'inventario:actualizar' compra.pk %}" onsubmit="return confirm('¿Actualizar las existencias? La compra y sus productos quedarán bloqueados.');">{% csrf_token %}<input type="hidden" name="revision" value="{{ compra.revision }}"><input type="hidden" name="next" value="{{ regresar }}"><button class="btn btn-success">Actualizar inventario</button></form>
+<a class="btn btn-outline-danger" href="{% url 'inventario:eliminar' compra.pk %}?next={{ regresar|urlencode }}">Eliminar borrador</a>
+</div>
+{% else %}
+<p class="alert alert-success mt-3">Compra actualizada: no admite modificaciones ni eliminación.</p>
+<p class="text-muted">Actualizada por {{ compra.actualizada_por }} el {{ compra.actualizada_en|date:"d/m/Y H:i" }}.</p>
+{% endif %}
+{% endblock %}

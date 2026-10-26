@@ -1,0 +1,12 @@
+{% load static %}
+<div class="buscador-producto position-relative" data-url="{% if widget.url %}{{ widget.url }}{% else %}{% url 'inventario:buscar_productos' %}{% endif %}">
+<input type="hidden" name="{{ widget.name }}" value="{{ widget.value|default_if_none:'' }}" id="{{ widget.attrs.id }}">
+<input type="text" id="{{ widget.attrs.id }}_buscar" name="{{ widget.name }}_texto"
+       value="{{ widget.etiqueta_producto }}" class="form-control producto-buscar" autocomplete="off"
+       placeholder="CÓDIGO O NOMBRE DEL PRODUCTO" aria-label="Buscar producto por código o nombre"
+       role="combobox" aria-autocomplete="list" aria-expanded="false"
+       aria-controls="{{ widget.attrs.id }}_resultados">
+<div id="{{ widget.attrs.id }}_resultados" class="list-group position-fixed shadow producto-resultados"
+     role="listbox" hidden style="z-index:1050;left:0;right:0;max-height:260px;overflow-y:auto"></div>
+<div class="small text-muted producto-ayuda" aria-live="polite">ESCRIBE Y SELECCIONA UN RESULTADO.</div>
+</div>

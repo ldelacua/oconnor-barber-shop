@@ -3,6 +3,9 @@ from django.urls import include, path
 
 
 urlpatterns = [
+    path("control-inventario/", include("control_inventario.urls")),
+    path("ventas-productos/", include("ventas_productos.urls")),
+    path("inventario/", include("inventario.urls")),
     path("admin/", admin.site.urls),
     path("", include("autenticacion.urls")),
     path("dashboard/", include("dashboard.urls")),

@@ -107,12 +107,12 @@ Detalle del cliente
 
                         <div class="col-md-6">
                             <small class="text-muted d-block">
-                                Fecha de nacimiento
+                                Día y mes de nacimiento
                             </small>
 
-                            {% if cliente.fecha_nacimiento %}
+                            {% if cliente.dia_nacimiento and cliente.mes_nacimiento %}
                                 <span class="fw-semibold">
-                                    {{ cliente.fecha_nacimiento|date:"d/m/Y" }}
+                                    {{ cliente.dia_nacimiento|stringformat:"02d" }}/{{ cliente.mes_nacimiento|stringformat:"02d" }}
                                 </span>
                             {% else %}
                                 <span class="text-muted">No registrada</span>

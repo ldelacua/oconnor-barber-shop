@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% load static %}
+{% block title %}{% if compra.pk %}Editar compra {{ compra.pk }}{% else %}Nueva compra{% endif %}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{% if compra.pk %}Editar compra #{{ compra.pk }}{% else %}Nueva compra{% endif %}</h2><a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div>
+<p class="alert alert-info">Guarda el borrador y revisa los importes. El inventario cambia únicamente al pulsar <strong>Actualizar inventario</strong> desde la consulta de la compra.</p>
+<form method="post" id="compra-form" class="card card-body" data-condiciones-url="{% url 'inventario:condiciones' %}">{% csrf_token %}
+<input type="hidden" name="next" value="{{ regresar }}">
+{{ form.non_field_errors }}{{ form.version }}
+<div class="row g-3">{% for campo in form.visible_fields %}<div class="{% if campo.name == 'observacion' %}col-12{% else %}col-md-4{% endif %}">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
+<p class="mt-3 mb-0"><strong>Tasa BCV:</strong> <output id="tasa-bcv" class="text-end">{% if form.tasa_informativa %}{{ form.tasa_informativa|monto_venta }}{% else %}NO HAY TASA REGISTRADA PARA ESTA FECHA.{% endif %}</output></p>
+{% if form.error_configuracion %}<p class="text-danger">{{ form.error_configuracion }}</p>{% endif %}
+{{ form.iva_automatico|json_script:"iva-inventario" }}
+<div class="d-flex justify-content-between flex-wrap gap-2 mt-4 mb-2"><h4>Productos de la compra</h4><div>
+<a class="btn btn-sm btn-outline-secondary salir-editor" href="{% url 'inventario:productos' %}?next={{ retorno_editor|urlencode }}">Consulta de productos</a>
+<a class="btn btn-sm btn-outline-secondary salir-editor" href="{% url 'inventario:nuevo_proveedor' %}?next={{ retorno_editor|urlencode }}">Nuevo proveedor</a></div></div>
+{{ detalles.management_form }}{{ detalles.non_form_errors }}
+<div class="table-responsive"><table class="table align-middle" style="min-width:800px">
+<thead><tr><th style="width:45%">Producto · Volumen · Unidad</th><th class="text-end">Cantidad</th><th class="text-end">Precio Unitario</th><th class="text-end">Total</th><th>Quitar</th></tr></thead>
+<tbody id="detalle-cuerpo">{% for fila in detalles %}{% include "inventario/fila_editor.html" %}{% endfor %}</tbody>
+</table></div>
+<template id="fila-vacia">{% include "inventario/fila_editor.html" with fila=detalles.empty_form %}</template>
+<div><button class="btn btn-outline-primary" type="button" id="agregar-fila">Agregar producto</button></div>
+<p class="text-end mt-3" id="total-compra" aria-live="polite"></p>
+
+<div class="mt-3"><button class="btn btn-primary" type="submit">Guardar borrador</button> <a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'inventario/mayusculas.js' %}?v=7"></script>
+<script src="{% static 'inventario/buscador_productos.js' %}?v=7"></script>
+<script src="{% static 'inventario/compra.js' %}?v=7"></script>
+{% endblock %}

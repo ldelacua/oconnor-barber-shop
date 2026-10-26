@@ -1,0 +1,9 @@
+Hola {{ user.get_username }},
+
+Recibimos una solicitud para cambiar la contraseña de tu cuenta de BarberPro.
+Abre este enlace para elegir una nueva contraseña:
+
+{{ protocol }}://{{ domain }}{% url 'recuperar_clave_confirmar' uidb64=uid token=token %}
+
+El enlace caduca en una hora y deja de funcionar al cambiar la contraseña.
+Si no solicitaste este cambio, puedes ignorar este correo. Tu contraseña no se ha modificado.

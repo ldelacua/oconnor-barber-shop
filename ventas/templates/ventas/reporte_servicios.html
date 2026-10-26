@@ -2,6 +2,7 @@
 {% load ventas_formato %}
 {% block title %}Servicios por prestador | BarberPro{% endblock %}
 {% block content %}
+<p class="text-muted small">Importes de los servicios antes del descuento al cliente. El descuento lo absorbe el negocio y no reduce la base de comisión del prestador.</p>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 acciones-reporte">
     <h2 class="h4 mb-0">Servicios por Prestador de Servicio</h2>
     <div class="d-flex gap-2">
@@ -23,7 +24,7 @@
         <h1 class="h4">Reporte de servicios por prestador</h1>
         <p class="text-muted mb-1">Generado: {{ generado_en|date:"d/m/Y H:i" }}</p>
         <p class="small mb-1">{% for filtro in seleccion %}<strong>{{ filtro.etiqueta }}:</strong> {{ filtro.valor }}{% if not forloop.last %} · {% endif %}{% empty %}Todos los documentos y fechas.{% endfor %}</p>
-        <p class="small text-muted mb-0">Fecha del documento · Importes antes de impuesto · Los RE restan cantidades e importes; FA + RE muestra el neto.</p>
+        <p class="small text-muted mb-0">Fecha del documento · Montos originales para comisión (IVA incluido cuando corresponde) · Los RE restan cantidades e importes; FA + RE muestra el neto.</p>
     </header>
     {% for grupo in grupos %}
         <article class="card shadow-sm mb-4 grupo-reporte">
@@ -39,7 +40,7 @@
                             <td class="text-end">{{ fila.cantidad }}</td><td class="text-end text-nowrap">{{ fila.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ fila.bs|monto_venta }}</td>
                         </tr>{% endfor %}
                     </tbody>
-                    <tfoot class="table-light"><tr class="fw-bold"><th colspan="2">Subtotal {{ grupo.nombre }}</th><td class="text-end">{{ grupo.cantidad }}</td><td class="text-end text-nowrap">{{ grupo.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ grupo.bs|monto_venta }}</td></tr></tfoot>
+                    <tfoot class="table-light"><tr class="fw-bold"><th colspan="2" class="text-end">Subtotal {{ grupo.nombre }}</th><td class="text-end">{{ grupo.cantidad }}</td><td class="text-end text-nowrap">{{ grupo.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ grupo.bs|monto_venta }}</td></tr></tfoot>
                 </table>
             </div>
         </article>
@@ -50,7 +51,7 @@
         <div class="card border-primary"><div class="table-responsive">
             <table class="table table-sm mb-0 tabla-reporte">
                 <colgroup><col style="width:20%"><col style="width:32%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
-                <thead class="table-dark"><tr><th colspan="2">Total general</th><th class="text-end">Cantidad</th><th class="text-end">Monto USD</th><th class="text-end">Monto Bs.</th></tr></thead>
+                <thead class="table-dark"><tr><th colspan="2" class="text-end">Total general</th><th class="text-end">Cantidad</th><th class="text-end">Monto USD</th><th class="text-end">Monto Bs.</th></tr></thead>
                 <tbody><tr class="fw-bold"><th colspan="2">Todos los prestadores</th><td class="text-end">{{ total.cantidad }}</td><td class="text-end text-nowrap">{{ total.usd|monto_venta }}</td><td class="text-end text-nowrap">{{ total.bs|monto_venta }}</td></tr></tbody>
             </table>
         </div></div>

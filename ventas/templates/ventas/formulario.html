@@ -4,9 +4,8 @@
 {% block title %}Nueva venta | BarberPro{% endblock %}
 {% block content %}
 <h2 class="mb-3">Nueva venta FA</h2>
-<p class="text-muted">Servicios en USD. Conversión a bolívares con la tasa BCV de la fecha del documento. USD × tasa BCV = Bs. Impuesto sobre el subtotal en Bs.: {{ porcentaje|monto_venta }}%.</p>
 {% if error_config %}<div class="alert alert-danger">{{ error_config }}</div>{% endif %}
-<form method="post" id="venta-form">
+<form method="post" id="venta-form" novalidate>
     {% csrf_token %}{{ form.clave }}
     {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
     {{ form.clave.errors }}
@@ -15,20 +14,38 @@
         <div class="col-md-8"><label for="{{ form.cliente.id_for_label }}" class="form-label">Cliente</label>{{ form.cliente }}{{ form.cliente.errors }}</div>
     </div></div>
     <div class="card card-body mb-4">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5"><div class="form-check">{{ form.aplicar_descuento }}<label class="form-check-label" for="{{ form.aplicar_descuento.id_for_label }}">{{ form.aplicar_descuento.label }}</label></div>{{ form.aplicar_descuento.errors }}</div>
+            <div class="col-md-3"><label class="form-label" for="{{ form.descuento_porcentaje.id_for_label }}">{{ form.descuento_porcentaje.label }}</label>{{ form.descuento_porcentaje }}{{ form.descuento_porcentaje.errors }}</div>
+        </div>
+    </div>
+    <div class="card card-body mb-4">
         {{ lineas.management_form }}{{ lineas.non_form_errors }}
         <div class="table-responsive"><table class="table align-middle">
-            <thead><tr><th>Servicio</th><th>Prestador de servicio</th><th style="width: 130px;">Cantidad</th><th class="text-end">Precio USD</th><th class="text-end">Subtotal USD</th><th>Quitar</th></tr></thead>
+            <thead><tr><th>Servicio</th><th>Prestador de servicio</th><th style="width: 130px;" class="text-end">Cantidad</th><th class="text-end">Precio USD</th><th class="text-end">Importe USD</th><th>Quitar</th></tr></thead>
             <tbody id="lineas-venta">{% for linea in lineas %}<tr class="linea-venta">
                 <td>{{ linea.non_field_errors }}{{ linea.servicio }}{{ linea.servicio.errors }}</td>
                 <td>{{ linea.barbero }}{{ linea.barbero.errors }}</td>
-                <td>{{ linea.cantidad_servicio }}{{ linea.cantidad_servicio.errors }}</td>
-                <td class="precio-linea text-end">—</td><td class="subtotal-linea text-end">—</td>
+                <td class="text-end">{{ linea.cantidad_servicio }}{{ linea.cantidad_servicio.errors }}</td>
+                <td class="precio-linea">{{ linea.precio_unitario_usd }}{{ linea.precio_unitario_usd.errors }}<small class="modo-precio text-muted"></small></td><td class="subtotal-linea text-end">—</td>
                 <td>{{ linea.DELETE }}<label class="small" for="{{ linea.DELETE.id_for_label }}">Quitar</label></td>
             </tr>{% endfor %}</tbody>
         </table></div>
         <button type="button" class="btn btn-outline-primary align-self-start" id="agregar-linea">Añadir servicio</button>
     </div>
-    <div class="alert alert-info" id="resumen-venta" aria-live="polite">Selecciona los servicios para calcular una estimación.</div>
+    <section id="resumen-venta" class="card card-body mb-3" aria-label="Resumen de factura" aria-live="polite">
+        <div class="d-flex justify-content-end"><table class="table table-sm mb-0" style="width:100%;max-width:420px"><tbody>
+            <tr data-fila-descuento hidden><th scope="row" class="text-end">Importe completo USD</th><td class="text-end text-nowrap" data-resumen="bruto-usd">—</td></tr>
+            <tr data-fila-descuento hidden><th scope="row" class="text-end">Descuento (<span id="resumen-porcentaje-descuento">0.00</span>%) USD</th><td class="text-end text-nowrap" data-resumen="descuento-usd">—</td></tr>
+            <tr data-fila-descuento hidden><th scope="row" class="text-end">Descuento Bs.</th><td class="text-end text-nowrap" data-resumen="descuento-bs">—</td></tr>
+            <tr><th scope="row" class="text-end">Base imponible USD</th><td class="text-end text-nowrap" data-resumen="base-usd">—</td></tr>
+            <tr><th scope="row" class="text-end">Base imponible Bs.</th><td class="text-end text-nowrap" data-resumen="base-bs">—</td></tr>
+            <tr><th scope="row" class="text-end">IVA aplicado ({{ porcentaje|monto_venta }}%) Bs.</th><td class="text-end text-nowrap" data-resumen="iva-bs">—</td></tr>
+            <tr><th scope="row" class="text-end">Total USD (con impuesto)</th><td class="text-end text-nowrap" data-resumen="total-usd">—</td></tr>
+            <tr class="table-light fs-5 fw-bold"><th scope="row" class="text-end">Total Bs.</th><td class="text-end text-nowrap" data-resumen="total-bs">—</td></tr>
+        </tbody></table></div>
+        <p id="resumen-sin-tasa" class="text-end text-danger small mb-0 mt-2" hidden>Falta una tasa BCV válida.</p>
+    </section>
     <p class="small text-muted">Los importes definitivos se calculan en el servidor al guardar, redondeando cada línea a dos decimales.</p>
     <section class="card card-body mb-4">
         <h3 class="h5">Pagos</h3>
@@ -37,7 +54,7 @@
         {% if pagos.non_form_errors %}<div class="alert alert-danger">{{ pagos.non_form_errors }}</div>{% endif %}
         <div class="table-responsive">
             <table class="table table-sm align-middle tabla-pagos">
-                <thead><tr><th>Forma de pago</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th>Monto</th><th>Quitar</th></tr></thead>
+                <thead><tr><th>Forma de pago</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th><th>Quitar</th></tr></thead>
                 <tbody id="pagos-venta">
                     {% for pago in pagos %}<tr class="pago-venta">
                         <td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{{ pago.tipo_pago.errors }}</td>
@@ -45,39 +62,45 @@
                         <td>{{ pago.fecha }}{{ pago.fecha.errors }}</td>
                         <td>{{ pago.referencia }}{{ pago.referencia.errors }}</td>
                         <td>{{ pago.observacion }}{{ pago.observacion.errors }}</td>
-                        <td>{{ pago.monto }}{{ pago.monto.errors }}</td>
+                        <td class="text-end">{{ pago.monto }}{{ pago.monto.errors }}</td>
                         <td>{{ pago.DELETE }}<label for="{{ pago.DELETE.id_for_label }}" class="small">Quitar</label></td>
                     </tr>{% endfor %}
                 </tbody>
             </table>
         </div>
         <button type="button" class="btn btn-outline-primary btn-sm align-self-start" id="agregar-pago">Añadir pago</button>
-        <div class="alert alert-info mt-3 mb-0" id="saldo-pagos" aria-live="polite">Registra los pagos para completar la venta.</div>
+        <div class="text-end alert alert-info mt-3 mb-0" id="saldo-pagos" aria-live="polite">Registra los pagos para completar la venta.</div>
     </section>
-    <div class="alert alert-warning">Después de guardar no podrás editar ni eliminar el documento. Para corregirlo tendrás que emitir un RE.</div>
+    <div class="alert alert-warning">Después de guardar no podrás editar ni eliminar el documento. Para corregirlo tendrás que emitir un Reverso.</div>
     <div class="d-flex justify-content-end gap-2"><a href="{% url 'ventas:lista' %}" class="btn btn-secondary">Cancelar</a><button type="submit" class="btn btn-primary" id="guardar-venta" data-config-valida="{{ error_config|yesno:'false,true' }}" disabled>Guardar venta</button></div>
 </form>
 <template id="linea-vacia"><tr class="linea-venta">
-    <td>{{ lineas.empty_form.servicio }}</td><td>{{ lineas.empty_form.barbero }}</td><td>{{ lineas.empty_form.cantidad_servicio }}</td>
-    <td class="precio-linea text-end">—</td><td class="subtotal-linea text-end">—</td>
+    <td>{{ lineas.empty_form.servicio }}</td><td>{{ lineas.empty_form.barbero }}</td><td class="text-end">{{ lineas.empty_form.cantidad_servicio }}</td>
+    <td class="precio-linea">{{ lineas.empty_form.precio_unitario_usd }}<small class="modo-precio text-muted"></small></td><td class="subtotal-linea text-end">—</td>
     <td>{{ lineas.empty_form.DELETE }}<label class="small" for="{{ lineas.empty_form.DELETE.id_for_label }}">Quitar</label></td>
 </tr></template>
 <template id="pago-vacio"><tr class="pago-venta">
     <td>{{ pagos.empty_form.tipo_pago }}</td><td class="moneda-pago">—</td>
     <td>{{ pagos.empty_form.fecha }}</td><td>{{ pagos.empty_form.referencia }}</td>
-    <td>{{ pagos.empty_form.observacion }}</td><td>{{ pagos.empty_form.monto }}</td>
+    <td>{{ pagos.empty_form.observacion }}</td><td class="text-end">{{ pagos.empty_form.monto }}</td>
     <td>{{ pagos.empty_form.DELETE }}<label for="{{ pagos.empty_form.DELETE.id_for_label }}" class="small">Quitar</label></td>
 </tr></template>
 {{ catalogo_pagos|json_script:"catalogo-pagos" }}
 {{ precios|json_script:"precios-venta" }}
+{{ modos_precio|json_script:"modos-precio" }}
+{{ retenciones|json_script:"retenciones-servicios" }}
 {% endblock %}
 {% block extra_css %}
-<style>.tabla-pagos { min-width: 1050px; } .tabla-pagos .form-control, .tabla-pagos .form-select { font-size: 12px; } .tabla-pagos .tipo-pago { min-width: 175px; } .tabla-pagos .monto-pago { min-width: 110px; }</style>
+<style>.precio-manual {min-width:100px;text-align:right;} .tabla-pagos { min-width: 1050px; } .tabla-pagos .form-control, .tabla-pagos .form-select { font-size: 12px; } .tabla-pagos .tipo-pago { min-width: 175px; } .tabla-pagos .monto-pago { min-width: 110px; }</style>
 {% endblock %}
 {% block extra_js %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const precios = JSON.parse(document.getElementById("precios-venta").textContent);
+    const retenciones = JSON.parse(document.getElementById("retenciones-servicios").textContent);
+    const modos = JSON.parse(document.getElementById("modos-precio").textContent);
+    const aplicarDescuento = document.getElementById("id_aplicar_descuento");
+    const campoDescuento = document.getElementById("id_descuento_porcentaje");
     const catalogo = JSON.parse(document.getElementById("catalogo-pagos").textContent);
     const cuerpo = document.getElementById("lineas-venta");
     const cuerpoPagos = document.getElementById("pagos-venta");
@@ -103,33 +126,56 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     function actualizar() {
+        campoDescuento.disabled = !aplicarDescuento.checked;
+        if(aplicarDescuento.checked && !campoDescuento.value) campoDescuento.value = "50.00";
+        const rebajaPct = aplicarDescuento.checked ? centavos(campoDescuento.value) : 0n;
+        const descuentoValido = rebajaPct !== null && rebajaPct >= 0n && rebajaPct <= 10000n && (!aplicarDescuento.checked || rebajaPct > 0n);
+        let brutoUsd = 0n, rebajaUsd = 0n, rebajaBs = 0n;
         let usd = 0n, bs = 0n, impuesto = 0n;
         let serviciosValidos = true, serviciosActivos = 0;
         cuerpo.querySelectorAll(".linea-venta").forEach(fila => {
             const servicio = fila.querySelector(".servicio-venta");
             const textoCantidad = fila.querySelector(".cantidad-venta").value;
             const quitar = fila.querySelector('input[name$="-DELETE"]').checked;
-            const precio = centavos(precios[servicio.value] || "0") || 0n;
+            const campoPrecio = fila.querySelector('.precio-manual');
+            const manual = modos[servicio.value] === 'manual';
+            if(campoPrecio.dataset.servicio !== undefined && campoPrecio.dataset.servicio !== servicio.value) campoPrecio.value = '';
+            campoPrecio.dataset.servicio = servicio.value;
+            campoPrecio.readOnly = !manual;
+            campoPrecio.classList.toggle('bg-light', !manual);
+            campoPrecio.min = manual ? '0.01' : '0';
+            if(!manual) campoPrecio.value = servicio.value ? (precios[servicio.value] || '0') : '';
+            fila.querySelector('.modo-precio').textContent = servicio.value ? (manual ? 'Precio manual' : 'Automático') + (retenciones[servicio.value] ? ' · IVA incluido' : ' · IVA adicional') : '';
+            const precioLeido = centavos(campoPrecio.value);
+            const precio = precioLeido || 0n;
             const cantidad = /^\d+$/.test(textoCantidad) ? BigInt(textoCantidad) : 0n;
             const subtotal = precio * cantidad;
             fila.style.opacity = quitar ? "0.4" : "1";
-            fila.querySelector(".precio-linea").textContent = monto(precio);
             fila.querySelector(".subtotal-linea").textContent = monto(subtotal);
             // Ignora la fila extra intacta del formset.
-            if (!quitar && (servicio.value || cantidad !== 1n)) {
+            if (!quitar && (servicio.value || cantidad !== 1n || fila.querySelector('select[name$="-barbero"]').value || campoPrecio.value)) {
                 serviciosActivos++;
-                if (!servicio.value || cantidad <= 0n || cantidad > 10000n) serviciosValidos = false;
-                usd += subtotal;
-                const bolivares = tasa ? dividir(subtotal * tasa, 100n) : 0n;
-                bs += bolivares;
-                impuesto += dividir(bolivares * porcentaje, 10000n);
+                if (!servicio.value || !fila.querySelector('select[name$="-barbero"]').value || cantidad <= 0n || cantidad > 10000n || precioLeido === null || (manual && precio <= 0n)) serviciosValidos = false;
+                const porcentajeLinea = retenciones[servicio.value] ? porcentaje : 0n;
+                const rebaja = descuentoValido ? dividir(subtotal * rebajaPct, 10000n) : 0n;
+                brutoUsd += subtotal; rebajaUsd += rebaja;
+                usd += dividir((subtotal - rebaja) * 10000n, 10000n + porcentajeLinea);
+                const bolivares = tasa ? dividir((subtotal - rebaja) * tasa, 100n) : 0n;
+                const base = dividir(bolivares * 10000n, 10000n + porcentajeLinea);
+                rebajaBs += tasa ? dividir(subtotal * tasa, 100n) - bolivares : 0n;
+                bs += base;
+                impuesto += retenciones[servicio.value] ? bolivares - base : dividir(bolivares * porcentaje, 10000n);
             }
         });
         const totalBs = bs + impuesto;
         const totalUsd = tasa ? dividir(totalBs * 100n, tasa) : 0n;
-        resumen.textContent = "Subtotal USD: " + monto(usd) + (tasa
-            ? " · Total con impuesto USD: " + monto(totalUsd) + " · Subtotal Bs.: " + monto(bs) + " · Impuesto Bs.: " + monto(impuesto) + " · Total Bs.: " + monto(totalBs)
-            : " · Falta una tasa BCV válida.");
+        const valores = {"bruto-usd": brutoUsd, "descuento-usd": rebajaUsd, "descuento-bs": tasa ? rebajaBs : null,
+            "base-usd": usd, "base-bs": tasa ? bs : null, "iva-bs": tasa ? impuesto : null,
+            "total-usd": tasa ? totalUsd : null, "total-bs": tasa ? totalBs : null};
+        for (const [nombre, valor] of Object.entries(valores)) resumen.querySelector('[data-resumen="' + nombre + '"]').textContent = valor === null ? "—" : monto(valor);
+        resumen.querySelectorAll('[data-fila-descuento]').forEach(fila => fila.hidden = !aplicarDescuento.checked);
+        document.getElementById("resumen-porcentaje-descuento").textContent = descuentoValido ? monto(rebajaPct) : "—";
+        document.getElementById("resumen-sin-tasa").hidden = !!tasa;
         let pagosUsd = 0n, pagosBs = 0n, pagosActivos = 0;
         let hayBs = false, pagosValidos = true;
         cuerpoPagos.querySelectorAll(".pago-venta").forEach(fila => {
@@ -148,11 +194,11 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         const diferencia = hayBs && tasa ? totalBs - dividir(pagosUsd * tasa, 100n) - pagosBs : totalUsd - pagosUsd;
         const moneda = hayBs ? "Bs." : "USD";
-        const listo = !!tasa && serviciosValidos && serviciosActivos > 0 && pagosValidos && pagosActivos > 0 && diferencia === 0n;
-        saldo.className = "alert mt-3 mb-0 " + (listo ? "alert-success" : "alert-info");
+        const listo = !!tasa && descuentoValido && serviciosValidos && serviciosActivos > 0 && pagosValidos && (totalBs === 0n ? pagosActivos === 0 : pagosActivos > 0) && diferencia === 0n;
+        saldo.className = "alert text-end mt-3 mb-0 " + (listo ? "alert-success" : "alert-info");
         saldo.textContent = "Pagado: " + monto(pagosUsd) + " USD + " + monto(pagosBs) + " Bs. · " + (!tasa
             ? "Falta la tasa BCV."
-            : diferencia === 0n && pagosActivos > 0 ? "Total cubierto."
+            : totalBs === 0n && pagosActivos === 0 ? "Total cero: no requiere pagos." : diferencia === 0n && pagosActivos > 0 ? "Total cubierto."
             : (diferencia < 0n ? "Excedente: " : "Pendiente: ") + monto(diferencia < 0n ? -diferencia : diferencia) + " " + moneda);
         if (tasa && !hayBs && pagosUsd < totalUsd) {
             saldo.textContent += " · Si completas en Bs.: " + monto(totalBs - dividir(pagosUsd * tasa, 100n)) + " Bs.";
@@ -184,6 +230,8 @@ document.addEventListener("DOMContentLoaded", function () {
         contenedor.addEventListener("input", actualizar);
         contenedor.addEventListener("change", actualizar);
     }
+    aplicarDescuento.addEventListener("change", actualizar);
+    campoDescuento.addEventListener("input", actualizar);
     fecha.addEventListener("change", cargarTasa);
     function agregar(prefijo, template, contenedor, maximo) {
         const total = document.getElementById("id_" + prefijo + "-TOTAL_FORMS");

@@ -4,8 +4,17 @@ from django.contrib.auth.admin import UserAdmin
 from .models import Auditoria, Usuario
 
 
+class SoloSuperusuarioEscribe:
+    def has_add_permission(self, request):
+        return request.user.is_active and request.user.is_superuser
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_active and request.user.is_superuser
+
+
 @admin.register(Usuario)
-class UsuarioAdmin(UserAdmin):
+class UsuarioAdmin(SoloSuperusuarioEscribe, UserAdmin):
     list_display = (
         "username",
         "first_name",
@@ -91,3 +100,15 @@ class AuditoriaAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
+# Modificar usuarios o grupos permite conceder permisos. Solo el superusuario
+# puede administrarlos para impedir que un operador se eleve sus propios accesos.
+from django.contrib.auth.models import Group
+from django.contrib.auth.admin import GroupAdmin
+
+
+if admin.site.is_registered(Group):
+    admin.site.unregister(Group)
+
+@admin.register(Group)
+class GrupoSeguroAdmin(SoloSuperusuarioEscribe, GroupAdmin):
+    pass

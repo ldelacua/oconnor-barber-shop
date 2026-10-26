@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ventas_formato %}
 
 {% block title %}Servicios{% endblock %}
 
@@ -24,8 +25,8 @@
                             <tr>
                                 <th>Código</th>
                                 <th>Nombre</th>
-                                <th>Precio</th>
-                                <th>Duración</th>
+                                <th>Tipo de precio</th><th class="text-end">Precio USD</th>
+                                <th>Retención de impuesto</th><th>Duración</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -36,8 +37,8 @@
                                 <tr>
                                     <td>{{ servicio.codigo }}</td>
                                     <td>{{ servicio.nombre }}</td>
-                                    <td>${{ servicio.precio }}</td>
-                                    <td>{{ servicio.duracion }} minutos</td>
+                                    <td>{{ servicio.get_modo_precio_display }}</td><td class="text-end">{% if servicio.modo_precio == "manual" %}Al facturar{% else %}${{ servicio.precio|monto_venta }}{% endif %}</td>
+                                    <td>{{ servicio.retencion_impuesto|yesno:"SÍ,NO" }}</td><td>{{ servicio.duracion }} minutos</td>
 
                                     <td>
                                         {% if servicio.activo %}

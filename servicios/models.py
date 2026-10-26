@@ -27,6 +27,14 @@ class Servicio(models.Model):
         verbose_name="Duración (minutos)"
     )
 
+    modo_precio = models.CharField(
+        max_length=10,
+        choices=[("automatico", "Automático"), ("manual", "Manual")],
+        default="automatico", verbose_name="Tipo de precio",
+    )
+
+    retencion_impuesto = models.BooleanField(default=False, verbose_name="Retención de impuesto")
+
     activo = models.BooleanField(default=True)
 
     class Meta:

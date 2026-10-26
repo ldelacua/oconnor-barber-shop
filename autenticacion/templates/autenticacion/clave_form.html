@@ -1,0 +1,16 @@
+{% extends "autenticacion/clave_base.html" %}
+{% block title %}{{ titulo }} | BarberPro{% endblock %}
+{% block clave_content %}
+<h2 class="h4 mb-3">{{ titulo }}</h2>
+{% if recuperar %}<p class="text-muted">Introduce el correo registrado en tu cuenta.</p>{% endif %}
+<form method="post">
+{% csrf_token %}
+{{ form.non_field_errors }}
+{% for campo in form %}
+<div class="mb-3"><label for="{{ campo.id_for_label }}" class="form-label">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}{% if campo.help_text %}<div class="helptext mt-1">{{ campo.help_text|safe }}</div>{% endif %}</div>
+{% endfor %}
+<div class="d-flex flex-wrap gap-2">
+<button class="btn btn-primary" type="submit">{% if recuperar %}Enviar enlace{% else %}Grabar{% endif %}</button>
+<a class="btn btn-outline-secondary" href="{% if user.is_authenticated %}{% url 'dashboard' %}{% else %}{% url 'iniciar_sesion' %}{% endif %}">Regresar</a>
+</div></form>
+{% endblock %}

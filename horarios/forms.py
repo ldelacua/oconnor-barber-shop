@@ -98,7 +98,47 @@ class SillaForm(forms.ModelForm):
         }
 
 
-class MatrizHorarioForm(forms.Form):
+class SillaDelPrestadorMixin:
+    def configurar_silla_asignada(self):
+        prestadores = list(self.fields["barbero"].queryset.select_related("silla"))
+        self.sillas_por_prestador = {
+            str(p.pk): {
+                "nombre": p.silla.nombre if p.silla_id else "Sin silla asignada",
+                "activa": bool(p.silla_id and p.silla.activa),
+            } for p in prestadores
+        }
+        if self.is_bound:
+            valor = self.data.get(self.add_prefix("barbero"))
+        else:
+            valor = self.initial.get("barbero")
+        if hasattr(valor, "pk"):
+            valor = valor.pk
+        self.prestador_elegido = next((p for p in prestadores if str(p.pk) == str(valor)), None)
+        silla = self.prestador_elegido.silla if self.prestador_elegido and self.prestador_elegido.silla_id else None
+        self.initial["silla"] = silla.pk if silla else None
+        campo = self.fields["silla"]
+        campo.disabled = True
+        campo.required = False
+        campo.widget = forms.HiddenInput()
+        campo.queryset = Silla.objects.filter(pk=silla.pk) if silla else Silla.objects.none()
+        self.nombre_silla_asignada = silla.nombre if silla else "Selecciona un Prestador de Servicio"
+        if self.prestador_elegido and not silla:
+            self.nombre_silla_asignada = "Sin silla asignada"
+
+    def clean(self):
+        datos = super().clean()
+        prestador = datos.get("barbero")
+        if prestador:
+            if not prestador.silla_id:
+                self.add_error("barbero", "Este prestador no tiene silla asignada. Asígnala en Prest de Servicio antes de guardar el horario.")
+            elif not prestador.silla.activa:
+                self.add_error("barbero", "La silla asignada está inactiva. Actívala o cambia la asignación en Prest de Servicio.")
+            else:
+                datos["silla"] = prestador.silla
+        return datos
+
+
+class MatrizHorarioForm(SillaDelPrestadorMixin, forms.Form):
     """
     Formulario utilizado para crear horarios mediante
     la matriz semanal interactiva.
@@ -106,8 +146,8 @@ class MatrizHorarioForm(forms.Form):
 
     barbero = forms.ModelChoiceField(
         queryset=Barbero.objects.none(),
-        label="Barbero",
-        empty_label="Seleccione un barbero",
+        label="Prestador de Servicio",
+        empty_label="Seleccione un prestador de servicio",
         widget=forms.Select(
             attrs={
                 "class": "form-select",
@@ -167,9 +207,7 @@ class MatrizHorarioForm(forms.Form):
             Barbero.objects.all().order_by("nombre", "apellido")
         )
 
-        self.fields["silla"].queryset = (
-            Silla.objects.filter(activa=True).order_by("nombre")
-        )
+        self.configurar_silla_asignada()
 
     def clean_bloques(self):
         valor = self.cleaned_data.get("bloques")
@@ -194,7 +232,7 @@ class MatrizHorarioForm(forms.Form):
         return bloques
 
 
-class HorarioForm(forms.ModelForm):
+class HorarioForm(SillaDelPrestadorMixin, forms.ModelForm):
     """
     Formulario para editar un solo horario y un solo día.
     """
@@ -270,9 +308,7 @@ class HorarioForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.fields["silla"].queryset = (
-            Silla.objects.filter(activa=True).order_by("nombre")
-        )
+        self.configurar_silla_asignada()
 
     def clean(self):
         cleaned_data = super().clean()

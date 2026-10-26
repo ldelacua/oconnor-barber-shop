@@ -2,13 +2,37 @@
 {% load ventas_formato %}
 {% block title %}Ventas | BarberPro{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div><h2>Ventas</h2><p class="text-muted mb-0">Facturas y Reversos </p></div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div>
+        <h2>Ventas</h2>
+        <p class="text-muted mb-0">Facturas y Reversos</p>
+    </div>
+
     <div class="d-flex flex-wrap gap-2">
-        <a href="{% url 'ventas:consulta_pagos' %}" class="btn btn-outline-primary">Consultar pagos</a>
-        <a href="{% url 'ventas:crear' %}" class="btn btn-primary">Facturacion</a>
+        <a
+            href="{% url 'ventas:consulta_pagos' %}"
+            class="btn btn-outline-primary btn-sm"
+        >
+            Consultar pagos
+        </a>
+
+        <a
+            href="{% url 'ventas:crear' %}"
+            class="btn btn-primary btn-sm"
+        >
+            Facturación
+        </a>
+
+        <a
+            href="{% url 'ventas:registrar_tasa_bcv' %}"
+            class="btn btn-outline-success btn-sm"
+        >
+            <i class="bi bi-currency-exchange me-1"></i>
+            Tasa BCV
+        </a>
     </div>
 </div>
+
 <form method="get" class="card card-body mb-4 filtros-ventas">
     {{ filtros.non_field_errors }}
     <div class="rejilla-filtros-ventas">
@@ -46,12 +70,16 @@
         {% empty %}<tr><td colspan="7" class="text-muted text-center py-4">No hay documentos con estos filtros.</td></tr>{% endfor %}</tbody>
     </table>
 </div>
-{% if pagina.has_other_pages %}
-<nav class="d-flex justify-content-between align-items-center" aria-label="Páginas de ventas">
-    <div>{% if pagina.has_previous %}<a href="?{{ parametros }}&page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}</div>
-    <span>{{ pagina.number }} / {{ pagina.paginator.num_pages }}</span>
-    <div>{% if pagina.has_next %}<a href="?{{ parametros }}&page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}</div>
-</nav>{% endif %}
+<nav class="d-flex flex-wrap gap-3 justify-content-between align-items-center" aria-label="Páginas de facturación">
+    <span class="small text-muted">{{ pagina.start_index }}–{{ pagina.end_index }} de {{ pagina.paginator.count }} documentos · Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    <ul class="pagination pagination-sm mb-0 flex-wrap">
+        <li class="page-item {% if not pagina.has_previous %}disabled{% endif %}">{% if pagina.has_previous %}<a class="page-link" href="?{{ parametros }}&amp;page=1" aria-label="Primera página">Primera</a>{% else %}<span class="page-link">Primera</span>{% endif %}</li>
+        <li class="page-item {% if not pagina.has_previous %}disabled{% endif %}">{% if pagina.has_previous %}<a class="page-link" href="?{{ parametros }}&amp;page={{ pagina.previous_page_number }}">Anterior</a>{% else %}<span class="page-link">Anterior</span>{% endif %}</li>
+        {% for numero in paginas %}{% if numero == pagina.paginator.ELLIPSIS %}<li class="page-item disabled"><span class="page-link">{{ numero }}</span></li>{% elif numero == pagina.number %}<li class="page-item active" aria-current="page"><span class="page-link">{{ numero }}</span></li>{% else %}<li class="page-item"><a class="page-link" href="?{{ parametros }}&amp;page={{ numero }}">{{ numero }}</a></li>{% endif %}{% endfor %}
+        <li class="page-item {% if not pagina.has_next %}disabled{% endif %}">{% if pagina.has_next %}<a class="page-link" href="?{{ parametros }}&amp;page={{ pagina.next_page_number }}">Siguiente</a>{% else %}<span class="page-link">Siguiente</span>{% endif %}</li>
+        <li class="page-item {% if not pagina.has_next %}disabled{% endif %}">{% if pagina.has_next %}<a class="page-link" href="?{{ parametros }}&amp;page={{ pagina.paginator.num_pages }}" aria-label="Última página">Última</a>{% else %}<span class="page-link">Última</span>{% endif %}</li>
+    </ul>
+</nav>
 </div>
 {% endblock %}
 

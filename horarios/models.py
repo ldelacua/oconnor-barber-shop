@@ -38,7 +38,7 @@ class Horario(models.Model):
         "barberos.Barbero",
         on_delete=models.PROTECT,
         related_name="horarios",
-        verbose_name="Barbero",
+        verbose_name="Prestador de Servicio",
     )
 
     silla = models.ForeignKey(
@@ -134,7 +134,7 @@ class Horario(models.Model):
 
             if conflicto_barbero.exists():
                 errores["barbero"] = (
-                    "El barbero ya está asignado a otra silla "
+                    "El prestador de servicio ya está asignado a otra silla "
                     "durante ese bloque de horas."
                 )
 

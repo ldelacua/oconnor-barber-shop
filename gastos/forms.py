@@ -92,3 +92,41 @@ class FiltrosForm(forms.Form):
         if datos.get("desde") and datos.get("hasta") and datos["desde"]>datos["hasta"]:
             raise forms.ValidationError("La fecha inicial no puede ser posterior a la final.")
         return datos
+
+
+from django.forms import inlineformset_factory
+from .models import Producto, DetalleRegistroGasto
+
+
+class ProductoForm(EstiloForm):
+    class Meta:
+        model = Producto
+        fields = [
+            "descripcion",
+            "unidad_medida",
+            "activo",
+        ]
+
+
+class DetalleGastoForm(EstiloForm):
+    class Meta:
+        model = DetalleRegistroGasto
+        fields = ["producto", "cantidad"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["producto"].queryset = Producto.objects.filter(
+            Q(activo=True) | Q(pk=self.instance.producto_id))
+        self.fields["cantidad"].widget.attrs.update({"step": "0.001", "min": "0.001"})
+
+    def clean_producto(self):
+        producto = self.cleaned_data["producto"]
+        if not producto.activo and producto.pk != self.instance.producto_id:
+            raise forms.ValidationError("Selecciona un producto activo.")
+        return producto
+
+
+DetalleGastoFormSet = inlineformset_factory(
+    RegistroGasto, DetalleRegistroGasto, form=DetalleGastoForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True, absolute_max=200,
+)

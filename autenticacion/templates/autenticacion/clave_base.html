@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style>
+.clave-panel {max-width:520px; margin:24px auto;}
+.clave-panel input:not([type=hidden]) {display:block; width:100%; padding:8px 12px; border:1px solid #ced4da; border-radius:6px;}
+.clave-panel .helptext {font-size:.875rem; color:#6c757d;}
+.clave-panel .errorlist {color:#b02a37; padding-left:20px;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="card shadow-sm clave-panel"><div class="card-body p-4">
+{% block clave_content %}{% endblock %}
+</div></div>
+{% endblock %}

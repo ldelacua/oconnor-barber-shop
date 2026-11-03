@@ -10,7 +10,7 @@ from citas.buscador_clientes import BuscadorClienteWidget
 
 
 class VentaForm(forms.Form):
-    fecha = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control"}))
+    fecha = forms.DateField(initial=timezone.localdate, disabled=True, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control"}))
     cliente = forms.ModelChoiceField(queryset=Cliente.objects.filter(activo=True), widget=BuscadorClienteWidget())
     aplicar_descuento = forms.BooleanField(required=False, label="Aplicar descuento al cliente", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
     descuento_porcentaje = forms.DecimalField(required=False, initial=Decimal("50.00"), max_digits=5, decimal_places=2,
@@ -94,13 +94,29 @@ class PagoForm(forms.Form):
     observacion = forms.CharField(required=False, max_length=500, label="Observación", widget=forms.TextInput(attrs={"class": "form-control"}))
     monto = forms.DecimalField(max_digits=18, decimal_places=2, min_value=Decimal("0.01"), widget=forms.NumberInput(attrs={"class": "form-control monto-pago", "min": "0.01", "step": "0.01"}))
 
-    def __init__(self, *args, catalogo=None, **kwargs):
+    def __init__(self, *args, catalogo=None, usuario=None, **kwargs):
         super().__init__(*args, **kwargs)
+        if usuario and usuario.has_perms(('bancos.add_movimientointerno', 'bancos.view_cuentabancaria')):
+            from bancos.models import CuentaBancaria
+            self.fields['cuenta_bancaria'] = forms.ModelChoiceField(
+                queryset=CuentaBancaria.objects.filter(activa=True, banco__activo=True).select_related('banco'),
+                required=False, empty_label='Sin banco ni cuenta', label='Banco y cuenta',
+                widget=forms.Select(attrs={'class': 'form-select mt-1', 'aria-label': 'Banco y cuenta'}))
         catalogo = catalogo or {}
+        self.catalogo_pagos = catalogo
+        self.fields['tipo_pago'].widget.attrs['data-tipos-banco'] = ','.join(
+            str(codigo) for codigo, tipo in catalogo.items() if tipo.get('afecta_banco', codigo in (1, 2, 3, 4)))
         self.fields["tipo_pago"].choices = [("", "Seleccione")] + [
             (str(codigo), f'{tipo["nombre"]} ({tipo["moneda"]})')
             for codigo, tipo in catalogo.items()
         ]
+
+    def clean(self):
+        datos = super().clean()
+        tipo = self.catalogo_pagos.get(int(datos.get('tipo_pago') or 0), {})
+        if datos.get('cuenta_bancaria') and not tipo.get('afecta_banco', int(datos.get('tipo_pago') or 0) in (1, 2, 3, 4)):
+            self.add_error('cuenta_bancaria', 'Esta forma de pago no afecta al banco. Deja la cuenta vacía.')
+        return datos
 
 
 PagosFormSet = formset_factory(PagoForm, extra=0, min_num=1, validate_min=True, max_num=20, validate_max=True, absolute_max=25, can_delete=True)

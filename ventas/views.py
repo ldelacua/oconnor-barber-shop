@@ -51,7 +51,7 @@ def nueva_venta(request):
     except (ValueError, KeyError, OSError, TypeError):
         catalogo = {}
         error_pagos = "Revisa ventas/config/tipos_pago.json: cada tipo debe tener id, nombre y moneda USD o BS."
-    pagos = PagosVentaFormSet(datos, prefix="pagos", form_kwargs={"catalogo": catalogo})
+    pagos = PagosVentaFormSet(datos, prefix="pagos", form_kwargs={"catalogo": catalogo, "usuario": request.user if request.user.has_perm("ventas.view_pagoventa") else None})
     try:
         porcentaje = leer_impuesto()
         error_config = ""
@@ -141,5 +141,5 @@ def cotizacion(request):
         return JsonResponse({"error": "Fecha no válida."}, status=400)
     tasa = TasaBCV.objects.filter(fecha=fecha).first()
     if not tasa:
-        return JsonResponse({"error": "No hay tasa BCV para esta fecha. Regístrala antes de vender."}, status=404)
+        return JsonResponse({"error": "No hay tasa Bs para esta fecha. Regístrala antes de vender."}, status=404)
     return JsonResponse({"tasa": str(tasa.tasa_bcv)})

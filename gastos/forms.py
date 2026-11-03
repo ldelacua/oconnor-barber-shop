@@ -11,10 +11,16 @@ class EstiloForm(forms.ModelForm):
             elif isinstance(campo.widget,forms.Select): clase="form-select"
             else: clase="form-control"
             campo.widget.attrs["class"]=clase
+            if isinstance(campo, forms.CharField):
+                campo.widget.attrs["data-mayusculas-gastos"] = "1"
             if isinstance(campo,forms.DecimalField):
                 campo.widget.attrs.update({"step":"0.01","min":"0"})
-    def clean_descripcion(self):
-        return self.cleaned_data["descripcion"].strip()
+    def clean(self):
+        datos = super().clean()
+        for nombre, campo in self.fields.items():
+            if isinstance(campo, forms.CharField) and isinstance(datos.get(nombre), str):
+                datos[nombre] = datos[nombre].strip().upper()
+        return datos
 
 
 class GrupoForm(EstiloForm):
@@ -61,6 +67,10 @@ class RegistroForm(EstiloForm):
         self.fields["gasto"].queryset=TipoGasto.objects.filter(Q(activo=True,grupo__activo=True)|Q(pk=self.instance.gasto_id)).select_related("grupo")
         self.fields["proveedor"].queryset=Proveedor.objects.filter(Q(activo=True)|Q(pk=self.instance.proveedor_id))
         self.fields["monto_gasto"].widget.attrs["min"]="0.01"
+        self.fields['numero_factura'].required = False
+        for nombre in ('numero_factura', 'numero_control'):
+            self.fields[nombre].help_text = 'Si se deja vacío, se asigna el ID interno del documento al guardar.'
+
 
     def clean(self):
         datos=super().clean()

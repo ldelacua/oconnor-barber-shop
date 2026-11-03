@@ -12,13 +12,16 @@
 .menu-sistema {flex:0 0 220px;width:220px;min-width:0;}
 main.contenido-sistema {flex:1 1 0;width:0;min-width:0;margin:0;}
 @media(max-width:767.98px){.distribucion-sistema{flex-direction:column;}.menu-sistema,main.contenido-sistema{flex:none;width:100%;}}
+.nombre-sistema {font-weight:700;font-size:1.5625rem;color:#e5a33b;white-space:normal;}
+.logo-sistema {display:block;height:76px;width:auto;max-width:32vw;object-fit:contain;}
+@media(max-width:575.98px){.logo-sistema{height:60px;}.nombre-sistema{font-size:1.25rem;}}
 input[type="number"], input.precio-automatico, .subtotal-linea, .importe-linea, .importe-fila {text-align:right;}
 </style>
 {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow"><div class="container-fluid">
-<a class="navbar-brand fw-bold" href="{% url 'dashboard' %}"><i class="bi bi-person-badge me-1"></i>Prestadores de Servicio</a>
+<a class="navbar-brand d-inline-flex align-items-center" href="{% url 'dashboard' %}" aria-label="O’Connor Barber Shop — Inicio"><img class="logo-sistema" src="{% static 'seguridad/logo_oconnor.png' %}" alt="Logo de O’Connor" height="76"><span class="nombre-sistema ms-3">O'CONNOR Barber Shop</span></a>
 <div class="ms-auto">{% if user.is_authenticated %}
 <span class="text-white me-3"><i class="bi bi-person-circle"></i> {% if user.first_name or user.last_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.username }}{% endif %}</span>
 <a href="{% url 'cambiar_clave' %}" class="btn btn-outline-light btn-sm me-2"><i class="bi bi-key me-1"></i>Cambiar contraseña</a>
@@ -26,21 +29,23 @@ input[type="number"], input.precio-automatico, .subtotal-linea, .importe-linea, 
 {% endif %}</div></div></nav>
 <div class="container-fluid mt-4"><div class="row">
 {% if user.is_authenticated %}<div class="col-md-2 mb-4"><div class="list-group shadow">
+{% if user.es_prestador_restringido %}<a href="{% url 'mis_citas' %}" class="list-group-item list-group-item-action">Mis citas</a><a href="{% url 'mis_liquidaciones' %}" class="list-group-item list-group-item-action">Mis liquidaciones</a>{% else %}
 {% url 'dashboard' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>{% endif %}
 {% url 'clientes:lista_clientes' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'clientes:lista_clientes' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'clientes' %}active{% endif %}"><i class="bi bi-people me-1"></i>Clientes</a>{% endif %}
 {% url 'citas:listar_citas' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'citas:listar_citas' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'citas' and request.resolver_match.url_name == 'listar_citas' %}active{% endif %}"><i class="bi bi-calendar-check me-1"></i>Citas</a>{% endif %}
 {% url 'citas:agenda_citas' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'citas:agenda_citas' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'citas' and request.resolver_match.url_name == 'agenda_citas' %}active{% endif %}"><i class="bi bi-calendar3 me-1"></i>Agenda</a>{% endif %}
-{% menu_url 'barberos' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'barberos' or request.resolver_match.url_name == 'listar_sillas' or request.resolver_match.url_name == 'crear_silla' or request.resolver_match.url_name == 'editar_silla' or request.resolver_match.url_name == 'eliminar_silla' or request.resolver_match.url_name == 'cambiar_estado_silla' %}active{% endif %}"><i class="bi bi-person-badge me-1"></i>Prest de Servicio</a>{% endif %}
-{% url 'servicios:lista' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'servicios:lista' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'servicios' %}active{% endif %}"><i class="bi bi-scissors me-1"></i>Servicios</a>{% endif %}
+{% menu_url 'barberos' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'barberos' or request.resolver_match.namespace == 'servicios' or request.resolver_match.url_name == 'listar_sillas' or request.resolver_match.url_name == 'crear_silla' or request.resolver_match.url_name == 'editar_silla' or request.resolver_match.url_name == 'eliminar_silla' or request.resolver_match.url_name == 'cambiar_estado_silla' %}active{% endif %}"><i class="bi bi-person-badge me-1"></i>Prest de Servicio</a>{% endif %}
 {% url 'horarios:listar_horarios' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'horarios:listar_horarios' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'horarios' and request.resolver_match.url_name != 'listar_sillas' and request.resolver_match.url_name != 'crear_silla' and request.resolver_match.url_name != 'editar_silla' and request.resolver_match.url_name != 'eliminar_silla' and request.resolver_match.url_name != 'cambiar_estado_silla' %}active{% endif %}"><i class="bi bi-clock-history me-1"></i>Horarios</a>{% endif %}
-{% menu_url 'ventas' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'ventas' and request.resolver_match.url_name != 'reporte_servicios' %}active{% endif %}"><i class="bi bi-receipt me-1"></i>Ventas</a>{% endif %}
+{% menu_url 'ventas' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'ventas' and request.resolver_match.url_name != 'reporte_servicios' %}active{% endif %}"><i class="bi bi-receipt me-1"></i>Venta Servicio</a>{% endif %}
 {% url 'ventas:reporte_servicios' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'ventas:reporte_servicios' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'ventas' and request.resolver_match.url_name == 'reporte_servicios' %}active{% endif %}"><i class="bi bi-file-earmark-bar-graph me-1"></i>Servicios por Prestador</a>{% endif %}
 {% menu_url 'inventario' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'inventario' %}active{% endif %}"><i class="bi bi-box-seam me-1"></i>Compras</a>{% endif %}
 {% menu_url 'ventas_productos' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'ventas_productos' %}active{% endif %}"><i class="bi bi-bag-check me-1"></i>Venta de productos</a>{% endif %}
+{% url 'pagos:lista' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'pagos:lista' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'pagos' %}active{% endif %}"><i class="bi bi-credit-card me-1" aria-hidden="true"></i>Pagos</a>{% endif %}
+{% url 'bancos:lista' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action"><i class="bi bi-bank me-1"></i>Bancos</a>{% endif %}
 {% menu_url 'control_inventario' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'control_inventario' %}active{% endif %}"><i class="bi bi-boxes me-1"></i>Control de inventario</a>{% endif %}
-{% menu_url 'gastos' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'gastos' %}active{% endif %}"><i class="bi bi-cash-stack me-1"></i>Gastos</a>{% endif %}
+{% menu_url 'gastos' as enlace_menu %}{% if enlace_menu %}<a href="{{ enlace_menu }}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'gastos' %}active{% endif %}"><i class="bi bi-cash-stack me-1"></i>Gastos Operativos</a>{% endif %}
 {% url 'admin:index' as enlace_menu %}{% puede_url enlace_menu as mostrar_menu %}{% if mostrar_menu %}<a href="{% url 'admin:index' %}" class="list-group-item list-group-item-action {% if request.resolver_match.namespace == 'admin' %}active{% endif %}"><i class="bi bi-shield-lock me-1"></i>Administración</a>{% endif %}
-</div></div><main class="col-md-10">
+{% endif %}</div></div><main class="col-md-10">
 {% else %}<main class="col-12">{% endif %}
 {% if messages %}{% for message in messages %}
 <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %}" role="alert">{{ message }}</div>
@@ -48,5 +53,25 @@ input[type="number"], input.precio-automatico, .subtotal-linea, .importe-linea, 
 {% block content %}{% endblock %}
 </main></div></div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(() => {
+  const actualizarCuenta = tipo => {
+    const cuenta = tipo.form?.elements.namedItem(tipo.name.replace(/tipo_pago$/, 'cuenta_bancaria'));
+    if (!cuenta) return;
+    const permite = tipo.dataset.tiposBanco.split(',').includes(tipo.value);
+    if (!permite) cuenta.value = '';
+    cuenta.disabled = !permite;
+  };
+  const iniciar = () => {
+    const revisar = () => document.querySelectorAll('select[data-tipos-banco]').forEach(actualizarCuenta);
+    revisar();
+    document.addEventListener('change', e => {
+      if (e.target.matches('select[data-tipos-banco]')) actualizarCuenta(e.target);
+    });
+    new MutationObserver(revisar).observe(document.body, {childList: true, subtree: true});
+  };
+  document.addEventListener('DOMContentLoaded', iniciar);
+})();
+</script>
 {% block extra_js %}{% endblock %}
 </body></html>

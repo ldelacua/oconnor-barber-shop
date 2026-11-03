@@ -6,7 +6,7 @@ from barberos.models import Barbero
 from tasas_bcv.models import TasaBCV
 from ventas.calculos import dinero
 from ventas.models import DetalleVenta
-from ventas.pagos_calculos import leer_tipos_pago
+from ventas.pagos_calculos import leer_tipos_pago, validar_pagos_guardados
 from .models import Liquidacion, DetalleLiquidacion, PagoLiquidacion
 from .pagos import preparar_pagos
 
@@ -63,7 +63,7 @@ def pendientes(prestador, desde, hasta, fecha):
 
 
 @transaction.atomic
-def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usuario):
+def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usuario, incluir_productos=False):
     from mysql_nuevo.bloqueos import serializar_operacion
     serializar_operacion()
     existente = Liquidacion.objects.filter(clave=clave, sellado=True).first()
@@ -75,15 +75,22 @@ def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usu
     servicios, descuentos = pendientes(prestador, desde, hasta, fecha)
     ids = set(seleccion)
     candidatas = {s["linea"].pk: s for s in servicios}
-    if not ids or not ids.issubset(candidatas):
+    if not ids.issubset(candidatas):
         raise ValidationError("Selecciona servicios pendientes válidos. Alguno puede haberse pagado o reversado; vuelve a consultar.")
     elegidas = [candidatas[id_] for id_ in sorted(ids)] + descuentos
-    total = sum((s["comision"] for s in elegidas), Decimal("0.00"))
+    from .comisiones_productos import pendientes_productos, reintegros_pendientes
+    productos = pendientes_productos(prestador, desde, hasta, fecha) if incluir_productos else None
+    reintegros = reintegros_pendientes(prestador, fecha)
+    if not ids and not (productos and productos['ventas']):
+        raise ValidationError('Selecciona servicios o incluye ventas de productos pendientes.')
+    total_productos = productos['resumen']['comision_usd'] if productos else Decimal('0.00')
+    total_reintegros = -sum((r.comision_usd for r in reintegros), Decimal('0.00'))
+    total = sum((s["comision"] for s in elegidas), Decimal("0.00")) + total_productos + total_reintegros
     if total <= 0:
         raise ValidationError("Los descuentos dejan un saldo cero o negativo. Quedan pendientes para una próxima liquidación con saldo a pagar.")
     tasa = TasaBCV.objects.filter(fecha=fecha).first()
     if not tasa:
-        raise ValidationError("Registra la tasa BCV de la fecha de cancelación antes de pagar.")
+        raise ValidationError("Registra la tasa Bs de la fecha de cancelación antes de pagar.")
     with localcontext() as contexto:
         contexto.prec = 60
         total_bs = dinero(total * tasa.tasa_bcv)
@@ -105,9 +112,54 @@ def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usu
             liquidacion=liquidacion, detalle_venta=s["linea"], ajuste_de=s["ajuste_de"],
             porcentaje=s["porcentaje"], monto_servicio_usd=s["base"], comision_usd=s["comision"],
         )
+    from .models import PeriodoComisionProductos, ComisionVentaProducto, ReintegroComisionProducto
+    if productos and productos['ventas']:
+        resumen = productos['resumen']
+        periodo = PeriodoComisionProductos.objects.create(
+            liquidacion=liquidacion, prestador=prestador, desde=desde, hasta=hasta,
+            unidades=resumen['unidades'], base_usd=resumen['base_usd'],
+            porcentaje=resumen['porcentaje'], comision_usd=resumen['comision_usd'])
+        for linea in productos['ventas']:
+            ComisionVentaProducto.objects.create(periodo=periodo, **linea)
+    for anterior in reintegros:
+        ReintegroComisionProducto.objects.create(liquidacion=liquidacion, comision=anterior,
+            reverso=anterior.venta.reverso, monto_usd=-anterior.comision_usd)
+    creados = []
     for p in preparados:
-        PagoLiquidacion.objects.create(liquidacion=liquidacion, **p)
+        creados.append(PagoLiquidacion.objects.create(liquidacion=liquidacion, **p))
+    detalles_guardados = list(liquidacion.detalles.all())
+    pagos_guardados = list(liquidacion.pagos.all())
+    cero = Decimal("0.00")
+    if productos and productos['ventas']:
+        ventas_guardadas = list(periodo.ventas.all())
+        if (sum((v.unidades for v in ventas_guardadas), cero) != periodo.unidades
+                or sum((v.base_usd for v in ventas_guardadas), cero) != periodo.base_usd
+                or sum((v.comision_usd for v in ventas_guardadas), cero) != periodo.comision_usd
+                or {v.venta_id for v in ventas_guardadas} != {v['venta'].pk for v in productos['ventas']}):
+            raise ValidationError('Las ventas de productos no coinciden con la comisión del período.')
+    reintegros_guardados = list(liquidacion.reintegros_productos.all())
+    if ({r.comision_id for r in reintegros_guardados} != {r.pk for r in reintegros}
+            or sum((r.monto_usd for r in reintegros_guardados), cero) != total_reintegros):
+        raise ValidationError('Los reintegros de productos no coinciden con los reversos pendientes.')
+    if (not detalles_guardados and not (productos and productos['ventas'])) or not pagos_guardados:
+        raise ValidationError("La liquidación necesita servicios y pagos.")
+    if not any(d.ajuste_de_id is None for d in detalles_guardados) and not (productos and productos['ventas']):
+        raise ValidationError("La liquidación necesita servicios originales.")
+    try:
+        validar_pagos_guardados(pagos_guardados, liquidacion.total_bs, liquidacion.tasa_bcv,
+                               total_usd_objetivo=liquidacion.total_comision_usd)
+    except ValueError as error:
+        raise ValidationError(str(error)) from error
+    if (liquidacion.total_servicios_usd != sum((d.monto_servicio_usd for d in detalles_guardados), cero)
+        or liquidacion.total_comision_usd != sum((d.comision_usd for d in detalles_guardados), cero) + total_productos + total_reintegros
+        or liquidacion.total_bs != dinero(liquidacion.total_comision_usd * liquidacion.tasa_bcv)
+        or liquidacion.total_bs != sum((p.equivalente_bs + p.ajuste_redondeo_bs for p in pagos_guardados), cero)):
+        raise ValidationError("Los servicios o pagos no coinciden con el total de la liquidación.")
     with connection.cursor() as cursor:
         cursor.execute('UPDATE liquidaciones_liquidacion SET sellado=%s WHERE id_cancelacion=%s AND sellado=%s', [True, liquidacion.pk, False])
+        if cursor.rowcount != 1:
+            raise ValidationError('La liquidación ya fue finalizada o no existe.')
     liquidacion.sellado = True
+    from bancos.vinculacion import vincular_pagos_nuevos
+    vincular_pagos_nuevos(usuario, 'PRESTADOR', pagos, creados)
     return liquidacion

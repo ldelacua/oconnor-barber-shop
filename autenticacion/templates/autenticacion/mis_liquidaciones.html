@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% load ventas_formato %}
+{% block title %}Mis liquidaciones{% endblock %}
+{% block content %}
+<h2>Mis liquidaciones</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th>Documento</th><th>Fecha</th><th>Período</th><th class="text-end">Comisión USD</th><th></th></tr></thead><tbody>
+{% for d in pagina %}<tr><td>{{ d }}</td><td>{{ d.fecha_cancelacion|date:'d/m/Y' }}</td><td>{{ d.periodo_desde|date:'d/m/Y' }} – {{ d.periodo_hasta|date:'d/m/Y' }}</td><td class="text-end">{{ d.total_comision_usd|monto_venta }}</td><td><a href="{% url 'mi_liquidacion' d.pk %}" class="btn btn-outline-primary btn-sm">Ver</a></td></tr>{% empty %}<tr><td colspan="5">No hay liquidaciones registradas.</td></tr>{% endfor %}
+</tbody></table></div>
+{% include 'autenticacion/paginacion_propia.html' %}
+{% endblock %}

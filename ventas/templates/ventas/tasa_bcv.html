@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Tasa BCV | BarberPro{% endblock %}
+{% block title %}Tasa Bs | BarberPro{% endblock %}
 {% block content %}
 <div class="mb-4">
-    <h2><i class="bi bi-currency-exchange me-2"></i>Registrar tasa BCV</h2>
+    <h2><i class="bi bi-currency-exchange me-2"></i>Registrar tasa Bs</h2>
     <p class="text-muted mb-0">Ventas · Registro de la tasa de cambio</p>
 </div>
 <div class="card shadow-sm" style="max-width: 640px;">
     <div class="card-body">
         <form method="post">
-            {% csrf_token %}
+            {% csrf_token %}<input type="hidden" name="next" value="{{ regresar }}">
             {% for error in form.non_field_errors %}
                 <div class="alert alert-danger">{{ error }}</div>
             {% endfor %}
@@ -21,7 +21,7 @@
             {% endfor %}
             <div class="d-flex flex-wrap gap-2 mt-4">
                 <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Grabar</button>
-                <a href="{% url 'ventas:lista' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
+                <a href="{{ regresar }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
             </div>
         </form>
     </div>

@@ -74,6 +74,9 @@ HORAS_FIN = generar_horas(
 
 
 class SillaForm(forms.ModelForm):
+    def clean_nombre(self):
+        return self.cleaned_data['nombre'].strip().upper()
+
     class Meta:
         model = Silla
 

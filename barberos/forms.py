@@ -29,6 +29,8 @@ class BarberoForm(forms.ModelForm):
                 else "form-select" if isinstance(campo.widget, forms.Select)
                 else "form-control"
             )
+        for nombre in ('codigo', 'nombre', 'apellido', 'direccion', 'correo'):
+            self.fields[nombre].widget.attrs['data-mayusculas'] = '1'
         self.fields["silla"].required = True
         self.fields["silla"].empty_label = "Selecciona una silla"
         self.fields["silla"].queryset = Silla.objects.filter(
@@ -38,6 +40,8 @@ class BarberoForm(forms.ModelForm):
 
     def clean_silla(self):
         silla = self.cleaned_data["silla"]
+        if self.instance.pk and silla.pk != Barbero.objects.get(pk=self.instance.pk).silla_id and self.instance.horarios.exists():
+            raise forms.ValidationError('No puedes cambiar la silla porque este prestador tiene horarios registrados. Revisa sus horarios antes de modificar la asignación.')
         if not silla.activa and silla.pk != self.instance.silla_id:
             raise forms.ValidationError("Selecciona una silla activa.")
         return silla
@@ -52,7 +56,13 @@ class BarberoForm(forms.ModelForm):
         return self.cleaned_data["codigo"].strip().upper()
 
     def clean_nombre(self):
-        return self.cleaned_data["nombre"].strip().title()
+        return self.cleaned_data["nombre"].strip().upper()
 
     def clean_apellido(self):
-        return self.cleaned_data["apellido"].strip().title()
+        return self.cleaned_data["apellido"].strip().upper()
+
+    def clean_direccion(self):
+        return self.cleaned_data['direccion'].strip().upper()
+
+    def clean_correo(self):
+        return self.cleaned_data['correo'].strip().upper()

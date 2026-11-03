@@ -64,7 +64,10 @@ class VentaProductosTests(TestCase):
         self.assertEqual(doc.pagos.get().nombre_tipo_pago,"EFECTIVO")
 
     def test_web_guardar_y_documento(self):
-        respuesta=self.client.post(reverse("ventas_productos:nueva"),self.post())
+        from bancos.models import Banco, CuentaBancaria, MovimientoInterno
+        cuenta = CuentaBancaria.objects.create(banco=Banco.objects.create(nombre='BANCO PRODUCTO'), nro_cuenta='001', moneda='USD')
+        respuesta=self.client.post(reverse("ventas_productos:nueva"),self.post(**{'pagos-0-cuenta_bancaria': cuenta.pk, 'pagos-0-tipo_pago': '4'}))
+        self.assertEqual(MovimientoInterno.objects.get(cuenta=cuenta, origen='PRODUCTOS').monto, Decimal('23.20'))
         self.assertEqual(respuesta.status_code,302)
         doc=DocumentoProducto.objects.get()
         self.assertRedirects(respuesta,reverse("ventas_productos:ver",args=[doc.pk]))

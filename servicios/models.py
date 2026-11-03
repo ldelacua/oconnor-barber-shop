@@ -42,5 +42,12 @@ class Servicio(models.Model):
         verbose_name = "Servicio"
         verbose_name_plural = "Servicios"
 
+    def save(self, *args, **kwargs):
+        for campo in ('codigo', 'nombre', 'descripcion'):
+            valor = getattr(self, campo)
+            if valor is not None:
+                setattr(self, campo, valor.strip().upper())
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"

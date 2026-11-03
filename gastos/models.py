@@ -74,6 +74,28 @@ class RegistroGasto(models.Model):
             models.CheckConstraint(condition=models.Q(moneda__in=["USD", "BS"]), name="gasto_moneda_valida"),
         ]
 
+    def save(self, *args, **kwargs):
+        from django.db import transaction
+        import uuid
+        faltan_factura = not (self.numero_factura or '').strip()
+        faltan_control = not (self.numero_control or '').strip()
+        if not faltan_factura and not faltan_control:
+            return super().save(*args, **kwargs)
+        with transaction.atomic(using=kwargs.get('using') or self._state.db or 'default'):
+            if faltan_factura:
+                self.numero_factura = str(self.pk) if self.pk else 'AUTO-' + uuid.uuid4().hex
+            if faltan_control:
+                self.numero_control = str(self.pk) if self.pk else ''
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'numero_factura', 'numero_control'}
+            resultado = super().save(*args, **kwargs)
+            cambios = {}
+            if faltan_factura: cambios['numero_factura'] = str(self.pk)
+            if faltan_control: cambios['numero_control'] = str(self.pk)
+            type(self).objects.using(self._state.db).filter(pk=self.pk).update(**cambios)
+            for campo, valor in cambios.items(): setattr(self, campo, valor)
+            return resultado
+
     @property
     def total(self):
         return self.monto_gasto + self.monto_impuesto

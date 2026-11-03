@@ -8,6 +8,21 @@ def comprobar(conexion):
     if conexion.vendor!='mysql':raise CommandError('La conexión activa no es MySQL.')
     if conexion.mysql_is_mariadb or conexion.mysql_version[:2]!=(8,4):raise CommandError('Se requiere MySQL 8.4 LTS.')
     reglas=definiciones()
+    with conexion.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM django_migrations WHERE app='liquidaciones' AND name='0003_protecciones_comision'")
+        if cursor.fetchone()[0]:
+            from .protecciones_comisiones import sentencias
+            reglas['triggers'].update(sentencias())
+    with conexion.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM django_migrations WHERE app='inventario' AND name='0003_protecciones_pagos'")
+        if cursor.fetchone()[0]:
+            from .protecciones_pagos import sentencias as reglas_pagos
+            reglas['triggers'].update(reglas_pagos())
+    with conexion.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM django_migrations WHERE app='inventario' AND name='0006_protecciones_reversos_pagos'")
+        if cursor.fetchone()[0]:
+            from .protecciones_reversos_pagos import sentencias as reglas_reversos
+            reglas['triggers'].update(reglas_reversos())
     def normalizar(texto):return re.sub(r'\s+',' ',texto).strip()
     with conexion.cursor() as c:
         c.execute('SELECT @@SESSION.transaction_isolation, @@SESSION.sql_mode')

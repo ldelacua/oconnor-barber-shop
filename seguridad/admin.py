@@ -45,6 +45,7 @@ class UsuarioAdmin(SoloSuperusuarioEscribe, UserAdmin):
             {
                 "fields": (
                     "telefono",
+                    "prestador",
                 )
             },
         ),
@@ -59,6 +60,7 @@ class UsuarioAdmin(SoloSuperusuarioEscribe, UserAdmin):
                     "last_name",
                     "email",
                     "telefono",
+                    "prestador",
                 )
             },
         ),

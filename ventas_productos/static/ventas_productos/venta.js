@@ -72,17 +72,18 @@
  }
  async function cotizar(){
    const turno=++secuencia;peticion?.abort();peticion=new AbortController();
-   const salida=document.getElementById("bcv-venta");salida.textContent="CONSULTANDO…";tasa=null;calcular();
+   const salida=document.getElementById("bcv-venta");salida.classList.remove("text-danger","text-success");salida.textContent="CONSULTANDO…";tasa=null;calcular();
    try{
       const url=new URL(form.dataset.condicionesUrl,location.origin);url.searchParams.set("fecha",form.elements.namedItem("fecha").value);
       const r=await fetch(url,{signal:peticion.signal,headers:{"Accept":"application/json"}});
       if(r.redirected)throw new Error();
       const datos=await r.json();if(turno!==secuencia)return;
-      if(!r.ok){salida.textContent=datos.error;return;}
+      if(!r.ok){salida.classList.add("text-danger");salida.textContent=datos.error;return;}
       tasa=Number(datos.tasa);iva=Number(datos.iva);escalas=datos.escalas||[];
       salida.textContent=formato(tasa);
+      salida.classList.add("text-success");
       todas().forEach(cargarPrecio);calcular();
-   }catch(e){if(e.name!=="AbortError"&&turno===secuencia)salida.textContent="NO SE PUDO CONSULTAR LA TASA BCV.";}
+   }catch(e){if(e.name!=="AbortError"&&turno===secuencia){salida.classList.add("text-danger");salida.textContent="NO SE PUDO CONSULTAR LA TASA BS.";}}
  }
  function agregar(tipo){
     const lineas=tipo==="lineas",total=document.getElementById("id_"+tipo+"-TOTAL_FORMS"),n=Number(total.value);
@@ -100,7 +101,7 @@
       for(const [nombre,valor] of Object.entries(anterior.campos||{})){
         if(nombre==="csrfmiddlewaretoken")continue;
         const campo=nombre.startsWith("#")?document.getElementById(nombre.slice(1)):form.elements.namedItem(nombre);
-        if(!campo||!form.contains(campo))continue;
+        if(!campo||!form.contains(campo)||campo.disabled)continue;
         if(campo.type==="checkbox")campo.checked=valor;else campo.value=valor;
       }
     }

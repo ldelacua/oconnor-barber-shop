@@ -64,10 +64,10 @@ class IntegracionMysqlTests(TransactionTestCase):
         TasaBCV.objects.create(fecha=self.fecha,tasa_bcv=40)
         self.catalogo={5:dict(id=5,nombre='EFECTIVO USD',moneda='USD')}
 
-    def venta_producto(self,cantidad,clave):
+    def venta_producto(self,cantidad,clave,prestador=None):
         from ventas_productos.servicios import registrar_venta
         return registrar_venta(fecha=self.fecha,cliente=self.cliente,lineas=[dict(producto=self.producto,cantidad=cantidad)],
-            pagos=[dict(tipo_pago='5',fecha=self.fecha,monto=D(cantidad)*D('17.40'))],clave=clave,usuario=self.usuario)
+            pagos=[dict(tipo_pago='5',fecha=self.fecha,monto=D(cantidad)*D('17.40'))],clave=clave,usuario=self.usuario,prestador=prestador)
 
     def simultaneas(self,funcion):
         barrera=Barrier(2)
@@ -89,6 +89,52 @@ class IntegracionMysqlTests(TransactionTestCase):
         self.assertEqual(resultados.count('rechazada'),1)
         self.assertEqual(DocumentoProducto.objects.filter(sellado=True).count(),1)
         self.assertEqual(existencia_producto(self.producto.pk),D('3.000'))
+
+    def test_abonos_simultaneos_no_exceden_saldo_proveedor(self):
+        from inventario.models import Compra, PagoProveedor
+        from inventario.pagos_proveedor import registrar_pago, saldo_compra
+        compra = Compra.objects.get(numero_factura='MYSQL')
+        def pagar(n):
+            return registrar_pago(compra_id=compra.pk, fecha=self.fecha, tipo_pago=5, monto=D('70'),
+                referencia='PRUEBA', observacion='ABONO', clave=uuid.uuid4(), usuario=self.usuario).pk
+        resultados = self.simultaneas(pagar)
+        self.assertEqual(resultados.count('rechazada'), 1)
+        self.assertEqual(PagoProveedor.objects.count(), 1)
+        self.assertEqual(saldo_compra(compra)['saldo'], D('30.00'))
+
+    def test_reversos_simultaneos_no_reabren_saldo_dos_veces(self):
+        from inventario.models import Compra, PagoProveedor, ReversoPagoProveedor
+        from inventario.pagos_proveedor import registrar_pago, reversar_pago, saldo_compra
+        compra = Compra.objects.get(numero_factura='MYSQL')
+        pago = registrar_pago(compra_id=compra.pk, fecha=self.fecha, tipo_pago=5,
+            monto=D('10'), referencia='REF', observacion='', clave=uuid.uuid4(), usuario=self.usuario)
+        def reversar(n):
+            try:
+                return reversar_pago(pago_id=pago.pk, motivo='ERROR', usuario=self.usuario).pk
+            except ValidationError:
+                return None
+        resultados = self.simultaneas(reversar)
+        self.assertEqual(sum(r is not None for r in resultados), 1)
+        self.assertEqual(ReversoPagoProveedor.objects.count(), 1)
+        self.assertEqual(PagoProveedor.objects.count(), 1)
+        self.assertEqual(saldo_compra(compra)['saldo'], compra.total)
+
+    def test_venta_y_salida_simultaneas_no_agotan_stock_dos_veces(self):
+        from inventario.existencias import existencia_producto
+        from control_inventario.servicios import registrar_ajuste
+        def operar(n):
+            if n == 1:
+                self.venta_producto(7, uuid.uuid4())
+                return 'venta'
+            registrar_ajuste(tipo='SA', fecha=self.fecha, observacion='PRUEBA',
+                lineas=[dict(producto=self.producto, cantidad=D('7'))],
+                usuario='PRUEBA', clave=uuid.uuid4())
+            return 'salida'
+        with patch('ventas_productos.servicios.leer_tipos_pago', return_value=self.catalogo), \
+             patch('ventas_productos.servicios.iva_vigente', return_value=D('16')):
+            resultados = self.simultaneas(operar)
+        self.assertEqual(resultados.count('rechazada'), 1)
+        self.assertEqual(existencia_producto(self.producto.pk), D('3.000'))
 
     def test_doble_envio_no_duplica_venta(self):
         from inventario.existencias import existencia_producto
@@ -115,6 +161,60 @@ class IntegracionMysqlTests(TransactionTestCase):
         self.assertEqual(resultados.count('rechazada'),1)
         self.assertEqual(Liquidacion.objects.filter(sellado=True).count(),1)
 
+    def test_dos_liquidaciones_de_productos_no_se_pagan_dos_veces(self):
+        from ventas_productos.models import EscalaComisionProducto
+        from liquidaciones.servicios import registrar
+        from liquidaciones.models import Liquidacion, PeriodoComisionProductos
+        EscalaComisionProducto.objects.create(unidades=1, porcentaje=10)
+        with patch('ventas_productos.servicios.leer_tipos_pago', return_value=self.catalogo), \
+             patch('ventas_productos.servicios.iva_vigente', return_value=D('16')):
+            self.venta_producto(2, uuid.uuid4(), self.barbero)
+        def pagar(n):
+            return registrar(prestador_id=self.barbero.pk, desde=self.fecha, hasta=self.fecha, fecha=self.fecha,
+                seleccion=[], pagos=[dict(tipo_pago='5', fecha=self.fecha, monto=D('3.00'))],
+                clave=uuid.uuid4(), usuario=self.usuario, incluir_productos=True).pk
+        with patch('liquidaciones.servicios.leer_tipos_pago', return_value=self.catalogo):
+            resultados = self.simultaneas(pagar)
+        self.assertEqual(resultados.count('rechazada'), 1)
+        self.assertEqual(Liquidacion.objects.filter(sellado=True).count(), 1)
+        self.assertEqual(PeriodoComisionProductos.objects.count(), 1)
+
+    def test_venta_y_apertura_de_cierre_no_omiten_movimientos(self):
+        from control_inventario.models import CierreMensual
+        from control_inventario.servicios import iniciar_cierre
+        from ventas_productos.models import DocumentoProducto
+        def operar(n):
+            if n == 1:
+                self.venta_producto(7, uuid.uuid4())
+                return 'venta'
+            iniciar_cierre(periodo=date(2026,10,1), observacion='PRUEBA', usuario='PRUEBA')
+            return 'cierre'
+        with patch('control_inventario.servicios.timezone.localdate', return_value=date(2026,11,1)), \
+             patch('ventas_productos.servicios.leer_tipos_pago', return_value=self.catalogo), \
+             patch('ventas_productos.servicios.iva_vigente', return_value=D('16')):
+            resultados = self.simultaneas(operar)
+        self.assertIn('cierre', resultados)
+        cierre = CierreMensual.objects.get(periodo=date(2026,10,1))
+        teorico = cierre.detalles.get(producto=self.producto).teorico
+        ventas = DocumentoProducto.objects.filter(sellado=True).count()
+        if 'venta' in resultados:
+            self.assertEqual(ventas, 1)
+            self.assertEqual(teorico, D('3.000'))
+        else:
+            self.assertIn('rechazada', resultados)
+            self.assertEqual(ventas, 0)
+            self.assertEqual(teorico, D('10.000'))
+
+    def test_apertura_simultanea_del_mismo_cierre_es_idempotente(self):
+        from control_inventario.models import CierreMensual
+        from control_inventario.servicios import iniciar_cierre
+        def abrir(n):
+            return iniciar_cierre(periodo=date(2026,10,1), observacion='PRUEBA', usuario='PRUEBA').pk
+        with patch('control_inventario.servicios.timezone.localdate', return_value=date(2026,11,1)):
+            resultados = self.simultaneas(abrir)
+        self.assertEqual(resultados[0], resultados[1])
+        self.assertEqual(CierreMensual.objects.filter(periodo=date(2026,10,1)).count(), 1)
+
     def test_indice_cita_activa_y_canceladas(self):
         from citas.models import Cita
         def cita(estado):return Cita(cliente=self.cliente,barbero=self.barbero,servicio=self.servicio,fecha=self.fecha,hora=time(10),estado=estado)
@@ -131,4 +231,4 @@ class IntegracionMysqlTests(TransactionTestCase):
     def test_disparadores_y_vista_instalados(self):
         from mysql_nuevo.verificacion import comprobar
         resultado=comprobar(connection)
-        self.assertEqual(resultado['disparadores'],57)
+        self.assertEqual(resultado['disparadores'],72)

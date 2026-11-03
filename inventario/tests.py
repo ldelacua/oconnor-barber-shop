@@ -436,7 +436,7 @@ class InventarioTests(TestCase):
     def test_bcv_faltante_impide_guardar(self):
         respuesta = self.client.post(reverse("inventario:nueva_compra"), self.datos(fecha_compra="2020-01-01"))
         self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, "No hay tasa BCV")
+        self.assertContains(respuesta, "No hay tasa Bs")
         self.assertFalse(Compra.objects.exists())
         self.assertEqual(self.client.get(reverse("inventario:condiciones"), {"fecha": "2020-01-01"}).status_code, 422)
         self.assertEqual(self.client.get(reverse("inventario:condiciones"), {"fecha": "no-fecha"}).status_code, 400)

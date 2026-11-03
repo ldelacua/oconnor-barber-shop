@@ -1,0 +1,8 @@
+{% load ventas_formato %}
+<table class="table table-sm mb-0">
+<thead><tr><th>Fecha</th><th>Referencia</th>{% if lado == 'sistema' %}<th>Pago</th>{% endif %}<th class="text-end">Importe</th></tr></thead>
+<tbody>{% for p in partidas %}<tr>
+<td class="text-nowrap">{{ p.movimiento.fecha|date:'d/m/Y' }}</td>
+{% if lado == 'banco' %}<td>{{ p.movimiento.nro_transaccion }}</td>{% else %}<td>{{ p.movimiento.referencia|default:'—' }}</td><td>{{ p.movimiento.origen }} #{{ p.movimiento.pago_id }}</td>{% endif %}
+<td class="text-end text-nowrap fw-semibold">{{ p.movimiento.monto|monto_venta }}</td></tr>{% endfor %}</tbody>
+</table>

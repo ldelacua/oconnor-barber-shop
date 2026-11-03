@@ -62,11 +62,16 @@ class ServicioForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        for nombre in ('codigo', 'nombre', 'descripcion'):
+            self.fields[nombre].widget.attrs['data-mayusculas'] = '1'
         self.fields["precio"].required = False
         self.fields["precio"].help_text = "Automático: precio de venta. Manual: el precio se introduce al facturar; puedes dejar este valor en cero."
 
     def clean(self):
         datos = super().clean()
+        for nombre in ('codigo', 'nombre', 'descripcion'):
+            if nombre in datos:
+                datos[nombre] = datos[nombre].strip().upper()
         if "precio" not in self.errors:
             precio = datos.get("precio")
             if precio is None:

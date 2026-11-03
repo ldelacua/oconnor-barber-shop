@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load ventas_formato %}
+{% block content %}
+<h2>Reporte bancario · {{ cuenta }}</h2>
+<a class="btn btn-secondary" href="{% url 'bancos:lista' %}">Regresar</a>
+<a class="btn btn-outline-primary" href="{% url 'bancos:reporte_cuenta' cuenta.pk %}">Mes actual</a>
+<form method="get" class="row g-2 align-items-end my-3">
+<div class="col-auto">{{ filtro_mes.mes.label_tag }}{{ filtro_mes.mes }}{{ filtro_mes.mes.errors }}</div>
+<div class="col-auto"><button class="btn btn-primary">Consultar mes</button> <button class="btn btn-success" name="excel" value="1">Descargar Excel</button></div>
+</form>
+{% if cierre %}<a class="btn btn-success" href="?cierre={{ cierre.pk }}&amp;excel=1">Descargar Excel del cierre</a><p class="mt-3">Cierre: {{ cierre.fecha_cierre|date:'d/m/Y' }} · Saldo: {{ cierre.saldo|monto_venta }} {{ cuenta.get_moneda_display }}</p>{% endif %}
+<p class="mt-3"><strong>Período: {{ periodo|date:"m/Y" }}</strong></p>
+<h3 class="mt-3">Grupos conciliados ({{ resumen.conciliaciones|length }})</h3>
+{% for grupo in resumen.conciliaciones %}
+<details class="mb-2"><summary>Conciliación #{{ grupo.id }} · {{ grupo.monto|monto_venta }} {{ cuenta.get_moneda_display }} · {{ grupo.usuario }} · {{ grupo.metodo|default:"Sin registrar" }}</summary>
+<h4 class="h6 mt-2">Banco</h4>{% include 'bancos/pendientes.html' with filas=grupo.banco %}
+<h4 class="h6">Sistema</h4>{% include 'bancos/pendientes.html' with filas=grupo.sistema %}
+</details>
+{% empty %}<p>No hay grupos conciliados.</p>{% endfor %}
+<h3>Pendientes del banco ({{ resumen.banco|length }})</h3>
+{% include 'bancos/pendientes.html' with filas=resumen.banco %}
+<h3>Pendientes del sistema ({{ resumen.sistema|length }})</h3>
+{% include 'bancos/pendientes.html' with filas=resumen.sistema %}
+<h3>Cierres guardados</h3>
+<ul>{% for c in cierres %}<li><a href="?cierre={{ c.pk }}">{{ c.fecha_cierre|date:'d/m/Y' }}</a> · {{ c.saldo|monto_venta }} {{ cuenta.get_moneda_display }}</li>{% empty %}<li>No hay cierres registrados.</li>{% endfor %}</ul>
+{% if perms.bancos.add_cierrebancario and not cierre %}
+<h3>Registrar cierre mensual</h3>
+<form method="post" class="card card-body">{% csrf_token %}{{ form.as_p }}
+<div><button class="btn btn-primary">Guardar cierre</button></div></form>
+{% endif %}
+{% endblock %}

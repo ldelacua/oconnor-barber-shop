@@ -1,0 +1,2 @@
+{% extends 'base.html' %}
+{% block content %}<h2>Escala de comisión de productos</h2><form method="post" class="card card-body">{% csrf_token %}{{ form.as_p }}<div><button class="btn btn-primary">Guardar</button> <a class="btn btn-secondary" href="{% url 'ventas_productos:escalas_comision' %}">Regresar</a></div></form>{% endblock %}

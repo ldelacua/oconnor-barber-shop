@@ -1,0 +1,8 @@
+EVALUACION LOCAL SIN DISPARADORES - CIERRE Y CONCURRENCIA
+
+Detén el servidor experimental. Extrae este ZIP únicamente sobre la copia barberia_prueba_2 y reemplaza los archivos. En PowerShell, dentro de la copia, ejecuta:
+& "C:\Proyectos\Barbershop\oconnor-barber-shop\.venv\Scripts\python.exe" .\pruebas_programas_mysql.py
+
+Comparta el resultado completo. La prueba crea y elimina solamente una base temporal MySQL local; no usa la base experimental ni la base barberia. Se informarán 7 pruebas omitidas porque requieren disparadores o protección contra SQL directo. La versión sigue siendo experimental.
+
+No repitas preparar_base ni migrate: la base experimental barberia_validacion_programas ya fue creada. Si las pruebas terminan correctamente, se podrá reabrir la aplicación experimental con manage_programas_local.py runserver 8002. No usar con datos reales ni desplegar a la nube.

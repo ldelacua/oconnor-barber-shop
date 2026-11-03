@@ -32,11 +32,11 @@ def _guardar_tasa(request, instance=None):
             else:
                 raise
         else:
-            messages.success(request, "La tasa BCV fue guardada correctamente.")
+            messages.success(request, "La tasa Bs fue guardada correctamente.")
             return redirect("tasas_bcv:lista")
     return render(request, "tasas_bcv/formulario.html", {
         "form": form,
-        "titulo": "Editar tasa BCV" if instance else "Nueva tasa BCV",
+        "titulo": "Editar tasa Bs" if instance else "Nueva tasa Bs",
     })
 
 

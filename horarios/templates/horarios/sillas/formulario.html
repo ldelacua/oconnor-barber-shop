@@ -77,3 +77,4 @@
 </div>
 
 {% endblock %}
+{% block extra_js %}<script>const nombreSilla=document.getElementById('id_nombre');if(nombreSilla) nombreSilla.addEventListener('input',function(){const inicio=this.selectionStart,fin=this.selectionEnd;this.value=this.value.toUpperCase();this.setSelectionRange(inicio,fin);});</script>{% endblock %}

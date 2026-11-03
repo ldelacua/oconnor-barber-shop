@@ -50,7 +50,7 @@ def nueva(request):
     except (ValueError,KeyError,OSError,TypeError,ArithmeticError,ValidationError):
         catalogo={};iva=None
         error_config="Revisa la configuración compartida de IVA y formas de pago de Ventas."
-    pagos=PagosFormSet(datos,prefix="pagos",form_kwargs={"catalogo":catalogo})
+    pagos=PagosFormSet(datos,prefix="pagos",form_kwargs={"catalogo": catalogo, "usuario": request.user if request.user.has_perm("ventas_productos.view_pagoproducto") else None})
     if request.method=="POST":
         validos=[form.is_valid(),lineas.is_valid(),pagos.is_valid()]
         if all(validos) and not error_config:
@@ -58,7 +58,8 @@ def nueva(request):
                 doc=registrar_venta(fecha=form.cleaned_data["fecha"],cliente=form.cleaned_data["cliente"],
                     lineas=[f.cleaned_data for f in lineas if f.cleaned_data and not f.cleaned_data.get("DELETE")],
                     pagos=[f.cleaned_data for f in pagos if f.cleaned_data and not f.cleaned_data.get("DELETE")],
-                    clave=form.cleaned_data["clave"],usuario=request.user,observacion=form.cleaned_data["observacion"])
+                    clave=form.cleaned_data["clave"],usuario=request.user,observacion=form.cleaned_data["observacion"],
+                    prestador=form.cleaned_data["prestador"])
             except ValidationError as exc:
                 form.add_error(None,exc)
                 if getattr(exc,"code",None)=="stock_insuficiente":
@@ -132,6 +133,23 @@ def configuracion(request,tipo):
     if tipo=="porcentajes" and q:consulta=consulta.filter(Q(producto__codigo_producto__icontains=q)|Q(producto__nombre_producto__icontains=q))
     pagina=Paginator(consulta,25).get_page(request.GET.get("page"))
     params=request.GET.copy();params.pop("page",None)
+    if tipo == 'porcentajes':
+        from django.db.models import OuterRef, Subquery
+        from django.utils import timezone
+        from control_inventario.models import MovimientoStock
+        from ventas.calculos import dinero
+        from decimal import localcontext
+        costos = MovimientoStock.objects.filter(producto_id=OuterRef('producto_id'),
+            fecha__lte=timezone.localdate(), costo_unitario_usd__gt=0).order_by('-registrado_en', '-id')
+        pagina.object_list = pagina.object_list.annotate(ultimo_costo_usd=Subquery(costos.values('costo_unitario_usd')[:1]))
+        for regla in pagina.object_list:
+            regla.recargo_usd = regla.precio_venta_usd = None
+            if regla.ultimo_costo_usd is not None:
+                with localcontext() as contexto:
+                    contexto.prec = 60
+                    regla.ultimo_costo_usd = dinero(regla.ultimo_costo_usd)
+                    regla.precio_venta_usd = dinero(regla.ultimo_costo_usd * (Decimal('1') + regla.porcentaje / Decimal('100')))
+                    regla.recargo_usd = regla.precio_venta_usd - regla.ultimo_costo_usd
     return render(request,"ventas_productos/configuracion.html",{"tipo":tipo,"pagina":pagina,"query":params.urlencode(),
         "regresar":regreso(request,"ventas_productos:lista"),"ruta_actual":request.get_full_path(),
         "puede_agregar":tipo=="porcentajes" or EscalaDescuento.objects.count()<4})
@@ -151,3 +169,61 @@ def configurar(request,tipo,pk=None):
         except IntegrityError:form.add_error(None,"Ese producto, nivel o umbral ya está registrado.")
         else:return redirect(destino)
     return render(request,"ventas_productos/configurar.html",{"form":form,"tipo":tipo,"regresar":destino})
+
+@login_required(login_url='iniciar_sesion')
+def escalas_comision(request):
+    from .models import EscalaComisionProducto
+    return render(request, 'ventas_productos/escalas_comision.html',
+                  {'escalas': EscalaComisionProducto.objects.all()})
+
+
+@login_required(login_url='iniciar_sesion')
+def editar_escala_comision(request, pk=None):
+    from .models import EscalaComisionProducto
+    from .forms import EscalaComisionForm
+    instancia = get_object_or_404(EscalaComisionProducto, pk=pk) if pk else None
+    form = EscalaComisionForm(request.POST if request.method == 'POST' else None, instance=instancia)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            form.save()
+        except IntegrityError:
+            form.add_error(None, 'Ya existe una escala con esa cantidad mínima.')
+        else:
+            return redirect('ventas_productos:escalas_comision')
+    return render(request, 'ventas_productos/escala_comision_form.html', {'form': form})
+
+
+@login_required(login_url='iniciar_sesion')
+def reporte_prestador(request):
+    from django.db.models import Sum
+    from liquidaciones.models import PeriodoComisionProductos
+    from .models import EscalaComisionProducto
+    from .forms import FiltroComisionForm
+    from .comisiones import calcular_comision_periodo
+    filtro = FiltroComisionForm(request.GET if request.GET else None)
+    pagina, resumen, error, cerrado = None, None, '', False
+    if filtro.is_valid():
+        d = filtro.cleaned_data
+        periodo = PeriodoComisionProductos.objects.filter(prestador=d['prestador'], liquidacion__sellado=True,
+                                                           desde=d['desde'], hasta=d['hasta']).first()
+        ventas = DocumentoProducto.objects.filter(tipo='VP', sellado=True, prestador=d['prestador'],
+            fecha__range=(d['desde'], d['hasta'])).filter(
+                Q(reverso__isnull=True) | Q(reverso__sellado=False) | Q(reverso__fecha__gt=d['hasta']))
+        if periodo:
+            cerrado = True
+            ventas = DocumentoProducto.objects.filter(comision_productos__periodo=periodo)
+            resumen = {'unidades': periodo.unidades, 'base_usd': periodo.base_usd,
+                       'porcentaje': periodo.porcentaje, 'comision_usd': periodo.comision_usd}
+        totales = ventas.aggregate(unidades=Sum('unidades_total'), subtotal=Sum('subtotal_usd'), descuento=Sum('descuento_usd'))
+        if totales['unidades'] and not cerrado:
+            registros = [{'unidades': totales['unidades'], 'base_usd': totales['subtotal'] - totales['descuento']}]
+            escalas = list(EscalaComisionProducto.objects.filter(activo=True).values('unidades', 'porcentaje'))
+            try:
+                resumen = calcular_comision_periodo(registros, escalas)
+            except ValidationError as exc:
+                error = ' '.join(exc.messages)
+        pagina = Paginator(ventas.order_by('-fecha', '-pk'), 25).get_page(request.GET.get('page'))
+    query = request.GET.copy()
+    query.pop('page', None)
+    return render(request, 'ventas_productos/reporte_prestador.html',
+                  {'filtro': filtro, 'pagina': pagina, 'resumen': resumen, 'error': error, 'query': query.urlencode(), 'cerrado': cerrado})

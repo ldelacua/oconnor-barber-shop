@@ -16,9 +16,9 @@
 <div class="mt-3"><button class="btn btn-primary">Consultar</button> <a class="btn btn-outline-secondary" href="{% url 'inventario:compras' %}">Limpiar filtros</a></div>
 </form>
 <div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
-<thead><tr><th>ID compra</th><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Divisa</th><th class="text-end">Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+<thead><tr><th>ID compra</th><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Divisa</th><th class="text-end">Total</th><th>Banco y cuenta</th><th>Estado</th><th>Acciones</th></tr></thead>
 <tbody>{% for compra in pagina %}
-<tr><td>{{ compra.pk }}</td><td>{{ compra.fecha_compra|date:"d/m/Y" }}</td><td>{{ compra.proveedor.nombre }}</td><td>{{ compra.numero_factura }}</td><td>{{ compra.get_divisa_display }}</td><td class="text-end">{{ compra.total|monto_venta }}</td><td><span class="badge {% if compra.estado == 'A' %}bg-success{% else %}bg-secondary{% endif %}">{{ compra.get_estado_display }}</span></td>
+<tr><td>{{ compra.pk }}</td><td>{{ compra.fecha_compra|date:"d/m/Y" }}</td><td>{{ compra.proveedor.nombre }}</td><td>{{ compra.numero_factura }}</td><td>{{ compra.get_divisa_display }}</td><td class="text-end">{{ compra.total|monto_venta }}</td><td>{% for cuenta in compra.cuentas_pago %}<div>{{ cuenta }}</div>{% empty %}—{% endfor %}</td><td><span class="badge {% if compra.estado == 'A' %}bg-success{% else %}bg-secondary{% endif %}">{{ compra.get_estado_display }}</span></td>
 <td><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#productos-{{ compra.pk }}" aria-expanded="false" aria-controls="productos-{{ compra.pk }}">Productos</button>
 <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario:detalle' compra.pk %}?next={{ request.get_full_path|urlencode }}">Abrir</a>
 {% if compra.estado == 'B' %}
@@ -27,8 +27,8 @@
 {% csrf_token %}<input type="hidden" name="revision" value="{{ compra.revision }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-success">Actualizar</button></form>
 {% endif %}
 </td></tr>
-<tr class="collapse" id="productos-{{ compra.pk }}"><td colspan="8" class="bg-light p-3">{% include "inventario/lineas.html" %}{% if compra.observacion %}<p>{{ compra.observacion }}</p>{% endif %}</td></tr>
-{% empty %}<tr><td colspan="8" class="p-5 text-center text-muted">No hay compras para estos filtros.</td></tr>{% endfor %}</tbody>
+<tr class="collapse" id="productos-{{ compra.pk }}"><td colspan="9" class="bg-light p-3">{% include "inventario/lineas.html" %}{% if compra.observacion %}<p>{{ compra.observacion }}</p>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="9" class="p-5 text-center text-muted">No hay compras para estos filtros.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% include "inventario/paginacion.html" %}
 {% endblock %}

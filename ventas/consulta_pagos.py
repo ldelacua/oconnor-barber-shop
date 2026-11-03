@@ -20,9 +20,12 @@ class FiltrosPagosForm(forms.Form):
     moneda = forms.ChoiceField(required=False, choices=[("", "Todas"), ("USD", "USD"), ("BS", "Bs.")])
     referencia = forms.CharField(required=False, max_length=100, label="Referencia")
 
-    def __init__(self, *args, opciones_pago=(), **kwargs):
+    def __init__(self, *args, opciones_pago=(), ver_bancos=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["forma_pago"].choices = [("", "Todas")] + list(opciones_pago)
+        if ver_bancos:
+            from bancos.models import Banco
+            self.fields["banco"] = forms.ModelChoiceField(queryset=Banco.objects.all(), required=False, empty_label="Todos")
         for campo in self.fields.values():
             campo.widget.attrs["class"] = "form-select" if isinstance(campo.widget, forms.Select) else "form-control"
 
@@ -44,10 +47,14 @@ def consulta_pagos(request):
     except (OSError, ValueError, KeyError, TypeError):
         pass
     opciones = [(str(codigo), nombre) for codigo, nombre in sorted(nombres.items())]
-    filtros = FiltrosPagosForm(request.GET, opciones_pago=opciones)
+    filtros = FiltrosPagosForm(request.GET, opciones_pago=opciones, ver_bancos=request.user.has_perm("bancos.view_cuentabancaria"))
     pagos = PagoVenta.objects.filter(documento__sellado=True).select_related("documento__cliente").order_by("-fecha", "-documento_id", "-pk")
     if filtros.is_valid():
         datos = filtros.cleaned_data
+        if datos.get("banco"):
+            from bancos.models import MovimientoInterno
+            ids = MovimientoInterno.objects.filter(origen="SERVICIOS", cuenta__banco=datos["banco"]).values("pago_id")
+            pagos = pagos.filter(pk__in=ids)
         if datos.get("desde"):
             pagos = pagos.filter(fecha__gte=datos["desde"])
         if datos.get("hasta"):

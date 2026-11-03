@@ -4,16 +4,19 @@ from django import forms
 from django.forms import formset_factory
 from django.utils import timezone
 from clientes.models import Cliente
+from barberos.models import Barbero
 from inventario.models import Producto
-from .models import PorcentajeProducto,EscalaDescuento
+from .models import PorcentajeProducto,EscalaDescuento,EscalaComisionProducto
 from inventario.precision import configurar_decimales
 from inventario.buscador_productos import BuscadorProductoWidget
 from citas.buscador_clientes import BuscadorClienteWidget
 from ventas.forms import PagoForm
 
 class CabeceraForm(forms.Form):
-    fecha = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type":"date","class":"form-control"}))
+    fecha = forms.DateField(initial=timezone.localdate, disabled=True, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type":"date","class":"form-control"}))
     cliente = forms.ModelChoiceField(Cliente.objects.filter(activo=True), widget=BuscadorClienteWidget())
+    prestador = forms.ModelChoiceField(Barbero.objects.filter(activo=True), required=False,
+        empty_label="BARBERÍA", label="Venta realizada por", widget=forms.Select(attrs={"class":"form-select"}))
     observacion = forms.CharField(required=False, max_length=1000, widget=forms.Textarea(attrs={"rows":2,"class":"form-control","data-mayusculas":"1"}))
     clave = forms.UUIDField(initial=uuid.uuid4, widget=forms.HiddenInput())
 
@@ -56,6 +59,30 @@ class FiltroForm(forms.Form):
         if datos.get("desde") and datos.get("hasta") and datos["desde"] > datos["hasta"]:
             raise forms.ValidationError("La fecha desde debe ser anterior o igual a la fecha hasta.")
         return datos
+
+
+class FiltroComisionForm(forms.Form):
+    prestador = forms.ModelChoiceField(Barbero.objects.all(), label='Prestador de servicio')
+    desde = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+    hasta = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('desde') and datos.get('hasta') and datos['desde'] > datos['hasta']:
+            raise forms.ValidationError('La fecha inicial no puede ser posterior a la final.')
+        return datos
+
+
+class EscalaComisionForm(forms.ModelForm):
+    class Meta:
+        model = EscalaComisionProducto
+        fields = ['unidades', 'porcentaje', 'activo']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        configurar_decimales(self)
+        for campo in self.fields.values():
+            campo.widget.attrs['class'] = 'form-check-input' if isinstance(campo.widget, forms.CheckboxInput) else 'form-control'
 
 
 class PorcentajeForm(forms.ModelForm):

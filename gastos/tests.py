@@ -66,6 +66,18 @@ class GastosTests(TestCase):
         form=ProveedorForm({"rif":" j-12345678-9 ","descripcion":"Duplicado","activo":True})
         self.assertFalse(form.is_valid())
 
+    def test_numeros_vacios_utilizan_id_interno(self):
+        primero = self.guardar(numero_factura='', numero_control='')
+        segundo = self.guardar(numero_factura='', numero_control='CONTROL REAL')
+        primero.refresh_from_db(); segundo.refresh_from_db()
+        self.assertEqual(primero.numero_factura, str(primero.pk))
+        self.assertEqual(primero.numero_control, str(primero.pk))
+        self.assertEqual(segundo.numero_factura, str(segundo.pk))
+        self.assertEqual(segundo.numero_control, 'CONTROL REAL')
+        tercero = self.guardar(numero_factura='FACTURA REAL', numero_control='')
+        self.assertEqual(tercero.numero_factura, 'FACTURA REAL')
+        self.assertEqual(tercero.numero_control, str(tercero.pk))
+
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse

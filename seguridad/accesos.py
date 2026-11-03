@@ -1,7 +1,7 @@
 """Política central: rutas conocidas, permisos explícitos y denegación por defecto."""
 from django.urls import resolve, Resolver404
 
-PROTEGIDOS = {'clientes','barberos','servicios','horarios','citas','tasas_bcv','ventas','liquidaciones','gastos','inventario','ventas_productos','control_inventario'}
+PROTEGIDOS = {'bancos','pagos','clientes','barberos','servicios','horarios','citas','tasas_bcv','ventas','liquidaciones','gastos','inventario','ventas_productos','control_inventario'}
 
 
 def permisos(modelo, accion='view'):
@@ -24,6 +24,24 @@ def reglas(nombre, metodo='GET', datos=None):
       'tasas_bcv':('tasas_bcv.tasabcv',{'lista':'view','crear':'add','editar':'change'}),
       'liquidaciones':('liquidaciones.liquidacion',{'lista':'view','ver':'view','crear':'add'}),
     }
+    if ns=='bancos':
+        lectura = ('bancos.view_banco', 'bancos.view_cuentabancaria')
+        if ruta == 'lista': return [lectura]
+        if ruta == 'estado_cuenta': return [lectura + ('bancos.view_movimientobanco',)]
+        if ruta == 'reporte_cuenta': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.view_conciliacion', 'bancos.view_cierrebancario') + (('bancos.add_cierrebancario',) if escribir else ())]
+        if ruta == 'conciliar_cuenta': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.add_conciliacion')]
+        if ruta == 'vincular_pago': return [lectura + ('bancos.add_movimientointerno',)]
+        if ruta == 'importar_estado': return [lectura + ('bancos.view_movimientobanco', 'bancos.add_movimientobanco')]
+        acciones = {'nuevo_banco':'add_banco', 'editar_banco':'change_banco',
+                    'nueva_cuenta':'add_cuentabancaria', 'editar_cuenta':'change_cuentabancaria'}
+        return [lectura + ('bancos.' + acciones[ruta],)] if ruta in acciones else []
+    if ns=='pagos':
+        if ruta in {'lista','consulta'}:return [permisos(m) for m in ['inventario.pagoproveedor','liquidaciones.pagoliquidacion','ventas.pagoventa','ventas_productos.pagoproducto']]
+        if ruta=='reverso_proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_reversopagoproveedor')]
+        if ruta=='proveedores':return [('inventario.view_compra','inventario.view_pagoproveedor')]
+        if ruta=='tasa_proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_pagoproveedor')]
+        if ruta=='proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_pagoproveedor')]
+        return []
     if ns in simples:
         modelo,acciones=simples[ns]
         return p(modelo,acciones[ruta]) if ruta in acciones else []
@@ -64,6 +82,9 @@ def reglas(nombre, metodo='GET', datos=None):
         acciones={'compras':'view','detalle':'view','nueva_compra':'add','editar_compra':'change','actualizar':'change','eliminar':'delete','condiciones':'view'}
         return p('inventario.compra',acciones[ruta]) if ruta in acciones else []
     if ns=='ventas_productos':
+        comisiones={'escalas_comision':'view','nueva_escala_comision':'add','editar_escala_comision':'change'}
+        if ruta in comisiones:return p('ventas_productos.escalacomisionproducto',comisiones[ruta])
+        if ruta=='reporte_prestador':return p('ventas_productos.documentoproducto')
         configuracion={'porcentajes':('porcentajeproducto','view'),'nuevo_porcentaje':('porcentajeproducto','add'),'editar_porcentaje':('porcentajeproducto','change'),
                        'descuentos':('escaladescuento','view'),'nuevo_descuento':('escaladescuento','add'),'editar_descuento':('escaladescuento','change')}
         if ruta in configuracion:
@@ -105,7 +126,7 @@ def entrada_modulo(usuario,modulo):
       'control_inventario':[('control_inventario:stock',{}),('control_inventario:documentos',{}),('control_inventario:cierres',{})],
       'ventas':[('ventas:lista',{}),('ventas:consulta_pagos',{})],
       'ventas_productos':[('ventas_productos:lista',{}),('ventas_productos:porcentajes',{}),('ventas_productos:descuentos',{})],
-      'barberos':[('barberos:lista_barberos',{}),('horarios:listar_sillas',{})],
+      'barberos':[('barberos:lista_barberos',{}),('horarios:listar_sillas',{}),('servicios:lista',{})],
       'gastos':[('gastos:inicio',{})]+[('gastos:catalogo',{'catalogo':c}) for c in ['grupos','tipos','proveedores','productos']],
     }
     for nombre,kwargs in entradas.get(modulo,[]):

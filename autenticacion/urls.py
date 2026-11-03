@@ -5,6 +5,9 @@ from . import views
 urlpatterns = [
     path("", views.iniciar_sesion, name="iniciar_sesion"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("cuenta/mis-citas/", views.mis_citas, name="mis_citas"),
+    path("cuenta/mis-liquidaciones/", views.mis_liquidaciones, name="mis_liquidaciones"),
+    path("cuenta/mis-liquidaciones/<int:pk>/", views.mi_liquidacion, name="mi_liquidacion"),
     path("cerrar-sesion/", views.cerrar_sesion, name="cerrar_sesion"),
     path("cuenta/cambiar-clave/", auth_views.PasswordChangeView.as_view(
         template_name="autenticacion/clave_form.html",

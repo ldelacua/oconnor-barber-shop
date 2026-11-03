@@ -2,11 +2,62 @@ import uuid
 from django.db import models
 from django.core.exceptions import ValidationError
 from ventas.pagos_calculos import total_en_usd
+from ventas.models import SoloLecturaQuerySet
+from mysql_nuevo.guardias import guardar_serializado
+from django.db import IntegrityError, transaction
+
+
+class DocumentosProductoQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        if 'sellado' in kwargs and type(kwargs['sellado']) is not bool:
+            raise IntegrityError('El estado del documento debe ser verdadero o falso.')
+        # Las modificaciones de borradores usan el mismo candado de operaciones
+        # que el sellado, para que la comprobación no compita con otra venta.
+        with transaction.atomic(using=self.db):
+            if self.db != "default":
+                raise ValidationError("La operación debe utilizar la conexión principal.")
+            from mysql_nuevo.bloqueos import serializar_operacion
+            serializar_operacion()
+            if self.filter(sellado=True).exists():
+                raise ValidationError("La venta guardada no se modifica. Utiliza un reverso.")
+            if kwargs.get("sellado") is True:
+                if set(kwargs) != {"sellado"}:
+                    raise ValidationError("El documento debe validarse antes de sellarlo.")
+                from .servicios import _validar_sello
+                for documento in self.select_for_update():
+                    try:
+                        _validar_sello(documento)
+                    except ValidationError as error:
+                        raise IntegrityError('; '.join(error.messages)) from error
+            return super().update(**kwargs)
+
+    def delete(self):
+        raise ValidationError("Los documentos de productos no se eliminan.")
+
+    def bulk_create(self, *args, **kwargs):
+        raise ValidationError("Utiliza el registro de ventas para crear documentos.")
+
+
+class EscalaComisionProducto(models.Model):
+    unidades = models.DecimalField(max_digits=14, decimal_places=2, unique=True, verbose_name='Desde unidades')
+    porcentaje = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Comisión (%)')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['unidades']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(unidades__gte=0), name='vpc_umbral_no_negativo'),
+            models.CheckConstraint(condition=models.Q(porcentaje__gte=0, porcentaje__lte=100), name='vpc_porcentaje_valido'),
+        ]
+
 
 class DocumentoProducto(models.Model):
+    objects = DocumentosProductoQuerySet.as_manager()
     tipo = models.CharField(max_length=2, choices=[("VP", "Venta de productos"), ("RP", "Reverso de productos")])
     fecha = models.DateField()
     cliente = models.ForeignKey("clientes.Cliente", on_delete=models.PROTECT)
+    prestador = models.ForeignKey("barberos.Barbero", on_delete=models.PROTECT, null=True, blank=True,
+                                  related_name="ventas_productos", verbose_name="Prestador de servicio")
     descripcion_cliente = models.CharField(max_length=240)
     observacion = models.TextField(blank=True)
     tasa_bcv = models.DecimalField(max_digits=18, decimal_places=6)
@@ -52,15 +103,20 @@ class DocumentoProducto(models.Model):
     def __str__(self):
         return f"{self.tipo}-{self.pk:06d}"
 
+    @guardar_serializado
     def save(self, *args, **kwargs):
+        if self._state.adding and self.sellado:
+            raise ValidationError("Una venta debe validarse antes de finalizarla.")
         if not self._state.adding:
             raise ValidationError("La venta guardada no se modifica. Utiliza un reverso.")
         return super().save(*args, **kwargs)
 
+    @guardar_serializado
     def delete(self, *args, **kwargs):
         raise ValidationError("Los documentos de productos no se eliminan.")
 
 class LineaProducto(models.Model):
+    objects = SoloLecturaQuerySet.as_manager()
     documento = models.ForeignKey(DocumentoProducto, on_delete=models.PROTECT, related_name="detalles")
     producto = models.ForeignKey("inventario.Producto", on_delete=models.PROTECT, related_name="ventas_producto")
     descripcion = models.CharField(max_length=300)
@@ -84,15 +140,18 @@ class LineaProducto(models.Model):
             models.CheckConstraint(condition=models.Q(precio_unitario_usd__gt=0), name="vp_precio_positivo"),
         ]
 
+    @guardar_serializado
     def save(self, *args, **kwargs):
         if not self._state.adding or DocumentoProducto.objects.filter(pk=self.documento_id, sellado=True).exists():
             raise ValidationError("El detalle del documento está bloqueado.")
         return super().save(*args, **kwargs)
 
+    @guardar_serializado
     def delete(self, *args, **kwargs):
         raise ValidationError("El detalle del documento no se elimina.")
 
 class PagoProducto(models.Model):
+    objects = SoloLecturaQuerySet.as_manager()
     documento = models.ForeignKey(DocumentoProducto, on_delete=models.PROTECT, related_name="pagos")
     tipo_pago = models.PositiveIntegerField()
     nombre_tipo_pago = models.CharField(max_length=100)
@@ -113,11 +172,13 @@ class PagoProducto(models.Model):
         """Importe conciliado con la factura, incluido el ajuste de conversión."""
         return self.equivalente_bs + self.ajuste_redondeo_bs
 
+    @guardar_serializado
     def save(self, *args, **kwargs):
         if not self._state.adding or DocumentoProducto.objects.filter(pk=self.documento_id, sellado=True).exists():
             raise ValidationError("Los pagos del documento están bloqueados.")
         return super().save(*args, **kwargs)
 
+    @guardar_serializado
     def delete(self, *args, **kwargs):
         raise ValidationError("Los pagos del documento no se eliminan.")
 

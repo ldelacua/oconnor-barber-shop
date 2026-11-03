@@ -1,0 +1,6 @@
+EXPERIMENTO LOCAL 6: VALIDACIONES DE CIERRES Y AJUSTES
+Extrae el ZIP solamente sobre la copia barberia_prueba_2 y reemplaza los archivos. Ejecuta desde esa copia:
+& "C:\Proyectos\Barbershop\oconnor-barber-shop\.venv\Scripts\python.exe" .\pruebas_programas_mysql.py
+Comparte el resultado completo.
+
+El ejecutor usa una base temporal MySQL local con nombre aleatorio, creada y eliminada para las pruebas. Las 11 pruebas de disparadores o de protección frente a SQL directo se omiten expresamente y la limitación continúa existiendo. Quedan reglas y verificaciones por completar. No usar para ventas reales ni desplegar en la nube.

@@ -2,36 +2,49 @@
     {
         "id": 1,
         "nombre": "Tarjeta de Crédito",
-        "moneda": "BS"
+        "moneda": "BS",
+        "afecta_banco": true
     },
     {
         "id": 2,
         "nombre": "Pago móvil",
-        "moneda": "BS"
+        "moneda": "BS",
+        "afecta_banco": true
     },
     {
         "id": 3,
         "nombre": "Transferencia Bancaria",
-        "moneda": "BS"
+        "moneda": "BS",
+        "afecta_banco": true
     },
     {
         "id": 4,
         "nombre": "Zelle",
-        "moneda": "USD"
+        "moneda": "USD",
+        "afecta_banco": true
     },
     {
         "id": 5,
         "nombre": "Efectivo",
-        "moneda": "USD"
+        "moneda": "USD",
+        "afecta_banco": false
     },
     {
         "id": 6,
         "nombre": "Efectivo",
-        "moneda": "BS"
+        "moneda": "BS",
+        "afecta_banco": false
     },
     {
         "id": 7,
         "nombre": "USDT",
-        "moneda": "USD"
+        "moneda": "USD",
+        "afecta_banco": false
+    },
+    {
+        "id": 8,
+        "nombre": "Punto de Venta",
+        "moneda": "BS",
+        "afecta_banco": true
     }
 ]

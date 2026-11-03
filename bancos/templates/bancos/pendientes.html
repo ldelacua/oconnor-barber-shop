@@ -1,0 +1,4 @@
+{% load ventas_formato %}
+<table class="table"><thead><tr><th>Fecha original</th><th>Referencia</th><th class="text-end">Importe</th></tr></thead><tbody>
+{% for m in filas %}<tr><td>{{ m.fecha }}{% if m.arrastrado %} <span class="badge text-bg-warning">Arrastrado</span>{% endif %}</td><td>{{ m.referencia }}</td><td class="text-end">{{ m.monto|monto_venta }}</td></tr>{% empty %}<tr><td colspan="3">No hay pendientes.</td></tr>{% endfor %}
+</tbody></table>

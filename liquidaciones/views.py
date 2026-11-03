@@ -30,8 +30,9 @@ def crear(request):
     except (OSError, ValueError, KeyError, TypeError):
         catalogo = {}
         errores.append("No se pudo leer el catálogo de formas de pago de Ventas.")
-    pagos = PagosFormSet(request.POST if request.method == "POST" else None, prefix="pagos", form_kwargs={"catalogo": catalogo})
-    servicios, descuentos, tasa = [], [], None
+    pagos = PagosFormSet(request.POST if request.method == "POST" else None, prefix="pagos", form_kwargs={"catalogo": catalogo, "usuario": request.user if request.user.has_perm("liquidaciones.view_pagoliquidacion") else None})
+    servicios, descuentos, tasa, productos = [], [], None, None
+    reintegros_productos = []
     seleccion = request.POST.getlist("servicios") if request.method == "POST" else []
     try:
         clave = uuid.UUID(request.POST.get("clave", "")) if request.method == "POST" else uuid.uuid4()
@@ -42,14 +43,18 @@ def crear(request):
     if valido:
         datos = cabecera.cleaned_data
         if request.method != "POST":
-            pagos = PagosFormSet(None, prefix="pagos", form_kwargs={"catalogo": catalogo}, initial=[{"fecha":datos["fecha_cancelacion"]}])
+            pagos = PagosFormSet(None, prefix="pagos", form_kwargs={"catalogo": catalogo, "usuario": request.user if request.user.has_perm("liquidaciones.view_pagoliquidacion") else None}, initial=[{"fecha":datos["fecha_cancelacion"]}])
         try:
             servicios, descuentos = pendientes(datos["prestador"], datos["desde"], datos["hasta"], datos["fecha_cancelacion"])
+            from .comisiones_productos import pendientes_productos, reintegros_pendientes
+            reintegros_productos = reintegros_pendientes(datos['prestador'], datos['fecha_cancelacion'])
+            if datos['incluir_productos']:
+                productos = pendientes_productos(datos['prestador'], datos['desde'], datos['hasta'], datos['fecha_cancelacion'])
         except ValidationError as error:
             errores.extend(error.messages)
         tasa = TasaBCV.objects.filter(fecha=datos["fecha_cancelacion"]).first()
         if not tasa:
-            errores.append("No hay tasa BCV para la fecha de cancelación. Regístrala y vuelve a consultar.")
+            errores.append("No hay tasa Bs para la fecha de cancelación. Regístrala y vuelve a consultar.")
     if request.method == "POST":
         pagos_validos = pagos.is_valid()
         if valido and pagos_validos and not errores:
@@ -60,7 +65,7 @@ def crear(request):
                     prestador_id=datos["prestador"].pk, desde=datos["desde"], hasta=datos["hasta"],
                     fecha=datos["fecha_cancelacion"], seleccion=[int(s) for s in seleccion],
                     pagos=[p.cleaned_data for p in pagos if p.cleaned_data and not p.cleaned_data.get("DELETE")],
-                    clave=clave, usuario=request.user,
+                    clave=clave, usuario=request.user, incluir_productos=datos['incluir_productos'],
                 )
             except ValidationError as error:
                 errores.extend(error.messages)
@@ -83,9 +88,12 @@ def crear(request):
     return render(request,"liquidaciones/formulario.html",{
         "cabecera":cabecera,"pagos":pagos,"catalogo":catalogo,"servicios":servicios,
         "descuentos":descuentos,"tasa":tasa,"clave":clave,"errores":errores,"consultado":valido,
+        "productos":productos,"reintegros_productos":reintegros_productos,
         "descuento_usd":sum((s["comision"] for s in descuentos),Decimal("0.00")),
         "datos":cabecera.cleaned_data if valido else {},
-        "estado":{"tasa":str(tasa.tasa_bcv) if tasa else "0", "descuento":str(sum((s["comision"] for s in descuentos),Decimal("0.00")))},
+        "estado":{"tasa":str(tasa.tasa_bcv) if tasa else "0", "descuento":str(sum((s["comision"] for s in descuentos),Decimal("0.00")) - sum((r.comision_usd for r in reintegros_productos), Decimal('0.00'))),
+                  "productos":str(productos['resumen']['comision_usd']) if productos else '0',
+                  "hay_productos":bool(productos and productos['ventas'])},
     })
 
 

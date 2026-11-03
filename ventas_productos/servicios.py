@@ -8,7 +8,7 @@ from inventario.condiciones import tasa_para_fecha, iva_vigente
 from inventario.existencias import existencia_producto
 from inventario.precision import disponible_visible
 from ventas.calculos import dinero
-from ventas.pagos_calculos import preparar_pagos, leer_tipos_pago
+from ventas.pagos_calculos import preparar_pagos, leer_tipos_pago, validar_pagos_guardados
 from .models import DocumentoProducto, LineaProducto, PagoProducto
 from .precios import precio_producto,descuento_para
 
@@ -21,19 +21,118 @@ def decimal_valido(valor, decimales, limite, nombre):
     except (ValueError, ArithmeticError):
         raise ValidationError(f"{nombre}: introduce un valor positivo con hasta {decimales} decimales.")
 
+def _validar_sello(doc):
+    doc.refresh_from_db()
+    lineas = list(doc.detalles.all())
+    pagos = list(doc.pagos.all())
+    if not lineas:
+        raise ValidationError("La venta necesita productos.")
+    cero = Decimal("0.00")
+    for campo in ("subtotal_usd", "subtotal_bs", "impuesto_bs", "descuento_usd", "descuento_bs"):
+        if getattr(doc, campo) != sum((getattr(linea, campo) for linea in lineas), cero):
+            raise ValidationError("Los importes no coinciden con los productos.")
+    if doc.total_bs != doc.subtotal_bs - doc.descuento_bs + doc.impuesto_bs:
+        raise ValidationError("El total de la venta es incorrecto.")
+    if doc.total_bs != sum((p.equivalente_bs + p.ajuste_redondeo_bs for p in pagos), cero):
+        raise ValidationError("Los pagos no coinciden con el total de la venta.")
+    if doc.total_bs == 0 and pagos:
+        raise ValidationError("Una venta de total cero no admite pagos.")
+    for pago in pagos:
+        if pago.moneda not in ('USD', 'BS') or pago.tipo_pago <= 0 or not pago.nombre_tipo_pago:
+            raise ValidationError("La forma de pago es inválida.")
+        equivalente = dinero(pago.monto * doc.tasa_bcv) if pago.moneda == 'USD' else pago.monto
+        if pago.equivalente_bs != equivalente:
+            raise ValidationError("El equivalente del pago no coincide con la tasa.")
+    if doc.tipo == "VP":
+        if doc.prestador_id and not doc.prestador.activo:
+            raise ValidationError('El prestador de servicio no está activo.')
+        if (doc.documento_original_id is not None or doc.total_bs < 0 or not doc.precio_automatico
+            or not Decimal('0') <= doc.descuento_porcentaje <= Decimal('100')
+            or not Decimal('0') <= doc.descuento_usd <= doc.subtotal_usd
+            or not Decimal('0') <= doc.descuento_bs <= doc.subtotal_bs):
+            raise ValidationError("La venta o su descuento no son válidos.")
+        if any(p.monto <= 0 or p.pago_original_id is not None for p in pagos):
+            raise ValidationError("El pago de la venta es inválido.")
+        try:
+            validar_pagos_guardados(pagos, doc.total_bs, doc.tasa_bcv)
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
+        if doc.unidades_total != sum((l.cantidad for l in lineas), cero):
+            raise ValidationError("Las unidades no coinciden con los productos.")
+        for linea in lineas:
+            if linea.cantidad > existencia_producto(linea.producto_id):
+                raise ValidationError("Existencias insuficientes para " + linea.codigo)
+            if (linea.costo_unitario_usd is None or linea.costo_unitario_usd <= 0
+                or linea.porcentaje_venta is None or linea.porcentaje_venta < 0):
+                raise ValidationError("La venta necesita un costo y porcentaje válidos.")
+            if (linea.linea_original_id is not None or linea.cantidad <= 0
+                or linea.subtotal_usd <= 0 or linea.subtotal_bs < 0 or linea.impuesto_bs < 0
+                or not Decimal('0') <= linea.descuento_usd <= linea.subtotal_usd
+                or not Decimal('0') <= linea.descuento_bs <= linea.subtotal_bs):
+                raise ValidationError("El producto o su descuento no son válidos.")
+            precio = dinero(linea.costo_unitario_usd * (Decimal('1') + linea.porcentaje_venta / Decimal('100')))
+            subtotal = dinero(linea.cantidad * precio)
+            subtotal_bs = dinero(subtotal * doc.tasa_bcv)
+            descuento_usd = dinero(subtotal * doc.descuento_porcentaje / Decimal('100'))
+            descuento_bs = subtotal_bs - dinero((subtotal - descuento_usd) * doc.tasa_bcv)
+            impuesto_bs = dinero((subtotal_bs - descuento_bs) * doc.iva / Decimal('100'))
+            esperados = (precio, subtotal, subtotal_bs, descuento_usd, descuento_bs, impuesto_bs)
+            actuales = (linea.precio_unitario_usd, linea.subtotal_usd, linea.subtotal_bs,
+                        linea.descuento_usd, linea.descuento_bs, linea.impuesto_bs)
+            if actuales != esperados:
+                raise ValidationError("El precio, descuento o impuesto del producto es incorrecto.")
+    elif doc.tipo == "RP":
+        original = doc.documento_original
+        if not original or not original.sellado or original.tipo != "VP":
+            raise ValidationError("El reverso necesita una venta original registrada.")
+        if len(lineas) != original.detalles.count() or len(pagos) != original.pagos.count():
+            raise ValidationError("El reverso debe contener todos los productos y pagos originales.")
+        iguales = ('cliente_id', 'prestador_id', 'tasa_bcv', 'iva', 'descuento_porcentaje', 'unidades_total',
+                   'descuento_nivel', 'umbral_descuento')
+        negativos = ('subtotal_usd', 'subtotal_bs', 'impuesto_bs', 'total_bs', 'descuento_usd', 'descuento_bs')
+        if (not doc.motivo.strip() or any(getattr(doc,c) != getattr(original,c) for c in iguales)
+            or any(getattr(doc,c) != -getattr(original,c) for c in negativos)):
+            raise ValidationError("El reverso no coincide con la venta original.")
+        for linea in lineas:
+            anterior = linea.linea_original
+            iguales_linea = ('producto_id', 'cantidad', 'precio_unitario_usd', 'costo_unitario_usd', 'porcentaje_venta')
+            negativos_linea = ('subtotal_usd', 'subtotal_bs', 'impuesto_bs', 'descuento_usd', 'descuento_bs')
+            if (not anterior or anterior.documento_id != original.pk
+                or any(getattr(linea,c) != getattr(anterior,c) for c in iguales_linea)
+                or any(getattr(linea,c) != -getattr(anterior,c) for c in negativos_linea)):
+                raise ValidationError("Los productos del reverso no coinciden con la venta original.")
+        for pago in pagos:
+            anterior = pago.pago_original
+            if (not anterior or anterior.documento_id != original.pk
+                or any(getattr(pago,c) != getattr(anterior,c) for c in ('tipo_pago','moneda'))
+                or any(getattr(pago,c) != -getattr(anterior,c) for c in ('monto','equivalente_bs','ajuste_redondeo_bs'))):
+                raise ValidationError("Los pagos del reverso no coinciden con la venta original.")
+    else:
+        raise ValidationError("Tipo de documento inválido.")
+
+
 def sellar(doc):
+    _validar_sello(doc)
     if DocumentoProducto.objects.filter(pk=doc.pk, sellado=False).update(sellado=True) != 1:
         raise ValidationError("No se pudo registrar el documento.")
     doc.sellado=True
 
 @transaction.atomic
-def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacion=""):
+def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacion="", prestador=None):
     from mysql_nuevo.bloqueos import serializar_operacion
     serializar_operacion()
     existente = DocumentoProducto.objects.filter(clave=clave, sellado=True).first()
     if existente: return existente
     # La primera escritura serializa las operaciones en SQLite antes de consultar stock.
-    doc = DocumentoProducto.objects.create(tipo="VP", fecha=fecha, cliente_id=cliente.pk,
+    if prestador is not None:
+        from barberos.models import Barbero
+        if not Barbero.objects.filter(pk=prestador.pk, activo=True).exists():
+            raise ValidationError("El prestador de servicio no está activo.")
+        from liquidaciones.models import PeriodoComisionProductos
+        if PeriodoComisionProductos.objects.filter(prestador=prestador, liquidacion__sellado=True,
+                                                     desde__lte=fecha, hasta__gte=fecha).exists():
+            raise ValidationError("El período de comisiones del prestador ya está liquidado para esta fecha.")
+    doc = DocumentoProducto.objects.create(tipo="VP", fecha=fecha, cliente_id=cliente.pk, prestador=prestador,
         descripcion_cliente="", observacion=observacion.upper(), tasa_bcv=1, iva=0,
         subtotal_usd=0, subtotal_bs=0, impuesto_bs=0, total_bs=0,
         clave=clave, registrado_por=usuario.get_username())
@@ -105,12 +204,15 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacio
         umbral_descuento=regla_descuento.unidades_mayor_que if regla_descuento else None,
         precio_automatico=True,**totales)
     for datos in preparadas: LineaProducto.objects.create(documento=doc,**datos)
+    creados = []
     for datos in preparados:
         datos["nombre_tipo_pago"]=datos["nombre_tipo_pago"].upper()
         datos["referencia"]=datos["referencia"].upper()
         datos["observacion"]=datos["observacion"].upper()
-        PagoProducto.objects.create(documento=doc,**datos)
+        creados.append(PagoProducto.objects.create(documento=doc,**datos))
     sellar(doc)
+    from bancos.vinculacion import vincular_pagos_nuevos
+    vincular_pagos_nuevos(usuario, 'PRODUCTOS', pagos, creados)
     return DocumentoProducto.objects.get(pk=doc.pk)
 
 @transaction.atomic
@@ -123,7 +225,7 @@ def registrar_reverso(*, documento_id, motivo, usuario):
         raise ValidationError("La venta ya tiene un reverso.")
     motivo=motivo.strip().upper()
     if not motivo or len(motivo)>1000: raise ValidationError("Indica un motivo de hasta 1000 caracteres.")
-    doc=DocumentoProducto.objects.create(tipo="RP",fecha=timezone.localdate(),cliente_id=original.cliente_id,
+    doc=DocumentoProducto.objects.create(tipo="RP",fecha=timezone.localdate(),cliente_id=original.cliente_id,prestador_id=original.prestador_id,
         descripcion_cliente=original.descripcion_cliente, observacion="",tasa_bcv=original.tasa_bcv,iva=original.iva,
         subtotal_usd=-original.subtotal_usd,subtotal_bs=-original.subtotal_bs,impuesto_bs=-original.impuesto_bs,
         total_bs=-original.total_bs,documento_original=original,motivo=motivo,registrado_por=usuario.get_username(),
@@ -146,4 +248,6 @@ def registrar_reverso(*, documento_id, motivo, usuario):
             moneda=p.moneda,fecha=doc.fecha,referencia=p.referencia,observacion=p.observacion,monto=-p.monto,
             equivalente_bs=-p.equivalente_bs,ajuste_redondeo_bs=-p.ajuste_redondeo_bs,pago_original=p)
     sellar(doc)
+    from bancos.vinculacion import reflejar_reversos_venta
+    reflejar_reversos_venta('PRODUCTOS', doc.pagos.all())
     return doc

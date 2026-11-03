@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ventas_formato %}
+{% load ventas_formato bancos_pagos %}
 {% block title %}{{ documento }} | BarberPro{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between gap-2 mb-4 acciones-documento">
@@ -13,7 +13,7 @@
     <div class="card-body p-4">
         <div class="d-flex justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
             <div><h2>{{ documento }}</h2><p class="mb-0">{% if documento.tipo_documento == 'FA' %}Venta de servicios{% else %}Reverso de venta{% endif %}</p></div>
-            <div><strong>Fecha:</strong> {{ documento.fecha|date:"d/m/Y" }}<br><strong>Tasa BCV:</strong> {{ documento.tasa_bcv|monto_venta }}</div>
+            <div><strong>Fecha:</strong> {{ documento.fecha|date:"d/m/Y" }}<br><strong>Tasa Bs:</strong> {{ documento.tasa_bcv|monto_venta }}</div>
         </div>
         <p><strong>Cliente:</strong> {{ documento.cliente }}<br><strong>Teléfono:</strong> {{ documento.cliente.telefono }}<br><strong>Dirección:</strong> {{ documento.cliente.direccion|default:"—" }}</p>
         {% if documento.documento_original_id %}
@@ -66,9 +66,9 @@
             <h3 class="h5">Pagos{% if documento.tipo_documento == 'RE' %} reversados{% endif %}</h3>
             {% if pagos %}
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>Forma de pago</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th></tr></thead>
-                    <tbody>{% for pago in pagos %}<tr>
-                        <td>{{ pago.nombre_tipo_pago }}</td><td>{{ pago.get_moneda_display }}</td>
+                    <thead><tr><th>Forma de pago</th><th>Banco y cuenta</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th></tr></thead>
+                    <tbody>{% pagos_con_cuenta pagos "SERVICIOS" as filas_pago %}{% for pago, cuenta_pago in filas_pago %}<tr>
+                        <td>{{ pago.nombre_tipo_pago }}</td><td>{{ cuenta_pago|default:"—" }}</td><td>{{ pago.get_moneda_display }}</td>
                         <td class="text-nowrap">{{ pago.fecha|date:"d/m/Y" }}</td><td>{{ pago.referencia|default:"—" }}</td>
                         <td>{{ pago.observacion|default:"—" }}</td><td class="text-end text-nowrap">{{ pago.monto|monto_venta }}</td>
                     </tr>{% endfor %}</tbody>

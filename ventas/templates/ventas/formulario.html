@@ -11,7 +11,7 @@
     {{ form.clave.errors }}
     <div class="card card-body mb-4"><div class="row g-3">
         <div class="col-md-4"><label for="{{ form.fecha.id_for_label }}" class="form-label">Fecha</label>{{ form.fecha }}{{ form.fecha.errors }}<div class="form-text" id="tasa-venta" aria-live="polite"></div></div>
-        <div class="col-md-8"><label for="{{ form.cliente.id_for_label }}" class="form-label">Cliente</label>{{ form.cliente }}{{ form.cliente.errors }}</div>
+        <div class="col-md-8"><label for="{{ form.cliente.id_for_label }}" class="form-label">Cliente</label>{{ form.cliente }}{{ form.cliente.errors }}{% if perms.clientes.add_cliente %}<a id="crear-cliente-factura" class="btn btn-primary btn-sm mt-2" href="{% url 'clientes:crear_cliente' %}?next={{ request.get_full_path|urlencode }}"><i class="bi bi-person-plus me-1"></i>Crear cliente</a><small class="d-block text-muted">Se abre en esta misma pestaña y conserva la factura al regresar.</small>{% endif %}</div>
     </div></div>
     <div class="card card-body mb-4">
         <div class="row g-3 align-items-end">
@@ -44,7 +44,7 @@
             <tr><th scope="row" class="text-end">Total USD (con impuesto)</th><td class="text-end text-nowrap" data-resumen="total-usd">—</td></tr>
             <tr class="table-light fs-5 fw-bold"><th scope="row" class="text-end">Total Bs.</th><td class="text-end text-nowrap" data-resumen="total-bs">—</td></tr>
         </tbody></table></div>
-        <p id="resumen-sin-tasa" class="text-end text-danger small mb-0 mt-2" hidden>Falta una tasa BCV válida.</p>
+        <p id="resumen-sin-tasa" class="text-end text-danger small mb-0 mt-2" hidden>Falta una tasa Bs válida.</p>
     </section>
     <p class="small text-muted">Los importes definitivos se calculan en el servidor al guardar, redondeando cada línea a dos decimales.</p>
     <section class="card card-body mb-4">
@@ -57,7 +57,7 @@
                 <thead><tr><th>Forma de pago</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th><th>Quitar</th></tr></thead>
                 <tbody id="pagos-venta">
                     {% for pago in pagos %}<tr class="pago-venta">
-                        <td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{{ pago.tipo_pago.errors }}</td>
+                        <td>{{ pago.non_field_errors }}{{ pago.tipo_pago }}{% if pago.cuenta_bancaria %}<label class="small mt-1" for="{{ pago.cuenta_bancaria.id_for_label }}">Banco y cuenta</label>{{ pago.cuenta_bancaria }}{% endif %}{{ pago.cuenta_bancaria.errors }}{{ pago.tipo_pago.errors }}</td>
                         <td class="moneda-pago">—</td>
                         <td>{{ pago.fecha }}{{ pago.fecha.errors }}</td>
                         <td>{{ pago.referencia }}{{ pago.referencia.errors }}</td>
@@ -80,7 +80,7 @@
     <td>{{ lineas.empty_form.DELETE }}<label class="small" for="{{ lineas.empty_form.DELETE.id_for_label }}">Quitar</label></td>
 </tr></template>
 <template id="pago-vacio"><tr class="pago-venta">
-    <td>{{ pagos.empty_form.tipo_pago }}</td><td class="moneda-pago">—</td>
+    <td>{{ pagos.empty_form.tipo_pago }}{% if pagos.empty_form.cuenta_bancaria %}<label class="small mt-1" for="{{ pagos.empty_form.cuenta_bancaria.id_for_label }}">Banco y cuenta</label>{{ pagos.empty_form.cuenta_bancaria }}{% endif %}{{ pagos.empty_form.cuenta_bancaria.errors }}</td><td class="moneda-pago">—</td>
     <td>{{ pagos.empty_form.fecha }}</td><td>{{ pagos.empty_form.referencia }}</td>
     <td>{{ pagos.empty_form.observacion }}</td><td class="text-end">{{ pagos.empty_form.monto }}</td>
     <td>{{ pagos.empty_form.DELETE }}<label for="{{ pagos.empty_form.DELETE.id_for_label }}" class="small">Quitar</label></td>
@@ -197,7 +197,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const listo = !!tasa && descuentoValido && serviciosValidos && serviciosActivos > 0 && pagosValidos && (totalBs === 0n ? pagosActivos === 0 : pagosActivos > 0) && diferencia === 0n;
         saldo.className = "alert text-end mt-3 mb-0 " + (listo ? "alert-success" : "alert-info");
         saldo.textContent = "Pagado: " + monto(pagosUsd) + " USD + " + monto(pagosBs) + " Bs. · " + (!tasa
-            ? "Falta la tasa BCV."
+            ? "Falta la tasa Bs."
             : totalBs === 0n && pagosActivos === 0 ? "Total cero: no requiere pagos." : diferencia === 0n && pagosActivos > 0 ? "Total cubierto."
             : (diferencia < 0n ? "Excedente: " : "Pendiente: ") + monto(diferencia < 0n ? -diferencia : diferencia) + " " + moneda);
         if (tasa && !hayBs && pagosUsd < totalUsd) {
@@ -210,15 +210,15 @@ document.addEventListener("DOMContentLoaded", function () {
         const actual = ++version;
         tasa = null;
         actualizar();
-        avisoTasa.textContent = "Consultando tasa BCV…";
+        avisoTasa.textContent = "Consultando tasa Bs…";
         try {
             const respuesta = await fetch("{% url 'ventas:cotizacion' %}?" + new URLSearchParams({fecha: fecha.value}), {headers: {"Accept": "application/json"}});
             const datos = await respuesta.json();
             if (actual !== version) return;
             if (!respuesta.ok) throw new Error(datos.error || "No se pudo consultar la tasa.");
             tasa = centavos(datos.tasa);
-            if (!tasa) throw new Error("La tasa BCV debe ser positiva.");
-            avisoTasa.textContent = "Tasa BCV: " + monto(tasa);
+            if (!tasa) throw new Error("La tasa Bs debe ser positiva.");
+            avisoTasa.textContent = "Tasa Bs: " + monto(tasa);
         } catch (error) {
             if (actual !== version) return;
             tasa = null;
@@ -245,5 +245,55 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("agregar-pago").addEventListener("click", () => agregar("pagos", "pago-vacio", cuerpoPagos, 20));
     cargarTasa();
 });
+</script>
+<script>
+(() => {
+ const form = document.getElementById('venta-form');
+ if (!form) return;
+ const clave = 'factura-crear-cliente:' + location.pathname + location.search;
+ const selector = form.querySelector('[name="cliente"]');
+ const opciones = selector ? selector.innerHTML : '';
+ const token = form.querySelector('[name="csrfmiddlewaretoken"]')?.value;
+ try {
+  const guardado = sessionStorage.getItem(clave);
+  if (guardado) {
+   const datos = JSON.parse(guardado);
+   sessionStorage.removeItem(clave);
+   if (Date.now() - datos.fecha < 3600000) {
+    form.innerHTML = datos.html;
+    for (const campo of form.elements) {
+     const valor = datos.campos[campo.name];
+     if (valor === undefined || campo.name === 'csrfmiddlewaretoken') continue;
+     if (campo.type === 'checkbox' || campo.type === 'radio') campo.checked = valor === true;
+     else campo.value = valor;
+    }
+    const cliente = form.querySelector('[name="cliente"]');
+    if (cliente) {
+     const anterior = cliente.value;
+     const anteriores = new Set(Array.from(cliente.options, o => o.value));
+     cliente.innerHTML = opciones;
+     const nuevos = Array.from(cliente.options).filter(o => o.value && !anteriores.has(o.value));
+     cliente.value = nuevos.length === 1 ? nuevos[0].value : anterior;
+    }
+    if (token) form.querySelector('[name="csrfmiddlewaretoken"]').value = token;
+   }
+  }
+ } catch (_) { sessionStorage.removeItem(clave); }
+ const boton = document.getElementById('crear-cliente-factura');
+ boton?.removeAttribute('target');
+ boton?.addEventListener('click', evento => {
+  try {
+   const campos = {};
+   for (const campo of form.elements) {
+    if (campo.name && campo.name !== 'csrfmiddlewaretoken') campos[campo.name] =
+     campo.type === 'checkbox' || campo.type === 'radio' ? campo.checked : campo.value;
+   }
+   sessionStorage.setItem(clave, JSON.stringify({fecha: Date.now(), html: form.innerHTML, campos}));
+  } catch (_) {
+   evento.preventDefault();
+   alert('No se pudo conservar la factura. Guarda o cancela esta factura antes de crear al cliente.');
+  }
+ });
+})();
 </script>
 {% endblock %}

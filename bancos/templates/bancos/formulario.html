@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ titulo }}</h2>
+<form method="post" enctype="multipart/form-data" class="card card-body">{% csrf_token %}{{ form.as_p }}
+<div><button class="btn btn-primary">Guardar</button> <a class="btn btn-secondary" href="{% url 'bancos:lista' %}">Regresar</a></div>
+</form>
+{% endblock %}

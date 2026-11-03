@@ -12,8 +12,8 @@ def iva_vigente():
 def tasa_para_fecha(fecha):
     registro = TasaBCV.objects.filter(fecha=fecha).first()
     if not registro:
-        raise ValidationError("No hay tasa BCV para la fecha de compra. Regístrala en Tasas BCV.")
+        raise ValidationError("No hay tasa Bs para la fecha de compra. Regístrala en Tasas Bs.")
     tasa = registro.tasa_bcv
     if not tasa.is_finite() or tasa <= Decimal("0"):
-        raise ValidationError("La tasa BCV registrada no es válida.")
+        raise ValidationError("La tasa Bs registrada no es válida.")
     return tasa

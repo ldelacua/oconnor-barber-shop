@@ -13,7 +13,7 @@ def definiciones():
     return json.loads((Path(__file__).parent/'protecciones_mysql.json').read_text(encoding='utf-8'))
 
 
-def instalar(apps,schema_editor):
+def instalar(apps,schema_editor, *, con_disparadores=True):
     if schema_editor.connection.vendor!='mysql':
         raise RuntimeError('Esta inicialización requiere MySQL. El historial SQLite se mantiene separado.')
     with schema_editor.connection.cursor() as c:
@@ -39,9 +39,10 @@ def instalar(apps,schema_editor):
         if not existe:schema_editor.execute(sql)
     reglas=definiciones()
     schema_editor.execute(reglas['view'])
-    for nombre,sql in reglas['triggers'].items():
-        schema_editor.execute('DROP TRIGGER IF EXISTS `'+nombre+'`')
-        schema_editor.execute(sql)
+    if con_disparadores:
+        for nombre,sql in reglas['triggers'].items():
+            schema_editor.execute('DROP TRIGGER IF EXISTS `'+nombre+'`')
+            schema_editor.execute(sql)
     Unidad=apps.get_model('inventario','UnidadMedida')
     for codigo,nombre in [('GR','GRAMOS'),('LT','LITROS'),('KG','KILOGRAMOS'),('ML','MILILITROS')]:
         Unidad.objects.get_or_create(codigo=codigo,defaults={'nombre':nombre,'activo':True})

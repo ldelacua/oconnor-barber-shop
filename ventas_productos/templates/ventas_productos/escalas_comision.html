@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% load ventas_formato %}
+{% block content %}<h2>Comisiones por unidades</h2>
+<a class="btn btn-primary" href="{% url 'ventas_productos:nueva_escala_comision' %}">Agregar escala</a>
+<a class="btn btn-secondary" href="{% url 'ventas_productos:lista' %}">Regresar</a>
+<table class="table"><thead><tr><th class="text-end">Desde unidades</th><th class="text-end">Comisión %</th><th>Estado</th><th></th></tr></thead><tbody>
+{% for e in escalas %}<tr><td class="text-end">{{ e.unidades|monto_venta }}</td><td class="text-end">{{ e.porcentaje|monto_venta }}</td><td><input type="checkbox" disabled aria-label="Activo" {% if e.activo %}checked{% endif %}></td><td><a href="{% url 'ventas_productos:editar_escala_comision' e.pk %}">Editar</a></td></tr>{% empty %}<tr><td colspan="4">No hay escalas configuradas.</td></tr>{% endfor %}
+</tbody></table>{% endblock %}

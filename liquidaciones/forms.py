@@ -13,11 +13,12 @@ class CabeceraForm(forms.Form):
     desde = forms.DateField(initial=lambda: timezone.localdate().replace(day=1), label="Servicios desde", widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}))
     hasta = forms.DateField(initial=timezone.localdate, label="Servicios hasta", widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}))
     fecha_cancelacion = forms.DateField(initial=timezone.localdate, label="Fecha de cancelación", widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}))
+    incluir_productos = forms.BooleanField(required=False, label='Incluir ventas de productos')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for campo in self.fields.values():
-            campo.widget.attrs["class"] = "form-select" if isinstance(campo.widget, forms.Select) else "form-control"
+            campo.widget.attrs["class"] = "form-check-input" if isinstance(campo.widget, forms.CheckboxInput) else "form-select" if isinstance(campo.widget, forms.Select) else "form-control"
 
     def clean(self):
         datos = super().clean()

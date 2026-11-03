@@ -7,4 +7,4 @@
 {% empty %}<tr><td colspan="7">Sin productos.</td></tr>{% endfor %}</tbody>
 </table></div>
 <p class="text-end mb-1"><strong>Total {{ compra.get_divisa_display }}:</strong> {{ compra.total|monto_venta }}</p>
-<p class="text-end text-muted">Equivalentes: USD {{ compra.total_usd|monto_venta }} · Bs {{ compra.total_bs|monto_venta }}. Tasa BCV: {{ compra.tasa_cambio|monto_venta }}.</p>
+<p class="text-end text-muted">Equivalentes: USD {{ compra.total_usd|monto_venta }} · Bs {{ compra.total_bs|monto_venta }}. Tasa Bs: {{ compra.tasa_cambio|monto_venta }}.</p>

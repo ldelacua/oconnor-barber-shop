@@ -153,6 +153,9 @@ class AccesosTests(TestCase):
     def test_admin_solo_auth_y_seguridad_incluso_en_rutas_directas(self):
         self.user.is_superuser=True;self.user.is_staff=True;self.user.save()
         r=self.client.get(reverse('admin:index'))
+        self.assertNotContains(r, 'Recent actions')
+        self.assertContains(r, 'Regresar al sistema')
+        self.assertContains(r, 'href="'+reverse('dashboard')+'"')
         self.assertEqual({a['app_label'] for a in r.context['app_list']},{'auth','seguridad'})
         self.assertEqual({m._meta.app_label for m in admin.site._registry},{'auth','seguridad'})
         self.assertEqual(self.client.get('/admin/inventario/producto/').status_code,404)
@@ -163,7 +166,7 @@ class AccesosTests(TestCase):
         for ruta,pk in [('admin:seguridad_usuario_change',self.user.pk),('admin:auth_group_add',None)]:
             r=self.client.get(reverse(ruta,args=[pk] if pk else None))
             self.assertEqual(r.status_code,200)
-            self.assertContains(r,'seguridad/permisos.css?v=1')
+            self.assertContains(r,'seguridad/permisos.css?v=2')
             self.assertContains(r,'selectfilter')
 
     def test_staff_no_se_eleva_privilegios_ni_administra_grupos(self):

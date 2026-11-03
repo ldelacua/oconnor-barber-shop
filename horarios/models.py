@@ -19,6 +19,10 @@ class Silla(models.Model):
         verbose_name = "Silla"
         verbose_name_plural = "Sillas"
 
+    def save(self, *args, **kwargs):
+        self.nombre = self.nombre.strip().upper()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nombre
 

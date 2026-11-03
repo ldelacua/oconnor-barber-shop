@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}
 {{ titulo|default:"Prestador de Servicio" }}
 {% endblock %}
+
+{% block extra_js %}<script src="{% static 'inventario/mayusculas.js' %}"></script>{% endblock %}
 
 {% block content %}
 

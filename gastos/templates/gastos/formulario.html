@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ titulo }} | Gastos{% endblock %}
+{% block title %}{{ titulo }} | Gastos Operativos{% endblock %}
 {% block content %}
 {% include "gastos/nav.html" %}
 <div class="card card-body"><h3 class="h5 mb-3">{{ titulo }}</h3>
@@ -8,4 +8,18 @@
 {% if detalles %}{% include "gastos/detalles_form.html" %}{% endif %}
 <div class="d-flex justify-content-end gap-2 mt-4">{% if catalogo %}<a href="{% url 'gastos:catalogo' catalogo %}" class="btn btn-secondary">Cancelar</a>{% else %}<a href="{% url 'gastos:inicio' %}" class="btn btn-secondary">Cancelar</a>{% endif %}<button type="submit" class="btn btn-primary">Guardar</button></div>
 </form></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('input', ({target: campo}) => {
+    if (!campo.matches('[data-mayusculas-gastos]')) return;
+    const inicio = campo.selectionStart, fin = campo.selectionEnd;
+    const valor = campo.value.toUpperCase();
+    if (valor !== campo.value) {
+        campo.value = valor;
+        if (inicio !== null) campo.setSelectionRange(inicio, fin);
+    }
+});
+</script>
 {% endblock %}

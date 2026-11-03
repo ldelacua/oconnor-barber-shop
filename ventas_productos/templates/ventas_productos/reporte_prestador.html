@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% load ventas_formato %}
+{% block content %}<h2>Ventas de productos por prestador</h2>
+<form class="card card-body mb-3">{{ filtro.as_p }}<div><button class="btn btn-primary">Consultar</button> <a class="btn btn-secondary" href="{% url 'ventas_productos:lista' %}">Regresar</a></div></form>
+{% if error %}<p class="alert alert-warning">{{ error }}</p>{% endif %}
+{% if resumen %}<p><strong>Unidades:</strong> {{ resumen.unidades|monto_venta }} · <strong>Base después del descuento, sin IVA:</strong> {{ resumen.base_usd|monto_venta }} USD · <strong>Comisión {% if cerrado %}liquidada{% else %}estimada{% endif %}:</strong> {{ resumen.porcentaje|monto_venta }} % = {{ resumen.comision_usd|monto_venta }} USD</p>{% endif %}
+{% if pagina is not None %}<table class="table"><thead><tr><th>Documento</th><th>Fecha</th><th>Cliente</th><th class="text-end">Unidades</th><th class="text-end">Subtotal USD</th><th class="text-end">Descuento USD</th></tr></thead><tbody>{% for d in pagina %}<tr><td><a href="{% url 'ventas_productos:ver' d.pk %}">{{ d }}</a></td><td>{{ d.fecha|date:'d/m/Y' }}</td><td>{{ d.descripcion_cliente }}</td><td class="text-end">{{ d.unidades_total|monto_venta }}</td><td class="text-end">{{ d.subtotal_usd|monto_venta }}</td><td class="text-end">{{ d.descuento_usd|monto_venta }}</td></tr>{% empty %}<tr><td colspan="6">No hay ventas en este período.</td></tr>{% endfor %}</tbody></table>{% include 'inventario/paginacion.html' %}{% endif %}
+{% endblock %}

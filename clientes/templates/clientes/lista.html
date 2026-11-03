@@ -148,19 +148,7 @@ Clientes
 
                         <td>
 
-                            {% if cliente.activo %}
-
-                                <span class="badge bg-success">
-                                    Activo
-                                </span>
-
-                            {% else %}
-
-                                <span class="badge bg-secondary">
-                                    Inactivo
-                                </span>
-
-                            {% endif %}
+                            <input type="checkbox" disabled aria-label="Activo" {% if cliente.activo %}checked{% endif %}>
 
                         </td>
 

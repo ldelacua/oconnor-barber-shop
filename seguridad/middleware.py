@@ -9,6 +9,11 @@ from .accesos import reglas, permitido
 class PermisosModulosMiddleware(MiddlewareMixin):
     def process_view(self,request,view_func,view_args,view_kwargs):
         match=request.resolver_match
+        if request.user.is_authenticated and request.user.es_prestador_restringido:
+            permitidas={'dashboard','cerrar_sesion','cambiar_clave','clave_cambiada',
+                        'mis_citas','mis_liquidaciones','mi_liquidacion'}
+            if match and match.view_name not in permitidas:
+                return render(request,'seguridad/sin_permiso.html',{'mensaje':'Solo puedes consultar tus citas y liquidaciones.'},status=403)
         if not match or reglas(match.view_name,request.method,view_kwargs) is None:return None
         if not request.user.is_authenticated:
             return redirect_to_login(request.get_full_path(),reverse('iniciar_sesion'))

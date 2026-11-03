@@ -40,6 +40,12 @@ def actualizar_compra(pk, usuario, revision):
         if costo >= Decimal("10000000000000000"):
             raise ValidationError("El costo convertido excede el límite permitido. Revisa la tasa de cambio.")
         MovimientoInventario.objects.create(detalle=detalle, cantidad=detalle.cantidad, costo_unitario_usd=costo)
+    if not usuario or not str(usuario).strip():
+        raise ValidationError("La actualización requiere un usuario responsable.")
+    for detalle in detalles:
+        entrada = MovimientoInventario.objects.filter(detalle=detalle).first()
+        if entrada is None or entrada.cantidad != detalle.cantidad:
+            raise ValidationError("Las entradas no coinciden con los productos de la compra.")
     Compra.objects.filter(pk=pk, estado=Compra.BORRADOR).update(
         estado=Compra.ACTUALIZADA, actualizada_en=timezone.now(), actualizada_por=usuario)
     return True

@@ -83,15 +83,7 @@ Detalle del prestador de servicio
                     <div class="col-md-4">
                         <strong>Estado:</strong><br>
 
-                        {% if barbero.activo %}
-                            <span class="badge bg-success">
-                                Activo
-                            </span>
-                        {% else %}
-                            <span class="badge bg-secondary">
-                                Inactivo
-                            </span>
-                        {% endif %}
+                        <input type="checkbox" disabled aria-label="Activo" {% if barbero.activo %}checked{% endif %}>
 
                     </div>
 

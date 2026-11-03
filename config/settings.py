@@ -35,6 +35,7 @@ AUTH_USER_MODEL = "seguridad.Usuario"
 # Application definition
 
 INSTALLED_APPS = [
+    'bancos',
     'control_inventario.apps.ControlInventarioConfig',
     'ventas_productos.apps.VentasProductosConfig',
     'inventario.apps.InventarioConfig',

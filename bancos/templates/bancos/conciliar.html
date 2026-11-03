@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load ventas_formato %}
+{% block content %}
+<h2>{{ titulo }}</h2>
+<a class="btn btn-secondary mb-3" href="{% url 'bancos:lista' %}">Regresar</a>
+<h3>1. Conciliación automática</h3>
+<form method="post" class="mb-3">{% csrf_token %}<button class="btn btn-primary" name="automatico" value="1">Conciliar referencia e importe iguales</button></form>
+<h3>2. Sugerencias por importe igual</h3>
+<p>Confirma únicamente los pares que correspondan al mismo movimiento. Los importes repetidos se revisan manualmente.</p>
+<table class="table"><thead><tr><th>Referencia banco</th><th>Referencia sistema</th><th>Fecha banco</th><th>Fecha sistema</th><th class="text-end">Importe</th><th></th></tr></thead><tbody>
+{% for banco, interno in sugerencias %}
+<tr><td>{{ banco.nro_transaccion }}</td><td>{{ interno.referencia }}</td><td>{{ banco.fecha|date:'d/m/Y' }}</td><td>{{ interno.fecha|date:'d/m/Y' }}</td><td class="text-end">{{ banco.monto|monto_venta }}</td><td>
+<form method="post">{% csrf_token %}<button class="btn btn-success btn-sm" name="confirmar_par" value="{{ banco.pk }}:{{ interno.pk }}">Confirmar</button></form>
+</td></tr>
+{% empty %}<tr><td colspan="6">No hay coincidencias inequívocas.</td></tr>{% endfor %}
+</tbody></table>
+<h3>3. Conciliación manual</h3>
+<p>Marca los movimientos de ambos lados y pulsa Conciliar seleccionados. Se admite una diferencia de hasta 0,99 en la moneda de la cuenta. Para guardar pares individuales, confirma uno a la vez. Si marcas varios movimientos de ambos lados, se guardarán en un solo grupo sin emparejar filas.</p>
+<form method="post" id="conciliacion-manual">{% csrf_token %}
+{% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
+<div class="row g-3">
+<div class="col-lg-6"><h4>Banco pendiente</h4>{% include 'bancos/seleccion.html' with filas=banco_pendiente lado='banco' seleccion=seleccion_banco %}</div>
+<div class="col-lg-6"><h4>Sistema pendiente</h4>{% include 'bancos/seleccion.html' with filas=sistema_pendiente lado='internos' seleccion=seleccion_sistema %}</div>
+</div>
+<div class="alert alert-secondary" id="resumen-seleccion" role="status">
+Banco: <strong id="total-banco">0.00</strong> · Sistema: <strong id="total-sistema">0.00</strong> · Diferencia: <strong id="diferencia">0.00</strong> {{ cuenta.get_moneda_display }}
+<span class="d-block" id="estado-seleccion">Selecciona movimientos de ambos lados.</span>
+</div>
+<button class="btn btn-primary" id="confirmar-manual">Conciliar seleccionados</button>
+</form>
+<section class="mt-4" aria-labelledby="conciliados">
+<h3 id="conciliados">Movimientos conciliados</h3>
+<div class="table-responsive"><table class="table"><thead><tr><th>Grupo</th><th>Método</th><th>Banco</th><th>Sistema</th><th class="text-end">Total conciliado</th><th>Acción</th></tr></thead><tbody>
+{% for g in grupos %}<tr><td>{{ g.pk }}</td><td>{{ g.get_metodo_display|default:"Sin registrar" }}</td>{% if g.partidas_banco.all|length > 1 and g.partidas_internas.all|length > 1 %}
+<td colspan="2"><details><summary>Grupo de varios movimientos por lado · Sin pares individuales</summary>
+<h4 class="h6 mt-2">Banco</h4>{% include 'bancos/partidas.html' with partidas=g.partidas_banco.all lado='banco' %}
+<h4 class="h6 mt-2">Sistema</h4>{% include 'bancos/partidas.html' with partidas=g.partidas_internas.all lado='sistema' %}
+</details></td>
+{% else %}
+<td>{% include 'bancos/partidas.html' with partidas=g.partidas_banco.all lado='banco' %}</td>
+<td>{% include 'bancos/partidas.html' with partidas=g.partidas_internas.all lado='sistema' %}</td>
+{% endif %}
+<td class="text-end">{{ g.monto|monto_venta }} {{ cuenta.get_moneda_display }}</td><td>{% if perms.bancos.add_reversoconciliacion %}<form method="post" onsubmit="return confirm('¿Reversar este grupo y devolver sus movimientos a pendientes?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm" name="reversar_grupo" value="{{ g.pk }}">Reversar</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6">Todavía no hay movimientos conciliados.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+ const form = document.getElementById('conciliacion-manual');
+ const centavos = valor => {
+   const [entero, dec = ''] = valor.replace(/^-/, '').split('.');
+   return (BigInt(entero) * 100n + BigInt(dec.padEnd(2, '0'))) * (valor.startsWith('-') ? -1n : 1n);
+ };
+ const formato = n => {
+   const abs = n < 0n ? -n : n;
+   return (n < 0n ? '-' : '') + (abs / 100n).toLocaleString('en-US') + '.' + String(abs % 100n).padStart(2, '0');
+ };
+ function actualizar() {
+   const banco = [...form.querySelectorAll('[name=banco]:checked')];
+   const sistema = [...form.querySelectorAll('[name=internos]:checked')];
+   const sumar = filas => filas.reduce((total, fila) => total + centavos(fila.dataset.monto), 0n);
+   const b = sumar(banco), s = sumar(sistema), diferencia = b - s;
+   const ambos = banco.length && sistema.length;
+   const listo = ambos && diferencia >= -99n && diferencia <= 99n;
+   for (const [id, monto] of [['total-banco', b], ['total-sistema', s], ['diferencia', diferencia]]) {
+     document.getElementById(id).textContent = formato(monto);
+   }
+   document.getElementById('resumen-seleccion').className = 'alert alert-' + (listo ? 'success' : ambos ? 'danger' : 'secondary');
+   document.getElementById('estado-seleccion').textContent = listo ? (diferencia === 0n ? 'Los totales coinciden.' : 'Diferencia dentro de la tolerancia manual.') : ambos ? 'La diferencia supera 0,99.' : 'Selecciona movimientos de ambos lados.';
+   document.getElementById('confirmar-manual').disabled = !listo;
+ }
+ const comparar = new Intl.Collator('es', {numeric: true, sensitivity: 'base'});
+ for (const tabla of form.querySelectorAll('.tabla-seleccion')) {
+   for (const boton of tabla.querySelectorAll('[data-orden]')) {
+     boton.addEventListener('click', () => {
+       const encabezado = boton.closest('th');
+       const asc = encabezado.getAttribute('aria-sort') !== 'ascending';
+       const filas = [...tabla.tBodies[0].rows].filter(fila => fila.querySelector('input'));
+       const valor = fila => {
+         const celda = fila.cells[encabezado.cellIndex];
+         if (boton.dataset.orden === 'monto') return centavos(fila.querySelector('input').dataset.monto);
+         return celda.dataset.valor || celda.textContent.trim();
+       };
+       filas.sort((a, b) => {
+         const x = valor(a), y = valor(b);
+         const orden = typeof x === 'bigint' ? (x < y ? -1 : x > y ? 1 : 0) : comparar.compare(x, y);
+         return asc ? orden : -orden;
+       });
+       tabla.tBodies[0].append(...filas);
+       for (const otro of tabla.querySelectorAll('[data-orden]')) {
+         const activo = otro === boton;
+         otro.closest('th').setAttribute('aria-sort', activo ? (asc ? 'ascending' : 'descending') : 'none');
+         otro.textContent = otro.textContent.replace(/ [↕↑↓]$/, '') + (activo ? (asc ? ' ↑' : ' ↓') : ' ↕');
+       }
+     });
+   }
+ }
+ form.addEventListener('change', actualizar);
+ actualizar();
+})();
+</script>
+{% endblock %}

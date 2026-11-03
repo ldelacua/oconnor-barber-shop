@@ -97,6 +97,8 @@ def confirmar_cierre(*,cierre_id,revision,usuario):
     if CierreMensual.objects.filter(pk=cierre_id,estado="B",revision=revision).update(revision=revision+1)!=1:
         raise ValidationError("El conteo cambió. Recarga antes de cerrar.")
     detalles=list(cierre.detalles.select_related("producto"))
+    if not detalles:
+        raise ValidationError("El cierre necesita al menos un producto.")
     if any(d.fisico is None for d in detalles):
         raise ValidationError("Debes registrar el físico de todos los productos, incluyendo los que tienen cero.")
     if any(d.fisico!=dinero(d.fisico) for d in detalles):

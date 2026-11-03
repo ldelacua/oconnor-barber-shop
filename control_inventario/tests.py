@@ -113,7 +113,9 @@ class ControlInventarioTests(TestCase):
 
     def test_reverso_suma_stock_y_resta_ventas_netas(self):
         original=self.venta()
-        registrar_reverso(documento_id=original.pk,motivo="CORRECCIÓN",usuario=self.usuario)
+        from unittest.mock import patch
+        with patch("ventas_productos.servicios.timezone.localdate", return_value=original.fecha):
+            registrar_reverso(documento_id=original.pk,motivo="CORRECCIÓN",usuario=self.usuario)
         p=reporte_stock(date(2026,10,1)).get(pk=self.producto.pk)
         self.assertEqual((p.ventas,p.disponible),(0,30))
 
@@ -188,6 +190,9 @@ class ControlInventarioTests(TestCase):
         compra=Compra.objects.create(proveedor=self.proveedor,numero_factura="TARDIA",fecha_compra=date(2026,10,20),tasa_cambio=40,registrada_por="control")
         DetalleCompra.objects.create(compra=compra,producto=self.producto,cantidad=1,precio_unitario=1)
         with self.assertRaises(ValidationError):actualizar_compra(compra.pk,"control",0)
+        with self.assertRaises(ValidationError):self.venta()
+        with self.assertRaises(ValidationError):self.ajuste("EN")
+        with self.assertRaises(ValidationError):self.ajuste("SA")
         self.assertEqual(existencia_producto(self.producto.pk),30)
 
     def test_cierres_consecutivos_y_mes_no_terminado(self):
@@ -234,6 +239,8 @@ class ControlInventarioTests(TestCase):
         self.assertEqual(existencia_producto(self.otro.pk),0)
 
     def test_modal_rojo_de_stock_con_acciones(self):
+        from django.utils import timezone
+        TasaBCV.objects.get_or_create(fecha=timezone.localdate(), defaults={'tasa_bcv': 40})
         datos={"fecha":"2026-10-10","cliente":self.cliente.pk,"clave":str(uuid.uuid4()),
             "lineas-TOTAL_FORMS":"1","lineas-INITIAL_FORMS":"0","lineas-0-producto":self.producto.pk,
             "lineas-0-cantidad":"31","lineas-0-precio_unitario_usd":"10",

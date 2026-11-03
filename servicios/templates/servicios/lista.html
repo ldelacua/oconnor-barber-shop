@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ventas_formato %}
+{% load ventas_formato accesos %}
 
 {% block title %}Servicios{% endblock %}
 
@@ -9,9 +9,12 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>Servicios</h2>
 
+        <div class="d-flex flex-wrap gap-2">
+        {% url 'barberos:lista_barberos' as enlace_prestadores %}{% puede_url enlace_prestadores as puede_prestadores %}{% if puede_prestadores %}<a href="{{ enlace_prestadores }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Regresar a Prestadores de Servicio</a>{% else %}<a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">Regresar</a>{% endif %}
         <a href="{% url 'servicios:crear' %}" class="btn btn-primary">
             Nuevo servicio
         </a>
+        </div>
     </div>
 
   
@@ -41,11 +44,7 @@
                                     <td>{{ servicio.retencion_impuesto|yesno:"SÍ,NO" }}</td><td>{{ servicio.duracion }} minutos</td>
 
                                     <td>
-                                        {% if servicio.activo %}
-                                            <span class="badge bg-success">Activo</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Inactivo</span>
-                                        {% endif %}
+                                        <input type="checkbox" disabled aria-label="Activo" {% if servicio.activo %}checked{% endif %}>
                                     </td>
 
                                     <td>

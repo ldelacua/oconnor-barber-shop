@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Bancos y cuentas</h2>
+{% if perms.bancos.view_movimientobanco and perms.bancos.add_movimientobanco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:importar_estado' %}">Importar estado de cuenta</a>{% endif %}
+<h3>Bancos</h3>
+{% if perms.bancos.add_banco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:nuevo_banco' %}">Nuevo banco</a>{% endif %}
+<table class="table"><thead><tr><th>Banco</th><th>Activo</th><th></th></tr></thead><tbody>
+{% for b in bancos %}<tr><td>{{ b.nombre }}</td><td><input type="checkbox" disabled aria-label="Activo" {% if b.activo %}checked{% endif %}></td><td>{% if perms.bancos.change_banco %}<a href="{% url 'bancos:editar_banco' b.pk %}">Editar</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="3">No hay bancos registrados.</td></tr>{% endfor %}
+</tbody></table>
+<h3>Cuentas bancarias</h3>
+{% if perms.bancos.add_cuentabancaria %}<a class="btn btn-primary mb-2" href="{% url 'bancos:nueva_cuenta' %}">Nueva cuenta</a>{% endif %}
+<table class="table"><thead><tr><th>Banco</th><th>Cuenta</th><th>Moneda</th><th>Activa</th><th></th></tr></thead><tbody>
+{% for c in cuentas %}<tr><td>{{ c.banco }}</td><td>{{ c.nro_cuenta }}</td><td>{{ c.get_moneda_display }}</td><td><input type="checkbox" disabled aria-label="Activa" {% if c.activa %}checked{% endif %}></td><td>{% if perms.bancos.view_movimientobanco and perms.bancos.view_movimientointerno and perms.bancos.add_conciliacion %}<a class="me-2" href="{% url 'bancos:conciliar_cuenta' c.pk %}">Conciliar</a>{% endif %}{% if perms.bancos.view_movimientobanco and perms.bancos.view_movimientointerno and perms.bancos.view_conciliacion and perms.bancos.view_cierrebancario %}<a class="me-2" href="{% url 'bancos:reporte_cuenta' c.pk %}">Reporte y cierre</a>{% endif %}{% if perms.bancos.view_movimientobanco %}<a class="me-2" href="{% url 'bancos:estado_cuenta' c.pk %}">Estado de cuenta</a>{% endif %}{% if perms.bancos.change_cuentabancaria %}<a href="{% url 'bancos:editar_cuenta' c.pk %}">Editar</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="5">No hay cuentas registradas.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

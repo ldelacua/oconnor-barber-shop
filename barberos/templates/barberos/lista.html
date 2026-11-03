@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accesos %}
 
 {% block title %}
 Prestador de Servicio
@@ -17,6 +18,7 @@ Prestador de Servicio
     </div>
 
     <div class="d-flex flex-wrap gap-2">
+        {% url 'servicios:lista' as enlace_servicios %}{% puede_url enlace_servicios as puede_servicios %}{% if puede_servicios %}<a href="{{ enlace_servicios }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-scissors me-1" aria-hidden="true"></i>Servicios</a>{% endif %}
         <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
         <a href="{% url 'horarios:listar_sillas' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-grid-3x3-gap me-1"></i>Administrar sillas</a>
         <a href="{% url 'barberos:crear_barbero' %}" class="btn btn-primary btn-sm"><i class="bi bi-person-plus me-1"></i>Nuevo Prest de Servicio</a>
@@ -151,19 +153,7 @@ Prestador de Servicio
 
                             <td>
 
-                                {% if barbero.activo %}
-
-                                    <span class="badge bg-success">
-                                        Activo
-                                    </span>
-
-                                {% else %}
-
-                                    <span class="badge bg-secondary">
-                                        Inactivo
-                                    </span>
-
-                                {% endif %}
+                                <input type="checkbox" disabled aria-label="Activo" {% if barbero.activo %}checked{% endif %}>
 
                             </td>
 

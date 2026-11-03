@@ -1,0 +1,15 @@
+{% load ventas_formato l10n %}
+<div class="table-responsive"><table class="table table-sm align-middle tabla-seleccion">
+<thead><tr><th scope="col">Marcar</th>
+<th scope="col" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="fecha">Fecha ↕</button></th>
+<th scope="col" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="texto">Referencia ↕</button></th>
+<th scope="col" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="texto">{% if lado == 'banco' %}Descripción{% else %}Origen / Pago{% endif %} ↕</button></th>
+<th scope="col" class="text-end" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="monto">Importe ↕</button></th></tr></thead>
+<tbody>
+{% for m in filas %}{% with id=m.pk|stringformat:"s" %}
+<tr><td><input class="form-check-input" type="checkbox" name="{{ lado }}" value="{{ m.pk }}" data-monto="{{ m.monto|unlocalize }}" aria-label="Seleccionar movimiento {{ m.pk }}" {% if id in seleccion %}checked{% endif %}></td>
+<td data-valor="{{ m.fecha|date:'Y-m-d' }}">{{ m.fecha|date:'d/m/Y' }}</td>
+{% if lado == 'banco' %}<td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td>{% else %}<td>{{ m.referencia|default:'—' }}</td><td>{{ m.origen }} #{{ m.pago_id }}</td>{% endif %}
+<td class="text-end text-nowrap fw-semibold">{{ m.monto|monto_venta }}</td></tr>
+{% endwith %}{% empty %}<tr><td colspan="5">No hay movimientos pendientes.</td></tr>{% endfor %}
+</tbody></table></div>

@@ -1,15 +1,18 @@
-/* Amplía ambos paneles, incluido Selected permissions, en usuarios y grupos. */
-.form-row.field-user_permissions .related-widget-wrapper,
-.form-row.field-permissions .related-widget-wrapper { flex:1 1 auto; width:calc(100% - 180px); max-width:1400px; min-width:0; }
-.form-row .selector { display:flex; align-items:flex-start; gap:10px; width:100%!important; max-width:1400px; }
-.form-row .selector-available, .form-row .selector-chosen { flex:1 1 0; width:calc(50% - 25px)!important; min-width:0; }
-.form-row .selector select { width:100%!important; height:360px!important; min-height:360px; box-sizing:border-box; font-size:14px; }
-.form-row .selector .selector-filter { display:flex; align-items:center; gap:6px; }
-.form-row .selector .selector-filter input { flex:1; width:100%!important; min-width:0; box-sizing:border-box; }
-.form-row .selector .selector-chooser { flex:0 0 22px; margin:145px 0 0!important; width:22px!important; }
-@media(max-width:900px) {
- .form-row.field-user_permissions .related-widget-wrapper,.form-row.field-permissions .related-widget-wrapper { width:100%; }
- .form-row .selector { flex-wrap:wrap; }
- .form-row .selector-available,.form-row .selector-chosen { flex:1 1 100%; width:100%!important; }
- .form-row .selector .selector-chooser { margin:0 auto!important; }
+/* Paneles de grupos y usuarios, también en la estructura de Jazzmin. */
+.field-permissions .related-widget-wrapper,
+.field-user_permissions .related-widget-wrapper,
+.field-groups .related-widget-wrapper { width: 100%; max-width: 100%; min-width: 0; }
+.selector { display: flex !important; flex-direction: column; gap: 12px; width: 100% !important; max-width: 100%; }
+.selector .selector-available, .selector .selector-chosen {
+    float: none !important; width: 100% !important; min-width: 0; overflow-x: auto;
+}
+.selector select {
+    display: block; width: 100% !important; min-width: 680px;
+    height: 300px !important; box-sizing: border-box; font-size: 14px;
+}
+.selector .selector-filter { display: flex; align-items: center; gap: 6px; }
+.selector .selector-filter input { flex: 1; width: 100% !important; min-width: 0; }
+.selector .selector-chooser {
+    float: none !important; width: auto !important; margin: 0 auto !important;
+    display: flex; gap: 12px; align-items: center;
 }

@@ -43,6 +43,19 @@ def compras(request):
     else:
         datos = datos.none()
     pagina, query = paginar(request, datos)
+    if request.user.has_perms(('bancos.view_cuentabancaria', 'inventario.view_pagoproveedor')):
+        from bancos.models import MovimientoInterno
+        from .models import PagoProveedor
+        compras_pagina = {compra.pk: compra for compra in pagina}
+        pagos = dict(PagoProveedor.objects.filter(compra_id__in=compras_pagina, reverso__isnull=True)
+                     .values_list('pk', 'compra_id'))
+        for compra in compras_pagina.values():
+            compra.cuentas_pago = []
+        movimientos = MovimientoInterno.objects.filter(origen='PROVEEDOR', pago_id__in=pagos).select_related('cuenta__banco').order_by('cuenta_id')
+        for movimiento in movimientos:
+            cuentas = compras_pagina[pagos[movimiento.pago_id]].cuentas_pago
+            if movimiento.cuenta not in cuentas:
+                cuentas.append(movimiento.cuenta)
     return render(request, "inventario/compras.html", {"filtro": filtro, "pagina": pagina, "query": query})
 
 @login_required(login_url="iniciar_sesion")
@@ -114,7 +127,12 @@ def compra_form(request, pk=None):
 @login_required(login_url="iniciar_sesion")
 def detalle(request, pk):
     compra = get_object_or_404(Compra.objects.select_related("proveedor").prefetch_related("detalles__producto__unidad_medida"), pk=pk)
-    return render(request, "inventario/detalle.html", {"compra": compra, "regresar": regreso(request)})
+    contexto = {"compra": compra, "regresar": regreso(request)}
+    if request.user.has_perm('inventario.view_pagoproveedor'):
+        from .pagos_proveedor import saldo_compra
+        contexto['saldo_pagos'] = saldo_compra(compra)
+        contexto['pagos_compra'] = compra.pagos_proveedor.select_related('reverso').all()
+    return render(request, "inventario/detalle.html", contexto)
 
 @login_required(login_url="iniciar_sesion")
 def actualizar(request, pk):

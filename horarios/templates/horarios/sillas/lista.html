@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accesos %}
 
 {% block title %}
 Sillas
@@ -16,6 +17,7 @@ Sillas
         </div>
 
         <div class="d-flex flex-wrap gap-2">
+        {% url 'servicios:lista' as enlace_servicios %}{% puede_url enlace_servicios as puede_servicios %}{% if puede_servicios %}<a href="{{ enlace_servicios }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-scissors me-1" aria-hidden="true"></i>Servicios</a>{% endif %}
             <a href="{% url 'barberos:lista_barberos' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Regresar</a>
             <a href="{% url 'horarios:crear_silla' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle me-1"></i>Nueva silla</a>
         </div>
@@ -54,19 +56,7 @@ Sillas
 
                         <td class="text-center">
 
-                            {% if silla.activa %}
-
-                                <span class="badge bg-success">
-                                    Activa
-                                </span>
-
-                            {% else %}
-
-                                <span class="badge bg-secondary">
-                                    Inactiva
-                                </span>
-
-                            {% endif %}
+                            <input type="checkbox" disabled aria-label="Activo" {% if silla.activa %}checked{% endif %}>
 
                         </td>
 

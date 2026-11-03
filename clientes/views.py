@@ -52,12 +52,17 @@ def detalle_cliente(request, pk):
 
 @login_required
 def crear_cliente(request):
+    from django.urls import reverse
+    from django.utils.http import url_has_allowed_host_and_scheme
+    destino = request.POST.get('next') or request.GET.get('next') or ''
+    if not url_has_allowed_host_and_scheme(destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        destino = reverse('clientes:lista_clientes')
     if request.method == "POST":
         formulario = ClienteForm(request.POST)
 
         if formulario.is_valid():
             formulario.save()
-            return redirect("clientes:lista_clientes")
+            return redirect(destino)
     else:
         formulario = ClienteForm()
 
@@ -66,6 +71,7 @@ def crear_cliente(request):
         "clientes/formulario.html",
         {
             "formulario": formulario,
+            "regresar": destino,
             "titulo": "Nuevo cliente",
             "descripcion": "Registra la información del cliente.",
             "texto_boton": "Guardar cliente",

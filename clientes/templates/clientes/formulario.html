@@ -5,6 +5,7 @@
 {% endblock %}
 
 {% block content %}
+{% url 'clientes:lista_clientes' as lista_clientes_url %}
 
 <div class="row justify-content-center">
 
@@ -26,8 +27,8 @@
         </div>
 
         <a
-            href="{% url 'clientes:lista_clientes' %}"
-            class="btn btn-outline-secondary"
+            href="{{ regresar|default:lista_clientes_url }}"
+            class="btn btn-primary"
         >
             <i class="bi bi-arrow-left me-1"></i>
             Volver
@@ -42,6 +43,7 @@
             <form method="post" novalidate>
 
                 {% csrf_token %}
+<input type="hidden" name="next" value="{{ regresar }}">
 
                 {% if formulario.non_field_errors %}
 
@@ -223,8 +225,8 @@
                 <div class="d-flex justify-content-end gap-2">
 
                     <a
-                        href="{% url 'clientes:lista_clientes' %}"
-                        class="btn btn-outline-secondary"
+                        href="{{ regresar|default:lista_clientes_url }}"
+                        class="btn btn-primary"
                     >
                         Cancelar
                     </a>

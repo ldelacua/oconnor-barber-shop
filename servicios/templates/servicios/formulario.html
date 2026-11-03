@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ titulo }}{% endblock %}
 
@@ -85,3 +86,4 @@
 
 </div>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'inventario/mayusculas.js' %}"></script>{% endblock %}

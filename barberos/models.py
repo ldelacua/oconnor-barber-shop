@@ -45,5 +45,17 @@ class Barbero(models.Model):
         verbose_name = "Prestador de Servicio"
         verbose_name_plural = "Prestadores de Servicio"
 
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        if self.pk and not self._state.adding:
+            anterior = type(self).objects.get(pk=self.pk)
+            if anterior.silla_id != self.silla_id and self.horarios.exists():
+                raise ValidationError('No puedes cambiar la silla porque este prestador tiene horarios registrados.')
+        for campo in ('codigo', 'nombre', 'apellido', 'direccion', 'correo'):
+            valor = getattr(self, campo)
+            if valor is not None:
+                setattr(self, campo, valor.strip().upper())
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.codigo} - {self.nombre} {self.apellido}"

@@ -124,15 +124,7 @@ Detalle del cliente
                                 Estado
                             </small>
 
-                            {% if cliente.activo %}
-                                <span class="badge text-bg-success">
-                                    Activo
-                                </span>
-                            {% else %}
-                                <span class="badge text-bg-secondary">
-                                    Inactivo
-                                </span>
-                            {% endif %}
+                            <input type="checkbox" disabled aria-label="Activo" {% if cliente.activo %}checked{% endif %}>
                         </div>
 
                         <div class="col-12">

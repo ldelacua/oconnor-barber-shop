@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div id="content-main">
+  <p><a href="{% url 'dashboard' %}" class="button" style="display:inline-block;padding:10px 16px;margin-bottom:16px;background:#2563a4;color:white;border-radius:4px;text-decoration:none;">Regresar al sistema</a></p>
+  {% for app in app_list %}
+  <section style="max-width:800px;margin:0 0 20px;background:#fff;border:1px solid #ddd;border-radius:4px;overflow:hidden">
+    <h2 style="margin:0;padding:12px 16px;background:#f2f4f6;font-size:1.1rem">{{ app.name }}</h2>
+    <table style="width:100%;border-collapse:collapse"><tbody>
+    {% for model in app.models %}
+      <tr><th scope="row" style="padding:12px 16px;text-align:left;border-top:1px solid #eee">{% if model.admin_url %}<a href="{{ model.admin_url }}">{{ model.name }}</a>{% else %}{{ model.name }}{% endif %}</th><td style="padding:12px 16px;text-align:right;border-top:1px solid #eee">{% if model.add_url %}<a href="{{ model.add_url }}">Agregar</a>{% endif %}{% if model.admin_url %} &nbsp; <a href="{{ model.admin_url }}">{% if model.view_only %}Ver{% else %}Cambiar{% endif %}</a>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table>
+  </section>
+  {% empty %}<p>No tienes permisos para administrar estos elementos.</p>{% endfor %}
+</div>
+{% endblock %}

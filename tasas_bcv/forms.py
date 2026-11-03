@@ -7,6 +7,7 @@ class TasaBCVForm(forms.ModelForm):
     class Meta:
         model = TasaBCV
         fields = ["fecha", "tasa_bcv"]
+        labels = {"tasa_bcv": "Tasa Bs"}
         widgets = {
             "fecha": forms.DateInput(
                 format="%Y-%m-%d",

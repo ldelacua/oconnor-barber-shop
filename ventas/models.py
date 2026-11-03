@@ -59,6 +59,42 @@ class DocumentoVenta(Inmutable):
         verbose_name = "Documento de venta"
         verbose_name_plural = "Documentos de venta"
 
+    def save(self, *args, **kwargs):
+        from decimal import Decimal, InvalidOperation
+        from django.db import IntegrityError, transaction
+        from mysql_nuevo.bloqueos import serializar_operacion
+        with transaction.atomic():
+            serializar_operacion()
+            if self._state.adding:
+                if self.sellado:
+                    raise ValidationError("Una factura debe validarse antes de finalizarla.")
+                try:
+                    tasa = Decimal(str(self.tasa_bcv))
+                    impuesto = Decimal(str(self.impuesto))
+                    descuento = Decimal(str(self.descuento_porcentaje))
+                    importes = [Decimal(str(getattr(self, campo))) for campo in
+                                ('subtotal_usd','subtotal_bs','total_impuesto_bs','total_bs','descuento_usd','descuento_bs')]
+                    if (not all(x.is_finite() for x in [tasa, impuesto, descuento, *importes])
+                        or tasa <= 0 or not 0 <= impuesto <= 100 or not 0 <= descuento <= 100):
+                        raise ValueError()
+                    if self.tipo_documento == 'FA':
+                        if not self.iva_incluido or self.documento_original_id is not None or any(x < 0 for x in importes):
+                            raise ValueError()
+                    elif self.tipo_documento == 'RE':
+                        original = self.documento_original
+                        iguales = ('cliente_id','tasa_bcv','impuesto','iva_incluido','descuento_porcentaje')
+                        negativos = ('subtotal_usd','subtotal_bs','total_impuesto_bs','total_bs','descuento_usd','descuento_bs')
+                        if (not original or not original.sellado or original.tipo_documento != 'FA'
+                            or any(x > 0 for x in importes)
+                            or any(getattr(self,c) != getattr(original,c) for c in iguales)
+                            or any(getattr(self,c) != -getattr(original,c) for c in negativos)):
+                            raise ValueError()
+                    else:
+                        raise ValueError()
+                except (InvalidOperation, ValueError, TypeError) as error:
+                    raise IntegrityError("Datos de factura o reverso inválidos.") from error
+            return super().save(*args, **kwargs)
+
     @property
     def subtotal_bruto_usd(self):
         if self.iva_incluido:
@@ -122,9 +158,25 @@ class DetalleVenta(Inmutable):
         ordering = ["pk"]
 
     def save(self, *args, **kwargs):
-        if DocumentoVenta.objects.filter(pk=self.documento_id, sellado=True).exists():
-            raise ValidationError("No puedes añadir líneas a un documento guardado.")
-        return super().save(*args, **kwargs)
+        from django.db import IntegrityError, transaction
+        from mysql_nuevo.bloqueos import serializar_operacion
+        from .servicios import _validar_linea_factura, _validar_linea_reverso
+        with transaction.atomic():
+            serializar_operacion()
+            documento = DocumentoVenta.objects.select_for_update().get(pk=self.documento_id)
+            if documento.sellado:
+                raise ValidationError("No puedes añadir líneas a un documento guardado.")
+            if self._state.adding:
+                try:
+                    if documento.tipo_documento == 'FA':
+                        _validar_linea_factura(documento, self)
+                    elif documento.tipo_documento == 'RE':
+                        _validar_linea_reverso(documento, self)
+                    else:
+                        raise ValidationError("Tipo de documento inválido.")
+                except (ValidationError, ValueError, TypeError, ArithmeticError) as error:
+                    raise IntegrityError("Precio, descuento, impuesto o reverso inválido.") from error
+            return super().save(*args, **kwargs)
 
 
 class PagoVenta(Inmutable):
@@ -146,6 +198,17 @@ class PagoVenta(Inmutable):
         verbose_name_plural = "Pagos de venta"
 
     def save(self, *args, **kwargs):
-        if DocumentoVenta.objects.filter(pk=self.documento_id, sellado=True).exists():
-            raise ValidationError("No puedes añadir pagos a un documento guardado.")
-        return super().save(*args, **kwargs)
+        from django.db import IntegrityError, transaction
+        from mysql_nuevo.bloqueos import serializar_operacion
+        from .servicios import _validar_pago_venta
+        with transaction.atomic():
+            serializar_operacion()
+            documento = DocumentoVenta.objects.select_for_update().get(pk=self.documento_id)
+            if documento.sellado:
+                raise ValidationError("No puedes añadir pagos a un documento guardado.")
+            if self._state.adding:
+                try:
+                    _validar_pago_venta(documento, self)
+                except (ValidationError, ValueError, TypeError, ArithmeticError) as error:
+                    raise IntegrityError("Pago de factura inválido.") from error
+            return super().save(*args, **kwargs)

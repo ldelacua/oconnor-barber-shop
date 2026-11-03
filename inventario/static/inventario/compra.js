@@ -40,7 +40,7 @@
     peticion?.abort();
     peticion = new AbortController();
     const info = document.getElementById("tasa-bcv");
-    info.textContent = "CONSULTANDO TASA BCV…";
+    info.textContent = "CONSULTANDO TASA BS…";
     try {
       const url = new URL(form.dataset.condicionesUrl, location.origin);
       url.searchParams.set("fecha", fecha.value);

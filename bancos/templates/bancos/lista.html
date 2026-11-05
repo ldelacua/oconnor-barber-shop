@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Bancos y cuentas</h2>
-{% if perms.bancos.view_movimientobanco and perms.bancos.add_movimientobanco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:importar_estado' %}">Importar estado de cuenta</a>{% endif %}
+{% if perms.bancos.view_movimientobanco and perms.bancos.add_movimientobanco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:importar_estado' %}">Importar estado de cuenta</a> <a class="btn btn-outline-primary mb-2" href="{% url 'bancos:cargar_movimiento' %}">Cargar movimiento a mano</a>{% endif %}
 <h3>Bancos</h3>
 {% if perms.bancos.add_banco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:nuevo_banco' %}">Nuevo banco</a>{% endif %}
 <table class="table"><thead><tr><th>Banco</th><th>Activo</th><th></th></tr></thead><tbody>

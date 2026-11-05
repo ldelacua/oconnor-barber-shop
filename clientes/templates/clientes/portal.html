@@ -1,0 +1,42 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="same-origin"><title>Citas · O’Connor Barber Shop</title>
+<style>
+body{margin:2rem auto;padding:0 1rem;max-width:46rem;background:#171511;color:#fff;font:1rem system-ui}a{color:#ffda86}form,li{padding:1rem;background:#28241d;border-radius:.5rem;margin-bottom:1rem}input,select,button{font:inherit;padding:.45rem}button{background:#ffda86;color:#171511;border:0;border-radius:.3rem;cursor:pointer;margin:.2rem}.errorlist{color:#ffaaaa}
+.marca{display:flex;align-items:center;gap:1rem;text-decoration:none;font-size:clamp(1.25rem,4vw,2rem);font-weight:700;margin-bottom:1rem}.marca img{height:68px;width:auto}.portal-citas{max-width:76rem}.agenda{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1.5rem;align-items:start}.agenda h2{margin-top:0}.agenda ul{padding-left:0;list-style:none}.acciones{display:flex;flex-wrap:wrap;gap:.35rem}.salir{background:transparent;color:#ffda86;border:1px solid currentColor}@media(max-width:720px){.agenda{grid-template-columns:1fr;gap:.5rem}}
+.servicios{border:0;padding:0;margin:1rem 0;min-width:0}.servicios legend{margin-bottom:.5rem}.servicios > div{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:.5rem 1rem}.servicios small{display:block;margin-top:.5rem}.horario{display:flex;flex-wrap:wrap;align-items:flex-start;gap:.6rem;margin-bottom:.8rem}.horario label{display:block;margin-bottom:.3rem}.horario button{margin:0;align-self:flex-start;margin-top:1.5rem}.horario select,.horario input{max-width:100%;box-sizing:border-box}
+</style></head>
+<body{% if modo == "citas" %} class="portal-citas"{% endif %}>
+<a class="marca" href="/"><img src="{% static 'seguridad/logo_oconnor.png' %}" alt=""><span>O’Connor Barber Shop</span></a>
+<a href="/">Volver al inicio</a>
+<h1>{% if modo == "citas" %}Agenda tu cita{% else %}Reservas{% endif %}</h1>
+{% if aviso %}<p role="status">{{ aviso }}</p>{% endif %}
+{% if modo == "acceso" %}
+<p>Ingresa con tu teléfono y contraseña.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button>Entrar</button></form>
+<a href="{% url 'portal_registro' %}">Registrarme</a>
+{% elif modo == "registro" %}
+<p>Completa tus datos para agendar. Guardaremos tu correo como dato de contacto.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button>Crear cuenta</button></form>
+<a href="{% url 'portal_acceso' %}">Ya tengo cuenta</a>
+{% elif modo == "citas" %}
+<div class="agenda"><section aria-label="Reservar cita"><p>Elige los servicios, el prestador y la fecha. Luego consulta las horas disponibles.</p>
+<form method="post">{% csrf_token %}{{ form.non_field_errors }}
+<p>{{ form.barbero.label_tag }} {{ form.barbero }}{{ form.barbero.errors }}</p>
+<fieldset class="servicios"><legend>{{ form.servicios.label }}</legend>
+{{ form.servicios }}{{ form.servicios.errors }}
+<small>{{ form.servicios.help_text }}</small></fieldset>
+<div class="horario">
+<div>{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
+<div>{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
+<button name="accion" value="horas" formnovalidate>Consultar horas</button>
+</div>
+<div class="acciones"><button name="accion" value="reservar">Agendar cita</button>
+<button class="salir" name="salir" value="1" formnovalidate>Salir</button></div></form></section>
+<section aria-labelledby="mis-citas">
+<h2 id="mis-citas">Mis citas</h2>
+<ul>{% for cita in citas %}<li>{{ cita.fecha|date:"d/m/Y" }} · {{ cita.hora|time:"H:i" }} · {{ cita.barbero }} · {{ cita.get_estado_display }}</li>{% empty %}<li>Todavía no tienes citas.</li>{% endfor %}</ul>
+</section></div>
+{% else %}<a href="{% url 'portal_acceso' %}">Solicitar enlace</a>{% endif %}
+</body></html>

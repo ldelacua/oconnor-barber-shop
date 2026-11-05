@@ -2,6 +2,7 @@
 {% load ventas_formato %}
 {% block content %}
 <h2>Importar estado de cuenta</h2><p>Carga el CSV completo de un solo mes. Se reemplazarán los movimientos de ese mes que aún no estén conciliados. Los meses cerrados no admiten cambios.</p>
+<p><a href="{% url 'bancos:cargar_movimiento' %}{% if cuenta %}?cuenta={{ cuenta.pk }}{% endif %}">¿No tienes CSV? Carga un movimiento a mano</a></p>
 <form method="post" enctype="multipart/form-data" class="card card-body mb-3">
 {% csrf_token %}
 {% if form.errors %}<div class="alert alert-danger" role="alert"><strong>No se cargó el archivo.</strong>{{ form.non_field_errors }}</div>{% endif %}

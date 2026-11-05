@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -54,11 +55,19 @@ def inicio(request):
     return render(request,"gastos/inicio.html",{"pagina":pagina,"filtros":filtros,"totales":totales,"parametros":parametros.urlencode(),"seccion":"registros"})
 
 
+def movimiento_gasto(pk):
+    from bancos.models import MovimientoInterno
+    return MovimientoInterno.objects.filter(origen='GASTO_OPERATIVO', pago_id=pk)
+
+
 @login_required
 def formulario_registro(request,pk=None):
     registro=get_object_or_404(RegistroGasto,pk=pk) if pk else RegistroGasto()
     datos=request.POST if request.method=="POST" else None
-    form=RegistroForm(datos,instance=registro)
+    if pk and movimiento_gasto(pk).exists():
+        messages.warning(request, 'El gasto está vinculado a una cuenta bancaria y no se puede editar.')
+        return redirect('gastos:ver', pk=pk)
+    form=RegistroForm(datos,instance=registro,usuario=request.user)
     detalles=DetalleGastoFormSet(datos,instance=registro,prefix="detalles")
     if request.method=="POST":
         encabezado_valido=form.is_valid()
@@ -66,9 +75,24 @@ def formulario_registro(request,pk=None):
         if encabezado_valido and detalles_validos:
             try:
                 with transaction.atomic():
+                    if pk:
+                        RegistroGasto.objects.select_for_update().get(pk=pk)
+                        if movimiento_gasto(pk).exists():
+                            raise ValidationError('El gasto ya está vinculado a una cuenta bancaria.')
                     objeto=form.save()
                     detalles.instance=objeto
                     detalles.save()
+                    cuenta = form.cleaned_data.get('cuenta_bancaria')
+                    if cuenta:
+                        from bancos.models import CuentaBancaria, MovimientoInterno
+                        cuenta = CuentaBancaria.objects.select_for_update().select_related('banco').get(pk=cuenta.pk)
+                        if not cuenta.activa or not cuenta.banco.activo or cuenta.moneda != objeto.moneda:
+                            raise ValidationError('Selecciona una cuenta activa en la moneda del gasto.')
+                        MovimientoInterno.objects.create(cuenta=cuenta, origen='GASTO_OPERATIVO',
+                            pago_id=objeto.pk, fecha=objeto.fecha_gasto, referencia=objeto.referencia_pago,
+                            monto=-objeto.total)
+            except ValidationError as error:
+                form.add_error(None, error)
             except IntegrityError:
                 form.add_error(None,"No se pudo guardar. Comprueba la factura del proveedor y los datos de los productos.")
             else:
@@ -83,14 +107,21 @@ def formulario_registro(request,pk=None):
 @login_required
 def ver_registro(request,pk):
     objeto=get_object_or_404(RegistroGasto.objects.select_related("gasto__grupo","proveedor").prefetch_related("detalles__producto"),pk=pk)
-    return render(request,"gastos/documento.html",{"objeto":objeto,"seccion":"registros"})
+    movimiento = movimiento_gasto(pk).select_related('cuenta__banco').first()
+    return render(request,"gastos/documento.html",{"objeto":objeto,"seccion":"registros",
+        "vinculado": bool(movimiento), "cuenta_pago": movimiento.cuenta if movimiento and request.user.has_perm('bancos.view_cuentabancaria') else None})
 
 
 @login_required
 def eliminar_registro(request,pk):
     objeto=get_object_or_404(RegistroGasto,pk=pk)
     if request.method=="POST":
-        try:objeto.delete()
+        try:
+            with transaction.atomic():
+                objeto = RegistroGasto.objects.select_for_update().get(pk=pk)
+                if movimiento_gasto(pk).exists():
+                    raise ProtectedError('Gasto vinculado a Bancos.', [objeto])
+                objeto.delete()
         except ProtectedError:messages.warning(request,"El gasto tiene registros asociados y no puede eliminarse.")
         else:messages.success(request,"El gasto fue eliminado correctamente.")
         return redirect("gastos:inicio")

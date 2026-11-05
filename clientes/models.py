@@ -4,14 +4,16 @@ from django.core.validators import RegexValidator
 from django.db import models
 
 CAMPOS_MAYUSCULAS = ("nombre", "apellido", "direccion", "email", "observaciones")
-validar_telefono = RegexValidator(r"\A[0-9]{11}\Z", "El teléfono debe contener exactamente 10 dígitos (0-9).")
+validar_telefono = RegexValidator(r"\A[0-9]{11}\Z", "El teléfono debe contener exactamente 11 dígitos (0-9).")
 
 
 class Cliente(models.Model):
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
 
-    telefono = models.CharField(max_length=20, validators=[validar_telefono])
+    telefono = models.CharField(max_length=20, unique=True, validators=[validar_telefono])
+
+    clave_portal = models.CharField(max_length=128, blank=True, default="", editable=False)
 
     email = models.EmailField(
         blank=True,

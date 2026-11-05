@@ -8,6 +8,7 @@ urlpatterns = [
     path('cuenta/<int:pk>/conciliar/', views.conciliar_cuenta, name='conciliar_cuenta'),
     path('vincular/', views.vincular_pago, name='vincular_pago'),
     path('importar/', views.importar_estado, name='importar_estado'),
+    path('carga-manual/', views.cargar_movimiento, name='cargar_movimiento'),
     path('banco/nuevo/', views.editar, {'tipo': 'banco'}, name='nuevo_banco'),
     path('banco/<int:pk>/', views.editar, {'tipo': 'banco'}, name='editar_banco'),
     path('cuenta/nueva/', views.editar, {'tipo': 'cuentabancaria'}, name='nueva_cuenta'),

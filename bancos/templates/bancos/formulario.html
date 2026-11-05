@@ -2,6 +2,7 @@
 {% block content %}
 <h2>{{ titulo }}</h2>
 <form method="post" enctype="multipart/form-data" class="card card-body">{% csrf_token %}{{ form.as_p }}
-<div><button class="btn btn-primary">Guardar</button> <a class="btn btn-secondary" href="{% url 'bancos:lista' %}">Regresar</a></div>
+<div><button class="btn btn-primary">Guardar</button> <a class="btn btn-secondary" href="{% if desde_proveedores %}{% url 'pagos:consulta' %}?origen=PROVEEDOR{% else %}{% url 'bancos:lista' %}{% endif %}">Regresar</a></div>
 </form>
+{% if estado_url %}<a class="btn btn-outline-primary mt-2" href="{{ estado_url }}">Ver estado de cuenta</a>{% endif %}
 {% endblock %}

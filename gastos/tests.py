@@ -14,13 +14,22 @@ class GastosTests(TestCase):
         self.proveedor=Proveedor.objects.create(rif="J-12345678-9",descripcion="Proveedor de prueba")
 
     def datos(self,**cambios):
-        datos={"fecha_gasto":"2026-10-17","gasto":self.tipo.pk,"proveedor":self.proveedor.pk,"numero_factura":"F-1","numero_control":"C-1","moneda":"USD","monto_gasto":"100.00","monto_impuesto":"7.00","porcentaje_impuesto":"25.00"}
+        datos={"fecha_gasto":"2026-10-17","gasto":self.tipo.pk,"proveedor":self.proveedor.pk,"numero_factura":"F-1","numero_control":"C-1","moneda":"USD","tipo_pago":"5","monto_gasto":"100.00","monto_impuesto":"7.00","porcentaje_impuesto":"25.00"}
         datos.update(cambios);return datos
 
     def guardar(self,**cambios):
         form=RegistroForm(self.datos(**cambios))
         self.assertTrue(form.is_valid(),form.errors)
         return form.save()
+
+    def test_forma_pago_requerida_y_moneda_del_gasto(self):
+        self.assertFalse(RegistroForm(self.datos(tipo_pago='')).is_valid())
+        self.assertFalse(RegistroForm(self.datos(tipo_pago='6')).is_valid())
+        gasto = self.guardar(tipo_pago='5', referencia_pago=' ref-01 ')
+        gasto.refresh_from_db()
+        self.assertEqual(gasto.tipo_pago, 5)
+        self.assertTrue(gasto.nombre_tipo_pago)
+        self.assertEqual(gasto.referencia_pago, 'REF-01')
 
     def test_impuesto_manual_no_se_recalcula(self):
         objeto=self.guardar()
@@ -142,3 +151,25 @@ class ProductosGastoTests(GastosTests):
     def test_sin_productos_admite_gastos_generales(self):
         datos={'detalles-TOTAL_FORMS':'0','detalles-INITIAL_FORMS':'0'}
         self.assertTrue(DetalleGastoFormSet(datos,instance=RegistroGasto(),prefix='detalles').is_valid())
+
+    def test_pago_bancario_crea_debito_conciliable(self):
+        from bancos.models import Banco, CuentaBancaria, MovimientoBanco, MovimientoInterno
+        from bancos.conciliacion import conciliar_automaticamente
+        usuario = get_user_model().objects.create_superuser(username='gastos-banco')
+        self.client.force_login(usuario)
+        cuenta = CuentaBancaria.objects.create(banco=Banco.objects.create(nombre='BANCO PRUEBA'),
+                                               nro_cuenta='001', moneda='USD')
+        datos = {**self.datos(tipo_pago='4', referencia_pago='G-1'), **self.lineas()}
+        self.assertContains(self.client.post(reverse('gastos:crear'), datos), 'Selecciona una cuenta bancaria')
+        self.assertFalse(RegistroGasto.objects.exists())
+        datos['cuenta_bancaria'] = cuenta.pk
+        self.assertEqual(self.client.post(reverse('gastos:crear'), datos).status_code, 302)
+        gasto = RegistroGasto.objects.get()
+        movimiento = MovimientoInterno.objects.get(origen='GASTO_OPERATIVO', pago_id=gasto.pk)
+        self.assertEqual(movimiento.monto, Decimal('-107.00'))
+        self.assertEqual(movimiento.cuenta_id, cuenta.pk)
+        MovimientoBanco.objects.create(cuenta=cuenta, fecha=gasto.fecha_gasto, nro_transaccion='G-1', monto=-107)
+        self.assertEqual(conciliar_automaticamente(usuario, cuenta), 1)
+        self.assertContains(self.client.get(reverse('gastos:ver', args=[gasto.pk])), str(cuenta))
+        self.client.post(reverse('gastos:eliminar', args=[gasto.pk]))
+        self.assertTrue(RegistroGasto.objects.filter(pk=gasto.pk).exists())

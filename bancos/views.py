@@ -245,3 +245,57 @@ def estado_cuenta(request, pk):
     query.pop('page', None)
     return render(request, 'bancos/estado.html', {'cuenta': cuenta, 'filtro': filtro,
         'pagina': Paginator(filas, 30).get_page(request.GET.get('page')), 'query': query.urlencode(), 'totales': totales})
+
+
+@login_required
+@permission_required(('bancos.view_banco', 'bancos.view_cuentabancaria', 'bancos.view_movimientobanco', 'bancos.add_movimientobanco'), raise_exception=True)
+def cargar_movimiento(request):
+    from django.contrib import messages
+    from django.core.exceptions import ValidationError
+    from django.urls import reverse
+    from .importacion import agregar_movimiento
+
+    class MovimientoForm(forms.Form):
+        cuenta = forms.ModelChoiceField(queryset=CuentaBancaria.objects.filter(activa=True, banco__activo=True))
+        fecha = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
+        nro_transaccion = forms.CharField(label='Número de transacción', max_length=120)
+        descripcion = forms.CharField(label='Descripción', max_length=500)
+        monto = forms.DecimalField(max_digits=18, decimal_places=2,
+                                 help_text='Usa signo negativo para débitos y positivo para créditos.')
+
+        def clean_nro_transaccion(self):
+            referencia = self.cleaned_data['nro_transaccion'].upper()
+            if len(referencia) > 120:
+                raise ValidationError('La referencia admite hasta 120 caracteres.')
+            return referencia
+
+        def clean_monto(self):
+            monto = self.cleaned_data['monto']
+            if not monto:
+                raise ValidationError('El monto debe ser distinto de cero.')
+            return monto
+
+    inicial = request.GET.get('cuenta', '')
+    form = MovimientoForm(request.POST if request.method == 'POST' else None,
+                          initial={'cuenta': inicial if inicial.isascii() and inicial.isdigit() else None})
+    if request.method == 'POST' and form.is_valid():
+        try:
+            movimiento = agregar_movimiento(**form.cleaned_data)
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(request, 'Movimiento bancario guardado. Ya está disponible para conciliar.')
+            return redirect(reverse('bancos:cargar_movimiento') + f'?cuenta={movimiento.cuenta_id}')
+    from django.core.paginator import Paginator
+    from .models import MovimientoBanco
+
+    cuenta_id = str(form['cuenta'].value() or '')
+    cuentas = form.fields['cuenta'].queryset
+    cuenta = cuentas.filter(pk=int(cuenta_id)).first() if (
+        cuenta_id.isascii() and cuenta_id.isdigit() and len(cuenta_id) <= 18
+    ) else None
+    movimientos = MovimientoBanco.objects.filter(cuenta=cuenta).select_related('partida') if cuenta else MovimientoBanco.objects.none()
+    pagina = Paginator(movimientos, 30).get_page(request.GET.get('pagina'))
+    return render(request, 'bancos/carga_manual.html', {
+        'form': form, 'cuentas': cuentas.select_related('banco'), 'cuenta': cuenta, 'pagina': pagina,
+    })

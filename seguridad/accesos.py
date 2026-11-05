@@ -31,7 +31,7 @@ def reglas(nombre, metodo='GET', datos=None):
         if ruta == 'reporte_cuenta': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.view_conciliacion', 'bancos.view_cierrebancario') + (('bancos.add_cierrebancario',) if escribir else ())]
         if ruta == 'conciliar_cuenta': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.add_conciliacion')]
         if ruta == 'vincular_pago': return [lectura + ('bancos.add_movimientointerno',)]
-        if ruta == 'importar_estado': return [lectura + ('bancos.view_movimientobanco', 'bancos.add_movimientobanco')]
+        if ruta in {'importar_estado', 'cargar_movimiento'}: return [lectura + ('bancos.view_movimientobanco', 'bancos.add_movimientobanco')]
         acciones = {'nuevo_banco':'add_banco', 'editar_banco':'change_banco',
                     'nueva_cuenta':'add_cuentabancaria', 'editar_cuenta':'change_cuentabancaria'}
         return [lectura + ('bancos.' + acciones[ruta],)] if ruta in acciones else []

@@ -3,6 +3,7 @@ from django.urls import include, path
 
 
 urlpatterns = [
+    path("reservas/", include("clientes.portal_urls")),
     path("bancos/", include("bancos.urls")),
     path("pagos/", include("ventas.pagos_urls")),
     path("control-inventario/", include("control_inventario.urls")),

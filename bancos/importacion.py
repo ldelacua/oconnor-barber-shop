@@ -90,3 +90,16 @@ def importar(cuenta, filas):
             m.save(update_fields=datos.keys())
             actualizados += 1
     return nuevos, repetidos, actualizados, retirados
+
+
+@transaction.atomic
+def agregar_movimiento(cuenta, fecha, nro_transaccion, descripcion, monto):
+    cuenta = CuentaBancaria.objects.select_for_update().select_related('banco').get(pk=cuenta.pk)
+    if not cuenta.activa or not cuenta.banco.activo:
+        raise ValidationError('Selecciona una cuenta y un banco activos.')
+    if CierreBancario.objects.filter(cuenta=cuenta, fecha_cierre__gte=fecha.replace(day=1)).exists():
+        raise ValidationError('El mes está cerrado. No se puede agregar el movimiento.')
+    if MovimientoBanco.objects.filter(cuenta=cuenta, nro_transaccion__iexact=nro_transaccion).exists():
+        raise ValidationError('Esa referencia ya existe en la cuenta seleccionada.')
+    return MovimientoBanco.objects.create(cuenta=cuenta, fecha=fecha, nro_transaccion=nro_transaccion,
+                                          descripcion=descripcion, monto=monto)

@@ -57,13 +57,31 @@ class ProveedorForm(EstiloForm):
 
 
 class RegistroForm(EstiloForm):
+    tipo_pago = forms.TypedChoiceField(coerce=int, empty_value=None, label='Forma de pago', required=False)
+
     class Meta:
         model=RegistroGasto
-        fields=["fecha_gasto","gasto","proveedor","numero_factura","numero_control","moneda","monto_gasto","monto_impuesto","porcentaje_impuesto"]
+        fields=["fecha_gasto","gasto","proveedor","numero_factura","numero_control","moneda","monto_gasto","monto_impuesto","porcentaje_impuesto","tipo_pago","referencia_pago"]
         widgets={"fecha_gasto":forms.DateInput(format="%Y-%m-%d",attrs={"type":"date"})}
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,*args,usuario=None,**kwargs):
         super().__init__(*args,**kwargs)
+        from ventas.pagos_calculos import leer_tipos_pago
+        self.catalogo_pagos = leer_tipos_pago()
+        self.fields['tipo_pago'].widget.attrs['data-tipos-banco'] = ','.join(
+            str(codigo) for codigo, tipo in self.catalogo_pagos.items() if tipo.get('afecta_banco'))
+        if usuario and usuario.has_perms(('bancos.view_cuentabancaria', 'bancos.add_movimientointerno')):
+            from bancos.models import CuentaBancaria
+            self.fields['cuenta_bancaria'] = forms.ModelChoiceField(
+                queryset=CuentaBancaria.objects.filter(activa=True, banco__activo=True).select_related('banco'),
+                required=False, label='Banco y cuenta', widget=forms.Select(attrs={'class':'form-select'}))
+
+        if self.instance.tipo_pago and self.instance.tipo_pago not in self.catalogo_pagos:
+            self.catalogo_pagos[self.instance.tipo_pago] = {
+                'nombre': self.instance.nombre_tipo_pago, 'moneda': self.instance.moneda}
+        self.fields['tipo_pago'].choices = [('', 'Selecciona cómo se pagó')] + [
+            (codigo, f"{tipo['nombre']} ({tipo['moneda']})") for codigo, tipo in self.catalogo_pagos.items()]
+        self.fields['tipo_pago'].required = not self.instance.pk or bool(self.instance.tipo_pago)
         self.fields["gasto"].queryset=TipoGasto.objects.filter(Q(activo=True,grupo__activo=True)|Q(pk=self.instance.gasto_id)).select_related("grupo")
         self.fields["proveedor"].queryset=Proveedor.objects.filter(Q(activo=True)|Q(pk=self.instance.proveedor_id))
         self.fields["monto_gasto"].widget.attrs["min"]="0.01"
@@ -74,6 +92,18 @@ class RegistroForm(EstiloForm):
 
     def clean(self):
         datos=super().clean()
+        codigo = datos.get('tipo_pago')
+        tipo = self.catalogo_pagos.get(codigo)
+        if tipo and datos.get('moneda') and tipo['moneda'] != datos['moneda']:
+            self.add_error('tipo_pago', 'La forma de pago debe tener la misma moneda que el gasto.')
+        elif tipo and codigo != self.instance.tipo_pago:
+            self.instance.nombre_tipo_pago = tipo['nombre'].upper()
+        cuenta = datos.get('cuenta_bancaria')
+        if tipo and tipo.get('afecta_banco') and not cuenta and 'cuenta_bancaria' not in self.errors:
+            self.add_error('cuenta_bancaria' if 'cuenta_bancaria' in self.fields else None,
+                           'Selecciona una cuenta bancaria. Si no tienes acceso, consulta al administrador.')
+        elif cuenta and (not tipo or not tipo.get('afecta_banco') or cuenta.moneda != datos.get('moneda')):
+            self.add_error('cuenta_bancaria', 'La forma de pago debe afectar al banco y la cuenta debe tener la misma moneda.')
         gasto=datos.get("gasto");proveedor=datos.get("proveedor")
         if gasto and (not gasto.activo or not gasto.grupo.activo) and gasto.pk!=self.instance.gasto_id:
             self.add_error("gasto","Selecciona un tipo de gasto y grupo activos.")

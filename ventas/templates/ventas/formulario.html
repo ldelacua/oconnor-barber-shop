@@ -10,9 +10,21 @@
     {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
     {{ form.clave.errors }}
     <div class="card card-body mb-4"><div class="row g-3">
-        <div class="col-md-4"><label for="{{ form.fecha.id_for_label }}" class="form-label">Fecha</label>{{ form.fecha }}{{ form.fecha.errors }}<div class="form-text" id="tasa-venta" aria-live="polite"></div></div>
-        <div class="col-md-8"><label for="{{ form.cliente.id_for_label }}" class="form-label">Cliente</label>{{ form.cliente }}{{ form.cliente.errors }}{% if perms.clientes.add_cliente %}<a id="crear-cliente-factura" class="btn btn-primary btn-sm mt-2" href="{% url 'clientes:crear_cliente' %}?next={{ request.get_full_path|urlencode }}"><i class="bi bi-person-plus me-1"></i>Crear cliente</a><small class="d-block text-muted">Se abre en esta misma pestaña y conserva la factura al regresar.</small>{% endif %}</div>
+        <div class="col-md-4"><label for="{{ form.fecha.id_for_label }}" class="form-label">Fecha</label>{{ form.fecha }}{{ form.fecha.errors }}<div class="form-text" id="tasa-venta" aria-live="polite"></div>{% if perms.tasas_bcv.add_tasabcv %}<a id="cargar-tasa-factura" class="btn btn-outline-primary btn-sm mt-2" href="{% url 'ventas:registrar_tasa_bcv' %}?next={{ request.get_full_path|urlencode }}">Cargar tasa Bs</a>{% endif %}</div>
+        <div class="col-md-8"><label for="{{ form.cliente.id_for_label }}" class="form-label">Cliente</label>{{ form.cliente }}{{ form.cliente.errors }}{% if ofertas_habilitadas %}<div id="aviso-tarjeta" class="mt-2" aria-live="polite" hidden><span></span> <a>Ver tarjeta</a></div>{% endif %}{% if perms.clientes.add_cliente %}<a id="crear-cliente-factura" class="btn btn-primary btn-sm mt-2" href="{% url 'clientes:crear_cliente' %}?next={{ request.get_full_path|urlencode }}"><i class="bi bi-person-plus me-1"></i>Crear cliente</a><small class="d-block text-muted">Se abre en esta misma pestaña y conserva la factura al regresar.</small>{% endif %}</div>
     </div></div>
+    {% if ofertas_habilitadas %}
+    <div class="card card-body mb-4">
+      <div class="row g-3">
+        <div class="col-md-4">{{ form.entidad.label_tag }} {{ form.entidad }}{{ form.entidad.errors }}</div>
+        <div class="col-md-4"><label for="id_cita_id">Cita del cliente (opcional)</label>
+          <select id="id_cita_id" name="cita_id" class="form-select" data-inicial="{{ form.cita_id.value|default_if_none:'' }}"><option value="">Sin cita</option></select>{{ form.cita_id.errors }}</div>
+        <div class="col-md-4">{{ form.hora_atencion.label_tag }} <select id="id_hora_atencion" name="hora_atencion" class="form-select" data-inicial="{{ form.hora_atencion.value|default_if_none:'' }}"><option value="">Selecciona una hora</option></select>{{ form.hora_atencion.errors }}</div>
+      </div>
+      <small>Para Happy Hour, selecciona la cita o indica la hora en que se atendió al cliente.</small>
+      <div id="estado-ofertas" role="status"></div>
+    </div>
+    {% endif %}
     <div class="card card-body mb-4">
         <div class="row g-3 align-items-end">
             <div class="col-md-5"><div class="form-check">{{ form.aplicar_descuento }}<label class="form-check-label" for="{{ form.aplicar_descuento.id_for_label }}">{{ form.aplicar_descuento.label }}</label></div>{{ form.aplicar_descuento.errors }}</div>
@@ -33,10 +45,18 @@
         </table></div>
         <button type="button" class="btn btn-outline-primary align-self-start" id="agregar-linea">Añadir servicio</button>
     </div>
+    <details class="card card-body mb-3" {% if form.codigo_regalo.value or form.codigo_regalo.errors %}open{% endif %}>
+        <summary>¿Tiene una tarjeta de regalo?</summary>
+        <div class="d-flex align-items-end flex-wrap gap-2 mt-2">
+            <div>{{ form.codigo_regalo.label_tag }}{{ form.codigo_regalo }}{{ form.codigo_regalo.errors }}</div>
+            <button type="button" id="consultar-regalo" class="btn btn-outline-primary">Consultar tarjeta</button>
+        </div>
+        <div id="estado-regalo" aria-live="polite"></div>
+    </details>
     <section id="resumen-venta" class="card card-body mb-3" aria-label="Resumen de factura" aria-live="polite">
         <div class="d-flex justify-content-end"><table class="table table-sm mb-0" style="width:100%;max-width:420px"><tbody>
             <tr data-fila-descuento hidden><th scope="row" class="text-end">Importe completo USD</th><td class="text-end text-nowrap" data-resumen="bruto-usd">—</td></tr>
-            <tr data-fila-descuento hidden><th scope="row" class="text-end">Descuento (<span id="resumen-porcentaje-descuento">0.00</span>%) USD</th><td class="text-end text-nowrap" data-resumen="descuento-usd">—</td></tr>
+            <tr data-fila-descuento hidden><th scope="row" class="text-end">Descuento y promociones USD<span id="resumen-porcentaje-descuento" hidden></span></th><td class="text-end text-nowrap" data-resumen="descuento-usd">—</td></tr>
             <tr data-fila-descuento hidden><th scope="row" class="text-end">Descuento Bs.</th><td class="text-end text-nowrap" data-resumen="descuento-bs">—</td></tr>
             <tr><th scope="row" class="text-end">Base imponible USD</th><td class="text-end text-nowrap" data-resumen="base-usd">—</td></tr>
             <tr><th scope="row" class="text-end">Base imponible Bs.</th><td class="text-end text-nowrap" data-resumen="base-bs">—</td></tr>
@@ -74,6 +94,12 @@
     <div class="alert alert-warning">Después de guardar no podrás editar ni eliminar el documento. Para corregirlo tendrás que emitir un Reverso.</div>
     <div class="d-flex justify-content-end gap-2"><a href="{% url 'ventas:lista' %}" class="btn btn-secondary">Cancelar</a><button type="submit" class="btn btn-primary" id="guardar-venta" data-config-valida="{{ error_config|yesno:'false,true' }}" disabled>Guardar venta</button></div>
 </form>
+{% if ofertas_habilitadas %}
+<section id="panel-tarjeta" hidden aria-label="Detalle de fidelidad">
+  <button type="button" class="btn btn-secondary mb-3">Volver a la factura</button>
+  <div aria-live="polite"></div>
+</section>
+{% endif %}
 <template id="linea-vacia"><tr class="linea-venta">
     <td>{{ lineas.empty_form.servicio }}</td><td>{{ lineas.empty_form.barbero }}</td><td class="text-end">{{ lineas.empty_form.cantidad_servicio }}</td>
     <td class="precio-linea">{{ lineas.empty_form.precio_unitario_usd }}<small class="modo-precio text-muted"></small></td><td class="subtotal-linea text-end">—</td>
@@ -110,7 +136,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const saldo = document.getElementById("saldo-pagos");
     const guardar = document.getElementById("guardar-venta");
     let tasa = null;
-    let version = 0;
+    let regalo = null;
+    let turnoRegalo = 0;
+    const codigoRegalo = document.getElementById("id_codigo_regalo");
+    const estadoRegalo = document.getElementById("estado-regalo");
+    const botonRegalo = document.getElementById("consultar-regalo");
+    let version = 0, versionOfertas = 0, ofertas = {}, fidelidad = [], ofertasListas = true;
+    const selectorCliente = document.getElementById("id_cliente");
+    const selectorEntidad = document.getElementById("id_entidad");
+    const selectorCita = document.getElementById("id_cita_id");
+    const horaAtencion = document.getElementById("id_hora_atencion");
+    const estadoOfertas = document.getElementById("estado-ofertas");
     const centavos = valor => {
         const texto = String(valor || "0").trim();
         if (!/^\d+(\.\d{1,2})?$/.test(texto)) return null;
@@ -133,6 +169,7 @@ document.addEventListener("DOMContentLoaded", function () {
         let brutoUsd = 0n, rebajaUsd = 0n, rebajaBs = 0n;
         let usd = 0n, bs = 0n, impuesto = 0n;
         let serviciosValidos = true, serviciosActivos = 0;
+        const canjes = new Set();
         cuerpo.querySelectorAll(".linea-venta").forEach(fila => {
             const servicio = fila.querySelector(".servicio-venta");
             const textoCantidad = fila.querySelector(".cantidad-venta").value;
@@ -157,7 +194,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 serviciosActivos++;
                 if (!servicio.value || !fila.querySelector('select[name$="-barbero"]').value || cantidad <= 0n || cantidad > 10000n || precioLeido === null || (manual && precio <= 0n)) serviciosValidos = false;
                 const porcentajeLinea = retenciones[servicio.value] ? porcentaje : 0n;
-                const rebaja = descuentoValido ? dividir(subtotal * rebajaPct, 10000n) : 0n;
+                const gratis = precio > 0n && cantidad > 0n && fidelidad.includes(Number(servicio.value)) && !canjes.has(servicio.value);
+                if (gratis) {
+                    canjes.add(servicio.value);
+                    fila.querySelector('.modo-precio').textContent += ' · 1 corte gratis por fidelidad';
+                }
+                const brutoCobrado = subtotal - (gratis ? precio : 0n);
+                const oferta = ofertas[servicio.value];
+                const pctOferta = oferta ? centavos(oferta.porcentaje) : 0n;
+                const usarOferta = brutoCobrado > 0n && oferta && pctOferta >= (rebajaPct ?? 0n);
+                const pctLinea = usarOferta ? pctOferta : rebajaPct;
+                if (usarOferta) fila.querySelector('.modo-precio').textContent += ' · ' + oferta.nombre + ' (' + oferta.porcentaje + '%)';
+                const rebaja = (gratis ? precio : 0n) + (descuentoValido ? dividir(brutoCobrado * pctLinea, 10000n) : 0n);
                 brutoUsd += subtotal; rebajaUsd += rebaja;
                 usd += dividir((subtotal - rebaja) * 10000n, 10000n + porcentajeLinea);
                 const bolivares = tasa ? dividir((subtotal - rebaja) * tasa, 100n) : 0n;
@@ -173,31 +221,66 @@ document.addEventListener("DOMContentLoaded", function () {
             "base-usd": usd, "base-bs": tasa ? bs : null, "iva-bs": tasa ? impuesto : null,
             "total-usd": tasa ? totalUsd : null, "total-bs": tasa ? totalBs : null};
         for (const [nombre, valor] of Object.entries(valores)) resumen.querySelector('[data-resumen="' + nombre + '"]').textContent = valor === null ? "—" : monto(valor);
-        resumen.querySelectorAll('[data-fila-descuento]').forEach(fila => fila.hidden = !aplicarDescuento.checked);
+        resumen.querySelectorAll('[data-fila-descuento]').forEach(fila => fila.hidden = !aplicarDescuento.checked && rebajaUsd === 0n);
         document.getElementById("resumen-porcentaje-descuento").textContent = descuentoValido ? monto(rebajaPct) : "—";
         document.getElementById("resumen-sin-tasa").hidden = !!tasa;
         let pagosUsd = 0n, pagosBs = 0n, pagosActivos = 0;
         let hayBs = false, pagosValidos = true;
         cuerpoPagos.querySelectorAll(".pago-venta").forEach(fila => {
-            const tipo = catalogo[fila.querySelector(".tipo-pago").value];
+            const selectorPago = fila.querySelector(".tipo-pago");
+            const tipo = catalogo[selectorPago.value];
+            const afecta = !!tipo && (tipo.afecta_banco ?? ["1","2","3","4"].includes(selectorPago.value));
+            const cuenta = fila.querySelector('select[name$="-cuenta_bancaria"]');
+            if (cuenta) {
+                cuenta.hidden = !afecta;
+                cuenta.disabled = !afecta;
+                cuenta.required = afecta;
+                const etiqueta = cuenta.previousElementSibling;
+                if (etiqueta?.tagName === "LABEL") etiqueta.hidden = !afecta;
+                if (!afecta) cuenta.value = "";
+            }
             const textoMonto = fila.querySelector(".monto-pago").value;
             const importe = centavos(textoMonto);
             const quitar = fila.querySelector('input[name$="-DELETE"]').checked;
             fila.style.opacity = quitar ? "0.4" : "1";
             fila.querySelector(".moneda-pago").textContent = tipo ? (tipo.moneda === "BS" ? "Bs." : "USD") : "—";
-            if (!quitar && (tipo || textoMonto)) {
+            const sinCobroAdicional = (!!regalo || (!!codigoRegalo.value.trim() && totalBs === 0n && canjes.size > 0)) && importe === 0n &&
+                ["referencia", "observacion", "cuenta_bancaria"].every(c =>
+                    !fila.querySelector('[name$="-' + c + '"]')?.value.trim());
+            if (!quitar && !sinCobroAdicional && (tipo || textoMonto)) {
                 pagosActivos++;
+                if (afecta && !cuenta?.value) pagosValidos = false;
                 if (!tipo || importe === null || importe <= 0n) { pagosValidos = false; return; }
                 if (tipo.moneda === "USD") pagosUsd += importe;
                 else { pagosBs += importe; hayBs = true; }
             }
         });
+        let cubiertoConTarjeta = false;
+        const regaloInnecesario = !!tasa && totalBs === 0n && canjes.size > 0 && !!codigoRegalo.value.trim();
+        let regaloValido = regaloInnecesario || !codigoRegalo.value.trim();
+        if (regaloInnecesario) {
+            estadoRegalo.textContent = "El corte de fidelidad cubre la factura. No hace falta usar la tarjeta de regalo; quedará disponible.";
+        } else if (regalo && codigoRegalo.value.trim()) {
+            const importe = centavos(regalo.monto);
+            const limite = regalo.moneda === "USD" ? totalUsd : totalBs;
+            regaloValido = !!tasa && importe > 0n && importe <= limite;
+            estadoRegalo.textContent = regaloValido
+                ? "Tarjeta activa: " + monto(importe) + " " + regalo.moneda + " · incluida en el pago."
+                : "La factura debe cubrir todo el valor de la tarjeta de regalo.";
+            if (regaloValido) {
+                cubiertoConTarjeta = importe === limite && pagosActivos === 0;
+                pagosActivos++;
+                if (regalo.moneda === "USD") pagosUsd += importe;
+                else { pagosBs += importe; hayBs = true; }
+            }
+        }
         const diferencia = hayBs && tasa ? totalBs - dividir(pagosUsd * tasa, 100n) - pagosBs : totalUsd - pagosUsd;
         const moneda = hayBs ? "Bs." : "USD";
-        const listo = !!tasa && descuentoValido && serviciosValidos && serviciosActivos > 0 && pagosValidos && (totalBs === 0n ? pagosActivos === 0 : pagosActivos > 0) && diferencia === 0n;
+        const listo = regaloValido && ofertasListas && !!tasa && descuentoValido && serviciosValidos && serviciosActivos > 0 && pagosValidos && (totalBs === 0n ? pagosActivos === 0 : pagosActivos > 0) && diferencia === 0n;
         saldo.className = "alert text-end mt-3 mb-0 " + (listo ? "alert-success" : "alert-info");
         saldo.textContent = "Pagado: " + monto(pagosUsd) + " USD + " + monto(pagosBs) + " Bs. · " + (!tasa
             ? "Falta la tasa Bs."
+            : cubiertoConTarjeta ? "La tarjeta cubre todo. Saldo pendiente: 0.00."
             : totalBs === 0n && pagosActivos === 0 ? "Total cero: no requiere pagos." : diferencia === 0n && pagosActivos > 0 ? "Total cubierto."
             : (diferencia < 0n ? "Excedente: " : "Pendiente: ") + monto(diferencia < 0n ? -diferencia : diferencia) + " " + moneda);
         if (tasa && !hayBs && pagosUsd < totalUsd) {
@@ -230,6 +313,34 @@ document.addEventListener("DOMContentLoaded", function () {
         contenedor.addEventListener("input", actualizar);
         contenedor.addEventListener("change", actualizar);
     }
+    codigoRegalo.addEventListener("input", () => {
+        turnoRegalo++;
+        regalo = null;
+        estadoRegalo.textContent = "";
+        actualizar();
+    });
+    botonRegalo.addEventListener("click", async () => {
+        const codigo = codigoRegalo.value.trim();
+        const turno = ++turnoRegalo;
+        regalo = null;
+        actualizar();
+        if (!codigo) return;
+        estadoRegalo.textContent = "Consultando tarjeta…";
+        try {
+            const token = document.querySelector('#venta-form [name="csrfmiddlewaretoken"]').value;
+            const respuesta = await fetch("{% url 'ventas:regalo_consultar' %}", {
+                method: "POST", headers: {"X-CSRFToken": token},
+                body: new URLSearchParams({codigo})
+            });
+            const datos = await respuesta.json();
+            if (turno !== turnoRegalo) return;
+            if (!respuesta.ok) throw new Error(datos.error || "No se pudo consultar la tarjeta.");
+            regalo = datos;
+            actualizar();
+        } catch (error) {
+            if (turno === turnoRegalo) estadoRegalo.textContent = error.message;
+        }
+    });
     aplicarDescuento.addEventListener("change", actualizar);
     campoDescuento.addEventListener("input", actualizar);
     fecha.addEventListener("change", cargarTasa);
@@ -243,6 +354,48 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     document.getElementById("agregar-linea").addEventListener("click", () => agregar("lineas", "linea-vacia", cuerpo, 50));
     document.getElementById("agregar-pago").addEventListener("click", () => agregar("pagos", "pago-vacio", cuerpoPagos, 20));
+    {% if ofertas_habilitadas %}
+    async function cargarOfertas(citaElegida, horaElegida = horaAtencion.value) {
+        const turno = ++versionOfertas;
+        const id = selectorCliente.value;
+        ofertas = {};
+        fidelidad = [];
+        ofertasListas = !id;
+        estadoOfertas.textContent = id ? "Consultando promociones…" : "";
+        if (!citaElegida) selectorCita.replaceChildren(new Option("Sin cita", ""));
+        if (!id) horaAtencion.replaceChildren(new Option("Selecciona una hora", ""));
+        actualizar();
+        if (!/^\d+$/.test(id)) return;
+        try {
+            const ruta = "{% url 'ventas:consultar_ofertas' 0 %}".replace(/0\/$/, id + "/");
+            const consulta = new URLSearchParams({hora: horaElegida, cita: citaElegida || "", entidad: selectorEntidad.value});
+            const respuesta = await fetch(ruta + "?" + consulta, {cache: "no-store"});
+            const datos = await respuesta.json();
+            if (turno !== versionOfertas) return;
+            if (!respuesta.ok) throw new Error(datos.error || "No se pudieron consultar las promociones.");
+            selectorCita.replaceChildren(new Option("Sin cita", ""));
+            for (const c of datos.citas) selectorCita.add(new Option(c.hora + " · " + c.prestador, c.id));
+            selectorCita.value = citaElegida || "";
+            horaAtencion.replaceChildren(new Option("Selecciona una hora", ""));
+            for (const h of datos.horas) horaAtencion.add(new Option(h, h));
+            horaAtencion.value = datos.horas.includes(horaElegida) ? horaElegida : "";
+            if (horaElegida && !horaAtencion.value && !citaElegida) return cargarOfertas("", "");
+            ofertas = datos.ofertas;
+            fidelidad = datos.fidelidad;
+            ofertasListas = true;
+            estadoOfertas.textContent = "";
+        } catch (error) {
+            if (turno !== versionOfertas) return;
+            estadoOfertas.textContent = error.message;
+        }
+        actualizar();
+    }
+    selectorCliente.addEventListener("change", () => cargarOfertas(""));
+    selectorEntidad.addEventListener("change", () => cargarOfertas(selectorCita.value));
+    selectorCita.addEventListener("change", () => cargarOfertas(selectorCita.value));
+    horaAtencion.addEventListener("change", () => cargarOfertas(selectorCita.value));
+    cargarOfertas(selectorCita.dataset.inicial, horaAtencion.dataset.inicial);
+    {% endif %}
     cargarTasa();
 });
 </script>
@@ -268,18 +421,21 @@ document.addEventListener("DOMContentLoaded", function () {
      else campo.value = valor;
     }
     const cliente = form.querySelector('[name="cliente"]');
-    if (cliente) {
+    if (cliente?.tagName === 'SELECT') {
      const anterior = cliente.value;
      const anteriores = new Set(Array.from(cliente.options, o => o.value));
      cliente.innerHTML = opciones;
      const nuevos = Array.from(cliente.options).filter(o => o.value && !anteriores.has(o.value));
      cliente.value = nuevos.length === 1 ? nuevos[0].value : anterior;
     }
+    const buscar = form.querySelector('#id_cliente_buscar');
+    if (buscar && datos.etiquetaCliente !== undefined) buscar.value = datos.etiquetaCliente;
     if (token) form.querySelector('[name="csrfmiddlewaretoken"]').value = token;
    }
   }
  } catch (_) { sessionStorage.removeItem(clave); }
- const boton = document.getElementById('crear-cliente-factura');
+ for (const id of ['crear-cliente-factura', 'cargar-tasa-factura']) {
+ const boton = document.getElementById(id);
  boton?.removeAttribute('target');
  boton?.addEventListener('click', evento => {
   try {
@@ -288,12 +444,80 @@ document.addEventListener("DOMContentLoaded", function () {
     if (campo.name && campo.name !== 'csrfmiddlewaretoken') campos[campo.name] =
      campo.type === 'checkbox' || campo.type === 'radio' ? campo.checked : campo.value;
    }
-   sessionStorage.setItem(clave, JSON.stringify({fecha: Date.now(), html: form.innerHTML, campos}));
+   sessionStorage.setItem(clave, JSON.stringify({fecha: Date.now(), html: form.innerHTML, campos, etiquetaCliente: form.querySelector("#id_cliente_buscar")?.value}));
   } catch (_) {
    evento.preventDefault();
    alert('No se pudo conservar la factura. Guarda o cancela esta factura antes de crear al cliente.');
   }
  });
+ }
 })();
 </script>
+
+{% if ofertas_habilitadas %}
+<script>
+(() => {
+ const cliente = document.getElementById('id_cliente'), aviso = document.getElementById('aviso-tarjeta');
+ if (!cliente || !aviso) return;
+ const ruta = "{% url 'ventas:tarjeta_cliente' 0 %}";
+ const panel = document.getElementById('panel-tarjeta');
+ const factura = document.getElementById('venta-form');
+ const enlace = aviso.querySelector('a');
+ const volver = panel.querySelector('button');
+ const contenido = panel.querySelector('div');
+ let consulta = 0;
+ enlace.addEventListener('click', async (evento) => {
+   evento.preventDefault();
+   const turno = ++consulta;
+   panel.hidden = false;
+   factura.hidden = true;
+   contenido.textContent = 'Cargando tarjeta…';
+   volver.focus();
+   try {
+     const respuesta = await fetch(enlace.href + '?panel=1', {cache: 'no-store'});
+     if (!respuesta.ok || respuesta.redirected) throw new Error();
+     const detalle = await respuesta.text();
+     if (turno === consulta) contenido.innerHTML = detalle;
+   } catch (_) {
+     if (turno === consulta) contenido.textContent = 'No se pudo cargar la tarjeta.';
+   }
+ });
+ volver.addEventListener('click', () => {
+   ++consulta;
+   panel.hidden = true;
+   factura.hidden = false;
+   enlace.focus();
+ });
+ async function actualizar() {
+   const id = cliente.value;
+   aviso.hidden = true;
+   if (!/^\d+$/.test(id)) return;
+   const url = ruta.replace(/0\/$/, id + '/');
+   aviso.querySelector('a').href = url;
+   aviso.querySelector('span').textContent = 'Consultando tarjeta…';
+   aviso.classList.remove('alert', 'alert-success');
+   aviso.hidden = false;
+   try {
+     const respuesta = await fetch(url + '?resumen=1');
+     if (!respuesta.ok) throw new Error();
+     const {servicios_gratis, progreso} = await respuesta.json();
+     if (cliente.value !== id) return;
+     if (!servicios_gratis.length) {
+       aviso.querySelector('span').textContent = progreso.length
+         ? progreso.map(t => t.servicio + ': ' + t.acumulados + ' de ' + t.meta + ' cortes').join(' · ')
+         : 'No hay una tarjeta de fidelidad activa.';
+       return;
+     }
+     aviso.classList.add('alert', 'alert-success');
+     aviso.querySelector('span').textContent =
+       'Corte gratis por fidelidad: se aplica automáticamente al agregar el servicio (' + servicios_gratis.join(', ') + ').';
+   } catch (_) {
+     if (cliente.value === id) aviso.querySelector('span').textContent = 'No se pudo consultar la tarjeta.';
+   }
+ }
+ cliente.addEventListener('change', actualizar);
+ actualizar();
+})();
+</script>
+{% endif %}
 {% endblock %}

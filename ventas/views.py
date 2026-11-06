@@ -1,5 +1,6 @@
 from mysql_nuevo.bloqueos import es_error_transitorio
 from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.core.paginator import Paginator
@@ -51,7 +52,19 @@ def nueva_venta(request):
     except (ValueError, KeyError, OSError, TypeError):
         catalogo = {}
         error_pagos = "Revisa ventas/config/tipos_pago.json: cada tipo debe tener id, nombre y moneda USD o BS."
-    pagos = PagosVentaFormSet(datos, prefix="pagos", form_kwargs={"catalogo": catalogo, "usuario": request.user if request.user.has_perm("ventas.view_pagoventa") else None})
+    datos_pagos = datos
+    if datos is not None and datos.get("codigo_regalo", "").strip():
+        datos_pagos = datos.copy()
+        # Una tarjeta puede cubrir todo el importe sin una segunda forma de pago.
+        for i in range(25):
+            prefijo = f"pagos-{i}-"
+            monto = datos.get(prefijo + "monto", "").strip()
+            if monto in {"", "0", "0.0", "0.00"} and not any(
+                datos.get(prefijo + campo, "").strip()
+                for campo in ("referencia", "observacion", "cuenta_bancaria")
+            ):
+                datos_pagos[prefijo + "DELETE"] = "on"
+    pagos = PagosVentaFormSet(datos_pagos, prefix="pagos", form_kwargs={"catalogo": catalogo, "exigir_cuenta": True, "usuario": request.user if request.user.has_perm("ventas.view_pagoventa") else None})
     try:
         porcentaje = leer_impuesto()
         error_config = ""
@@ -66,11 +79,15 @@ def nueva_venta(request):
         pagos_validos = pagos.is_valid()
         if cabecera_valida and detalle_valido and pagos_validos and not error_config:
             filas = [f.cleaned_data for f in lineas if f.cleaned_data and not f.cleaned_data.get("DELETE")]
+            for fila in filas:
+                fila.pop("promocion", None)
             try:
                 documento = registrar_venta(
                     fecha=form.cleaned_data["fecha"], cliente=form.cleaned_data["cliente"],
                     aplicar_descuento=form.cleaned_data["aplicar_descuento"], descuento_porcentaje=form.cleaned_data["descuento_porcentaje"],
-                    lineas=filas, pagos=[p.cleaned_data for p in pagos if p.cleaned_data and not p.cleaned_data.get("DELETE")], clave=form.cleaned_data["clave"], usuario=request.user,
+                    hora_atencion=form.cleaned_data["hora_atencion"], cita_id=form.cleaned_data["cita_id"],
+                    entidad_id=form.cleaned_data["entidad"].pk if form.cleaned_data["entidad"] else None,
+                    fidelidad_automatica=True, codigo_regalo=form.cleaned_data["codigo_regalo"], lineas=filas, pagos=[p.cleaned_data for p in pagos if p.cleaned_data and not p.cleaned_data.get("DELETE")], clave=form.cleaned_data["clave"], usuario=request.user,
                 )
             except ValidationError as error:
                 form.add_error(None, error)
@@ -88,10 +105,11 @@ def nueva_venta(request):
             else:
                 messages.success(request, f"Documento {documento} registrado.")
                 return redirect("ventas:ver", pk=documento.pk)
+    promociones = getattr(settings, "PROMOCIONES_FIDELIDAD", False) and puede_promocionar(request.user)
     precios = {str(s.pk): str(s.precio) for s in lineas.empty_form.fields["servicio"].queryset}
     retenciones = {str(s.pk): s.retencion_impuesto for s in lineas.empty_form.fields["servicio"].queryset}
     modos_precio = {str(s.pk): s.modo_precio for s in lineas.empty_form.fields["servicio"].queryset}
-    return render(request, "ventas/formulario.html", {"retenciones": retenciones, "modos_precio": modos_precio, "form": form, "lineas": lineas, "pagos": pagos, "catalogo_pagos": catalogo, "porcentaje": porcentaje, "error_config": error_config, "precios": precios})
+    return render(request, "ventas/formulario.html", {"ofertas_habilitadas": getattr(settings, "PROMOCIONES_FIDELIDAD", False), "promociones": promociones, "retenciones": retenciones, "modos_precio": modos_precio, "form": form, "lineas": lineas, "pagos": pagos, "catalogo_pagos": catalogo, "porcentaje": porcentaje, "error_config": error_config, "precios": precios})
 
 
 @login_required
@@ -143,3 +161,57 @@ def cotizacion(request):
     if not tasa:
         return JsonResponse({"error": "No hay tasa Bs para esta fecha. Regístrala antes de vender."}, status=404)
     return JsonResponse({"tasa": str(tasa.tasa_bcv)})
+
+def puede_promocionar(usuario):
+    return usuario.has_perm("ventas.change_tarjetafidelidad") or usuario.groups.filter(name__iexact="ENCARGADO").exists()
+
+
+@login_required
+@require_GET
+def tarjeta_cliente(request, pk):
+    from django.core.exceptions import PermissionDenied
+    from clientes.models import Cliente
+    from .fidelidad import tarjetas
+
+    if not request.user.has_perm("ventas.add_documentoventa"):
+        raise PermissionDenied
+    cliente = get_object_or_404(Cliente, pk=pk, activo=True)
+    resumen = request.GET.get("resumen") == "1"
+    disponibles = tarjetas(cliente, incluir_historial=not resumen)
+    if resumen:
+        return JsonResponse({
+            "servicios_gratis": [t.servicio.nombre for t in disponibles if t.disponible],
+            "progreso": [{"servicio": t.servicio.nombre, "acumulados": t.acumulados, "meta": t.cortes}
+                         for t in disponibles],
+        })
+    plantilla = "ventas/tarjeta_detalle.html" if request.GET.get("panel") == "1" else "ventas/tarjeta.html"
+    return render(request, plantilla, {"cliente": cliente, "tarjetas": disponibles})
+
+@login_required
+@require_GET
+def consultar_ofertas(request, pk):
+    from django import forms
+    from django.core.exceptions import PermissionDenied
+    from django.utils import timezone
+    from clientes.models import Cliente
+    from .promociones import citas_del_dia, horas_atencion, ofertas
+    from .fidelidad import tarjetas
+
+    if not request.user.has_perm("ventas.add_documentoventa") or not getattr(settings, "PROMOCIONES_FIDELIDAD", False):
+        raise PermissionDenied
+    cliente = get_object_or_404(Cliente, pk=pk, activo=True)
+    fecha = timezone.localdate()
+    try:
+        hora = forms.TimeField(required=False).clean(request.GET.get("hora"))
+        cita = forms.IntegerField(required=False, min_value=1, max_value=9223372036854775807).clean(request.GET.get("cita"))
+        entidad_id = forms.IntegerField(required=False, min_value=1, max_value=9223372036854775807).clean(request.GET.get("entidad"))
+        vigentes = ofertas(cliente, fecha, hora, cita, entidad_id)
+    except ValidationError as error:
+        return JsonResponse({"error": error.messages[0]}, status=400)
+    return JsonResponse({
+        "fidelidad": [t.servicio_id for t in tarjetas(cliente) if t.disponible and fecha >= t.desde],
+        "horas": [h.isoformat(timespec="seconds" if h.second else "minutes") for h in horas_atencion(fecha, entidad_id)],
+        "ofertas": {pk: {"nombre": p.nombre, "porcentaje": str(p.porcentaje)} for pk, p in vigentes.items()},
+        "citas": [{"id": c.pk, "hora": c.hora.strftime("%H:%M"), "prestador": str(c.barbero)}
+                  for c in citas_del_dia(cliente, fecha).select_related("barbero").order_by("hora", "pk")],
+    })

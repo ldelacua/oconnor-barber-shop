@@ -1,0 +1,14 @@
+<h2>{{ cliente }}</h2>
+{% include "clientes/tarjetas.html" %}
+{% if not tarjetas %}<p>No hay tarjetas activas.</p>{% endif %}
+{% for tarjeta in tarjetas %}
+<h3>Facturas · {{ tarjeta.servicio.nombre }}</h3>
+<div class="table-responsive"><table class="table">
+<thead><tr><th>Factura</th><th>Fecha</th><th class="text-end">Cortes</th><th>Estado</th></tr></thead>
+<tbody>
+{% for f in tarjeta.facturas.values %}
+<tr><td>#{{ f.numero }}</td><td>{{ f.fecha|date:"d/m/Y" }}</td><td class="text-end">{{ f.cortes }}</td>
+<td>{% if f.canje %}Canjeada en factura #{{ f.canje }}{% else %}Acumulada · ciclo actual{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4">Todavía no hay facturas que sumen cortes para esta tarjeta.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endfor %}

@@ -144,4 +144,5 @@ def citas(request):
         form.errors  # Valida los datos usados para calcular disponibilidad.
         if form.errors.get("hora") and not request.POST.get("hora"):
             form.errors.pop("hora", None)
-    return render(request, "clientes/portal.html", {"form": form, "modo": "citas", "citas": cliente.citas.select_related("barbero").prefetch_related("servicios").order_by("-fecha", "-hora")[:50]})
+    from ventas.fidelidad import tarjetas
+    return render(request, "clientes/portal.html", {"tarjetas": tarjetas(cliente), "form": form, "modo": "citas", "citas": cliente.citas.select_related("barbero").prefetch_related("servicios").order_by("-fecha", "-hora")[:50]})

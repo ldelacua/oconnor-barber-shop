@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import connection, IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from clientes.models import Cliente
@@ -262,3 +262,185 @@ class DescuentosTests(TestCase):
         self.assertContains(segunda,'Página 2 de 2')
         self.assertFalse(set(d.pk for d in primera.context['pagina']) & set(d.pk for d in segunda.context['pagina']))
         self.assertEqual(self.client.get(reverse('ventas:lista'),{'page':'999'}).context['pagina'].number,2)
+
+    @override_settings(PROMOCIONES_FIDELIDAD=True)
+    def test_fidelidad_canje_reverso_y_comision(self):
+        from ventas.fidelidad import tarjetas
+        from ventas.models import TarjetaFidelidad
+        TarjetaFidelidad.objects.create(servicio=self.servicio, cortes=1, desde=self.hoy)
+        def promocion(tipo):
+            return registrar_venta(fecha=self.hoy, cliente=self.cliente, usuario=self.user, clave=uuid.uuid4(),
+                lineas=[{"servicio": self.servicio, "barbero": self.prestador,
+                         "cantidad_servicio": 1, "promocion": tipo}], pagos=[])
+        with self.assertRaises(ValidationError):
+            promocion("FIDELIDAD")
+        self.vender()
+        self.assertTrue(tarjetas(self.cliente)[0].disponible)
+        promocion("MARKETING")
+        self.assertTrue(tarjetas(self.cliente)[0].disponible)
+        gratis = promocion("FIDELIDAD")
+        self.assertEqual(gratis.total_bs, 0)
+        self.assertEqual(gratis.detalles.get().monto_servicio, D("40.00"))
+        candidatas, _ = pendientes(self.prestador, self.hoy, self.hoy, self.hoy)
+        self.assertEqual(next(c["comision"] for c in candidatas if c["linea"].documento_id == gratis.pk), D("20.00"))
+        self.assertFalse(tarjetas(self.cliente)[0].disponible)
+        registrar_reverso(documento_id=gratis.pk, motivo="Prueba", usuario=self.user)
+        self.assertTrue(tarjetas(self.cliente)[0].disponible)
+
+    @override_settings(PROMOCIONES_FIDELIDAD=True)
+    def test_ofertas_convenio_happy_hour_y_reverso(self):
+        from datetime import time, timedelta
+        from citas.models import Cita
+        from ventas.models import EntidadConvenio, PromocionServicio
+        from ventas.promociones import ofertas
+
+        convenio = EntidadConvenio.objects.create(nombre="Gimnasio")
+        datos = {"servicio": self.servicio, "desde": self.hoy, "hasta": self.hoy}
+        PromocionServicio.objects.create(nombre="General", porcentaje=10, **datos)
+        PromocionServicio.objects.create(nombre="Convenio", porcentaje=20, entidad=convenio, **datos)
+        PromocionServicio.objects.create(nombre="Hora tranquila", porcentaje=30, dia=self.hoy.isoweekday(),
+                                         hora_desde=time(13), hora_hasta=time(15), **datos)
+        PromocionServicio.objects.create(nombre="Vencida", porcentaje=100, servicio=self.servicio,
+                                         desde=self.hoy-timedelta(days=3), hasta=self.hoy-timedelta(days=1))
+        self.assertEqual(ofertas(self.cliente, self.hoy)[self.servicio.pk].nombre, "GENERAL")
+        self.assertEqual(ofertas(self.cliente, self.hoy, time(15, 1), entidad_id=convenio.pk)[self.servicio.pk].nombre, "CONVENIO")
+        self.assertEqual(ofertas(self.cliente, self.hoy, time(15), entidad_id=convenio.pk)[self.servicio.pk].nombre, "HORA TRANQUILA")
+        from ventas.promociones import horas_atencion
+        self.assertIn(time(15), horas_atencion(self.hoy, convenio.pk))
+        cita = Cita.objects.create(cliente=self.cliente, barbero=self.prestador,
+                                   servicio=self.servicio, fecha=self.hoy, hora=time(14))
+        doc = registrar_venta(fecha=self.hoy, cliente=self.cliente, usuario=self.user, clave=uuid.uuid4(),
+                             lineas=[{"servicio": self.servicio, "barbero": self.prestador, "cantidad_servicio": 1}],
+                             pagos=[self.pago(28)], hora_atencion=time(18), cita_id=cita.pk, entidad_id=convenio.pk)
+        detalle = doc.detalles.get()
+        self.assertEqual((detalle.oferta_nombre, detalle.oferta_porcentaje, detalle.monto_servicio),
+                         ("HORA TRANQUILA", D("30"), D("40")))
+        self.assertEqual(doc.total_bs, D("280"))
+        candidatas, _ = pendientes(self.prestador, self.hoy, self.hoy, self.hoy)
+        self.assertEqual(candidatas[0]["comision"], D("20"))
+        PromocionServicio.objects.all().delete()
+        reverso = registrar_reverso(documento_id=doc.pk, motivo="Prueba", usuario=self.user)
+        self.assertEqual(reverso.detalles.get().oferta_nombre, "HORA TRANQUILA")
+        self.assertEqual(reverso.total_bs, -doc.total_bs)
+
+    def test_promocion_varios_dias_desde_administracion(self):
+        from datetime import time, timedelta
+        from ventas.admin import PromocionServicioForm
+        from ventas.promociones import ofertas
+        manana = self.hoy + timedelta(days=1)
+        form = PromocionServicioForm(data={
+            "nombre": "Hora tranquila", "servicio": self.servicio.pk,
+            "desde": self.hoy.isoformat(), "hasta": manana.isoformat(),
+            "porcentaje": "25", "activa": "on", "dias": [self.hoy.isoweekday(), manana.isoweekday()],
+            "hora_desde": "09:00", "hora_hasta": "12:00",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        promocion = form.save()
+        self.assertEqual(promocion.nombre, "HORA TRANQUILA")
+        for fecha in (self.hoy, manana):
+            self.assertEqual(ofertas(self.cliente, fecha, time(10))[self.servicio.pk], promocion)
+
+    def test_promocion_de_un_solo_dia_en_formato_local(self):
+        from datetime import timedelta
+        from ventas.admin import PromocionServicioForm, EntidadConvenioForm
+        from ventas.promociones import ofertas
+        entidad = EntidadConvenioForm({"nombre": "gimnasio", "activa": "on"})
+        self.assertTrue(entidad.is_valid(), entidad.errors)
+        entidad = entidad.save()
+        self.assertEqual(entidad.nombre, "GIMNASIO")
+        fecha = self.hoy.strftime("%d/%m/%Y")
+        form = PromocionServicioForm({"nombre": "solo hoy", "servicio": self.servicio.pk,
+            "desde": fecha, "hasta": fecha, "porcentaje": "25", "activa": "on", "entidad": entidad.pk})
+        self.assertTrue(form.is_valid(), form.errors)
+        promocion = form.save()
+        self.assertEqual(promocion.nombre, "SOLO HOY")
+        self.assertEqual(ofertas(self.cliente, self.hoy, entidad_id=entidad.pk)[self.servicio.pk], promocion)
+        for diferencia in (-1, 1):
+            self.assertFalse(ofertas(self.cliente, self.hoy + timedelta(days=diferencia), entidad_id=entidad.pk))
+
+    def test_tarjeta_regalo_canje_total_y_bloqueo(self):
+        from ventas.models import TarjetaRegalo
+        from ventas.tarjetas_regalo import activar, generar_lote
+        lote = generar_lote(2, "40.00", "USD")
+        tarjetas = list(TarjetaRegalo.objects.filter(lote=lote))
+        self.assertEqual(len({t.codigo for t in tarjetas}), 2)
+        tarjeta = tarjetas[0]
+
+        def cobrar(porcentaje=0):
+            return registrar_venta(fecha=self.hoy, cliente=self.cliente, usuario=self.user,
+                clave=uuid.uuid4(), lineas=[{"servicio": self.servicio, "barbero": self.prestador, "cantidad_servicio": 1}],
+                pagos=[], codigo_regalo=tarjeta.codigo, aplicar_descuento=bool(porcentaje), descuento_porcentaje=porcentaje)
+
+        with self.assertRaisesMessage(ValidationError, "no está activa"):
+            cobrar()
+        activar(tarjeta.codigo, self.user, "REC-1")
+        with self.assertRaisesMessage(ValidationError, "todo el valor"):
+            cobrar(50)
+        tarjeta.refresh_from_db()
+        self.assertEqual(tarjeta.estado, TarjetaRegalo.Estado.ACTIVA)
+        factura = cobrar()
+        tarjeta.refresh_from_db()
+        self.assertEqual((tarjeta.estado, tarjeta.factura_id), (TarjetaRegalo.Estado.USADA, factura.pk))
+        self.assertEqual(factura.pagos.get().monto, D("40.00"))
+        with self.assertRaisesMessage(ValidationError, "ya fue utilizada"):
+            cobrar()
+
+    @override_settings(PROMOCIONES_FIDELIDAD=True)
+    def test_corte_gratis_no_consume_tarjeta_regalo(self):
+        from ventas.models import TarjetaFidelidad, TarjetaRegalo
+        from ventas.tarjetas_regalo import activar, generar_lote
+        TarjetaFidelidad.objects.create(servicio=self.servicio, cortes=1, desde=self.hoy)
+        self.vender()
+        tarjeta = TarjetaRegalo.objects.get(lote=generar_lote(1, "40.00", "USD"))
+        activar(tarjeta.codigo, self.user, "REC-2")
+        def cobrar(cantidad):
+            return registrar_venta(fecha=self.hoy, cliente=self.cliente, usuario=self.user,
+                clave=uuid.uuid4(), lineas=[{"servicio": self.servicio, "barbero": self.prestador,
+                "cantidad_servicio": cantidad}], pagos=[], codigo_regalo=tarjeta.codigo, fidelidad_automatica=True)
+        factura = cobrar(1)
+        self.assertEqual(factura.total_bs, 0)
+        self.assertFalse(factura.pagos.exists())
+        tarjeta.refresh_from_db()
+        self.assertEqual(tarjeta.estado, TarjetaRegalo.Estado.ACTIVA)
+        self.vender()
+        factura = cobrar(2)
+        tarjeta.refresh_from_db()
+        self.assertEqual((tarjeta.estado, tarjeta.factura_id), (TarjetaRegalo.Estado.USADA, factura.pk))
+        self.assertEqual(factura.pagos.get().monto, D("40.00"))
+
+    def test_venta_tarjeta_exige_cobro_completo_y_activa_una_vez(self):
+        from ventas.models import CobroTarjetaRegalo, TarjetaRegalo
+        from ventas.tarjetas_regalo import generar_lote
+        tarjeta = TarjetaRegalo.objects.get(lote=generar_lote(1, "20.00", "USD"))
+        url = reverse("ventas:venta_tarjetas")
+        self.assertContains(self.client.get(url, {"codigo": tarjeta.codigo}), "Registrar cobro y activar")
+        datos = {"codigo": tarjeta.codigo, "tipo_pago": "5", "monto": "19.00"}
+        self.assertContains(self.client.post(url, datos), "exactamente el valor")
+        tarjeta.refresh_from_db()
+        self.assertEqual(tarjeta.estado, TarjetaRegalo.Estado.PENDIENTE)
+        datos["monto"] = "20.00"
+        self.assertRedirects(self.client.post(url, datos), url)
+        tarjeta.refresh_from_db()
+        self.assertEqual(tarjeta.estado, TarjetaRegalo.Estado.ACTIVA)
+        self.assertEqual(tarjeta.cobro.monto, D("20"))
+        self.client.post(url, datos)
+        self.assertEqual(CobroTarjetaRegalo.objects.count(), 1)
+        listado = reverse("ventas:tarjetas_regalo")
+        self.assertContains(self.client.get(listado, {"estado": "A"}), tarjeta.codigo)
+        self.assertNotContains(self.client.get(listado, {"estado": "P"}), tarjeta.codigo)
+
+    def test_codigo_corto_solo_tarjetas_activas_y_no_ambiguas(self):
+        from ventas.models import TarjetaRegalo
+        from ventas.tarjetas_regalo import activar
+        lote = uuid.uuid4()
+        def crear(codigo):
+            return TarjetaRegalo.objects.create(codigo=codigo, monto=40, moneda="USD", lote=lote)
+        primera = crear("AAAAAAAAAA234567")
+        segunda = crear("BBBBBBBBBB234567")
+        url = reverse("ventas:regalo_consultar")
+        self.assertEqual(self.client.post(url, {"codigo": "234567"}).status_code, 400)
+        activar(primera.codigo, self.user, "REC-3")
+        self.assertEqual(self.client.post(url, {"codigo": "234567"}).status_code, 200)
+        activar(segunda.codigo, self.user, "REC-4")
+        self.assertIn("código completo", self.client.post(url, {"codigo": "234567"}).json()["error"])
+        self.assertEqual(self.client.post(url, {"codigo": primera.codigo}).status_code, 200)

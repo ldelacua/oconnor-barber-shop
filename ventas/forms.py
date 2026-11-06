@@ -6,12 +6,20 @@ from django.utils import timezone
 from clientes.models import Cliente
 from barberos.models import Barbero
 from servicios.models import Servicio
+from .models import EntidadConvenio
 from citas.buscador_clientes import BuscadorClienteWidget
 
 
 class VentaForm(forms.Form):
+    codigo_regalo = forms.CharField(required=False, max_length=24, label="Código de tarjeta de regalo",
+                                  widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "off", "placeholder": "Código completo o últimos 6 caracteres"}))
     fecha = forms.DateField(initial=timezone.localdate, disabled=True, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control"}))
     cliente = forms.ModelChoiceField(queryset=Cliente.objects.filter(activo=True), widget=BuscadorClienteWidget())
+    hora_atencion = forms.TimeField(required=False, label="Hora de atención",
+        widget=forms.TimeInput(format="%H:%M", attrs={"type": "time", "class": "form-control"}))
+    entidad = forms.ModelChoiceField(queryset=EntidadConvenio.objects.filter(activa=True).order_by("nombre"),
+        required=False, label="Convenio", empty_label="Sin convenio", widget=forms.Select(attrs={"class": "form-select"}))
+    cita_id = forms.IntegerField(required=False, min_value=1, max_value=9223372036854775807)
     aplicar_descuento = forms.BooleanField(required=False, label="Aplicar descuento al cliente", widget=forms.CheckboxInput(attrs={"class": "form-check-input"}))
     descuento_porcentaje = forms.DecimalField(required=False, initial=Decimal("50.00"), max_digits=5, decimal_places=2,
         min_value=Decimal("0.01"), max_value=Decimal("100.00"), label="Descuento (%)",
@@ -39,6 +47,11 @@ class ServicioChoiceField(forms.ModelChoiceField):
 
 
 class LineaForm(forms.Form):
+    aplicar_promocion = forms.BooleanField(required=False, label="Promoción")
+    promocion = forms.ChoiceField(required=False, label="Motivo de promoción", choices=[
+        ("", "Selecciona un motivo"), ("FIDELIDAD", "Fidelidad"), ("MARKETING", "Marketing"),
+    ], widget=forms.Select(attrs={"class": "form-select promocion-venta"}))
+
     barbero = PrestadorChoiceField(
         queryset=Barbero.objects.filter(activo=True),
         label="Prestador de servicio",
@@ -52,6 +65,10 @@ class LineaForm(forms.Form):
 
     def clean(self):
         datos = super().clean()
+        if datos.get("aplicar_promocion") and not datos.get("promocion") and "promocion" not in self.errors:
+            self.add_error("promocion", "Selecciona el motivo de la promoción.")
+        if not datos.get("aplicar_promocion"):
+            datos["promocion"] = ""
         servicio = datos.get("servicio")
         if servicio and servicio.modo_precio == "manual":
             if datos.get("precio_unitario_usd") is None and "precio_unitario_usd" not in self.errors:
@@ -94,8 +111,9 @@ class PagoForm(forms.Form):
     observacion = forms.CharField(required=False, max_length=500, label="Observación", widget=forms.TextInput(attrs={"class": "form-control"}))
     monto = forms.DecimalField(max_digits=18, decimal_places=2, min_value=Decimal("0.01"), widget=forms.NumberInput(attrs={"class": "form-control monto-pago", "min": "0.01", "step": "0.01"}))
 
-    def __init__(self, *args, catalogo=None, usuario=None, **kwargs):
+    def __init__(self, *args, catalogo=None, usuario=None, exigir_cuenta=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.exigir_cuenta = exigir_cuenta
         if usuario and usuario.has_perms(('bancos.add_movimientointerno', 'bancos.view_cuentabancaria')):
             from bancos.models import CuentaBancaria
             self.fields['cuenta_bancaria'] = forms.ModelChoiceField(
@@ -113,9 +131,19 @@ class PagoForm(forms.Form):
 
     def clean(self):
         datos = super().clean()
-        tipo = self.catalogo_pagos.get(int(datos.get('tipo_pago') or 0), {})
-        if datos.get('cuenta_bancaria') and not tipo.get('afecta_banco', int(datos.get('tipo_pago') or 0) in (1, 2, 3, 4)):
+        codigo = int(datos.get('tipo_pago') or 0)
+        tipo = self.catalogo_pagos.get(codigo, {})
+        afecta = tipo.get('afecta_banco', codigo in (1, 2, 3, 4))
+        cuenta = datos.get('cuenta_bancaria')
+        if cuenta and not afecta:
             self.add_error('cuenta_bancaria', 'Esta forma de pago no afecta al banco. Deja la cuenta vacía.')
+        elif self.exigir_cuenta and afecta and not cuenta:
+            if 'cuenta_bancaria' not in self.fields:
+                self.add_error('tipo_pago', 'No tienes permiso para registrar pagos bancarios.')
+            elif 'cuenta_bancaria' not in self.errors:
+                self.add_error('cuenta_bancaria', 'Selecciona el banco y la cuenta para este pago.')
+        elif self.exigir_cuenta and cuenta and cuenta.moneda != tipo.get('moneda'):
+            self.add_error('cuenta_bancaria', 'La moneda de la cuenta debe coincidir con la del pago.')
         return datos
 
 

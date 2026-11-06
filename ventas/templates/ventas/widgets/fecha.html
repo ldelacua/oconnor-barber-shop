@@ -1,0 +1,10 @@
+<span style="display:inline-flex; align-items:center; gap:.35rem">
+  {% include "django/forms/widgets/date.html" %}
+  <span style="position:relative;display:inline-block">
+    <span aria-hidden="true">📅</span>
+    <input type="date" aria-label="Abrir calendario: {{ widget.name }}"
+      style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"
+      onclick="if(this.showPicker){try{this.showPicker()}catch(e){}}"
+      onchange="if(this.value){const campo=this.parentElement.previousElementSibling;campo.value=this.value.split('-').reverse().join('/');campo.dispatchEvent(new Event('change',{bubbles:true}));}">
+  </span>
+</span>

@@ -13,12 +13,18 @@ from .pagos_calculos import leer_tipos_pago, preparar_pagos, validar_pagos_guard
 
 def _validar_linea_factura(documento, linea):
     servicio = linea.servicio
+    if linea.promocion not in ('', 'FIDELIDAD', 'MARKETING') or (linea.promocion and linea.cantidad_servicio != 1):
+        raise ValidationError('La promoción solo admite una unidad por línea.')
     if (not servicio.activo or not linea.barbero_id or not linea.descripcion_barbero
         or linea.cantidad_servicio <= 0 or linea.linea_original_id is not None
         or linea.retencion_impuesto is None
         or linea.retencion_impuesto != servicio.retencion_impuesto
         or linea.impuesto_normal != (not linea.retencion_impuesto)):
         raise ValidationError("Los datos del servicio o su impuesto son inválidos.")
+    if linea.oferta_porcentaje is not None and (
+        linea.promocion or not linea.oferta_nombre or not 0 < linea.oferta_porcentaje <= 100
+    ):
+        raise ValidationError("La promoción automática no es válida.")
     manual = servicio.modo_precio == 'manual'
     if (linea.precio_manual != manual or linea.precio_unitario_usd < 0
         or (manual and linea.precio_unitario_usd <= 0)
@@ -27,7 +33,7 @@ def _validar_linea_factura(documento, linea):
     calculado = calcular_linea_segun_retencion(
         linea.precio_unitario_usd, linea.cantidad_servicio,
         Decimal(str(documento.tasa_bcv)), Decimal(str(documento.impuesto)),
-        Decimal(str(documento.descuento_porcentaje)), linea.retencion_impuesto)
+        Decimal("100") if linea.promocion else (linea.oferta_porcentaje if linea.oferta_porcentaje is not None else Decimal(str(documento.descuento_porcentaje))), linea.retencion_impuesto)
     if any(getattr(linea, campo) != valor for campo, valor in calculado.items()):
         raise ValidationError("El precio, descuento o impuesto del servicio no coincide.")
 
@@ -37,7 +43,7 @@ def _validar_linea_reverso(documento, linea):
     anterior = linea.linea_original
     iguales = ('servicio_id', 'barbero_id', 'descripcion_barbero', 'codigo_servicio',
                'descripcion_servicio', 'cantidad_servicio', 'precio_manual',
-               'retencion_impuesto', 'impuesto_normal')
+               'retencion_impuesto', 'impuesto_normal', 'promocion', 'oferta_nombre', 'oferta_porcentaje')
     negativos = ('precio_unitario_usd', 'monto_servicio', 'monto_servicio_bs',
                  'monto_impuesto', 'monto_descuento_usd', 'monto_descuento_bs')
     if (not original or not anterior or anterior.documento_id != original.pk
@@ -150,7 +156,7 @@ def _sellar(documento):
 
 
 @transaction.atomic
-def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_descuento=False, descuento_porcentaje=Decimal("50.00")):
+def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_descuento=False, descuento_porcentaje=Decimal("50.00"), hora_atencion=None, cita_id=None, entidad_id=None, fidelidad_automatica=False, codigo_regalo=""):
     from mysql_nuevo.bloqueos import serializar_operacion
     serializar_operacion()
     existente = DocumentoVenta.objects.filter(clave_operacion=clave, sellado=True).first()
@@ -173,7 +179,26 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
             raise ValueError()
     except (ValueError, ArithmeticError):
         raise ValidationError("El descuento debe estar entre 0.01 y 100, con dos decimales como máximo.")
+    from django.conf import settings
+    from .promociones import horas_atencion, ofertas
+    if getattr(settings, "PROMOCIONES_FIDELIDAD", False) and hora_atencion and not cita_id:
+        if hora_atencion not in horas_atencion(fecha, entidad_id):
+            raise ValidationError("Selecciona una hora de atención disponible para este día y convenio.")
+    vigentes = ofertas(cliente, fecha, hora_atencion, cita_id, entidad_id) if getattr(settings, "PROMOCIONES_FIDELIDAD", False) else {}
     preparadas = []
+    canjes = set()
+    elegibles = set()
+    if any(l.get("promocion") for l in lineas):
+        from django.conf import settings
+        if not getattr(settings, "PROMOCIONES_FIDELIDAD", False):
+            raise ValidationError("Las promociones no están habilitadas en este entorno.")
+        if not usuario.has_perm("ventas.change_tarjetafidelidad") and not usuario.groups.filter(name__iexact="ENCARGADO").exists():
+            raise ValidationError("Solo el encargado o administrador puede autorizar promociones.")
+    if fidelidad_automatica and getattr(settings, "PROMOCIONES_FIDELIDAD", False) or any(l.get("promocion") for l in lineas):
+        from .fidelidad import tarjetas
+        cliente = Cliente.objects.select_for_update().get(pk=cliente.pk, activo=True)
+        elegibles = {t.servicio_id for t in tarjetas(cliente) if t.disponible and fecha >= t.desde}
+
     for linea in lineas:
         servicio = Servicio.objects.get(pk=linea["servicio"].pk, activo=True)
         barbero = Barbero.objects.get(pk=linea["barbero"].pk, activo=True)
@@ -191,14 +216,37 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
         cantidad = linea["cantidad_servicio"]
         if isinstance(cantidad, bool) or not isinstance(cantidad, int) or not 1 <= cantidad <= 10000:
             raise ValidationError("La cantidad debe estar entre 1 y 10000.")
-        importes = calcular_linea_segun_retencion(precio, cantidad, tasa.tasa_bcv, impuesto, descuento, servicio.retencion_impuesto)
-        preparadas.append({
-            "barbero": barbero, "descripcion_barbero": f"{barbero.nombre} {barbero.apellido}",
-            "servicio": servicio, "codigo_servicio": servicio.codigo,
-            "descripcion_servicio": servicio.nombre,
-            "cantidad_servicio": linea["cantidad_servicio"],
-            "precio_unitario_usd": precio, "precio_manual": manual, "retencion_impuesto": servicio.retencion_impuesto, "impuesto_normal": not servicio.retencion_impuesto, **importes,
-        })
+        promocion = linea.get("promocion") or ""
+        if promocion:
+            if promocion not in ("FIDELIDAD", "MARKETING") or cantidad != 1 or precio <= 0:
+                raise ValidationError("Cada línea de promoción debe tener una unidad y un precio normal positivo.")
+            if promocion == "FIDELIDAD":
+                if servicio.pk not in elegibles or servicio.pk in canjes:
+                    raise ValidationError("El cliente no tiene un corte gratis disponible para este servicio.")
+                canjes.add(servicio.pk)
+        partes = [(cantidad, promocion)]
+        if (fidelidad_automatica and not promocion and precio > 0
+                and servicio.pk in elegibles and servicio.pk not in canjes):
+            canjes.add(servicio.pk)
+            partes = [(1, "FIDELIDAD")]
+            if cantidad > 1:
+                partes.append((cantidad - 1, ""))
+        for cantidad, promocion in partes:
+            oferta = vigentes.get(servicio.pk) if not promocion else None
+            if oferta and oferta.porcentaje < descuento:
+                oferta = None
+            porcentaje_linea = Decimal("100") if promocion else oferta.porcentaje if oferta else descuento
+            importes = calcular_linea_segun_retencion(precio, cantidad, tasa.tasa_bcv, impuesto,
+                                                       porcentaje_linea, servicio.retencion_impuesto)
+            preparadas.append({
+                "barbero": barbero, "descripcion_barbero": f"{barbero.nombre} {barbero.apellido}",
+                "servicio": servicio, "codigo_servicio": servicio.codigo,
+                "descripcion_servicio": servicio.nombre,
+                "cantidad_servicio": cantidad, "promocion": promocion,
+                "oferta_nombre": oferta.nombre if oferta else "",
+                "oferta_porcentaje": oferta.porcentaje if oferta else None,
+                "precio_unitario_usd": precio, "precio_manual": manual, "retencion_impuesto": servicio.retencion_impuesto, "impuesto_normal": not servicio.retencion_impuesto, **importes,
+            })
     if not preparadas:
         raise ValidationError("Añade al menos un servicio.")
     totales = {
@@ -212,12 +260,22 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
         raise ValidationError("El importe supera la capacidad del documento. Revisa la tasa y las cantidades.")
     try:
         total_bs = totales["subtotal_bs"] + totales["total_impuesto_bs"]
+        tarjeta = None
+        if total_bs == 0 and canjes:
+            codigo_regalo = ""  # Fidelidad cubrió la factura; no tocar la tarjeta.
+        catalogo = dict(leer_tipos_pago()) if pagos or codigo_regalo else {}
+        if codigo_regalo:
+            from .tarjetas_regalo import preparar_canje
+            tarjeta, pagos, tipo_regalo = preparar_canje(codigo_regalo, total_bs, tasa.tasa_bcv, pagos)
+            if tipo_regalo["id"] in catalogo:
+                raise ValidationError("El código interno de pago de tarjetas ya está ocupado.")
+            catalogo[tipo_regalo["id"]] = tipo_regalo
         if total_bs == 0:
             if pagos:
                 raise ValueError("El total es cero: no registres pagos para este documento.")
             pagos_preparados = []
         else:
-            pagos_preparados = preparar_pagos(pagos, total_bs, tasa.tasa_bcv, leer_tipos_pago())
+            pagos_preparados = preparar_pagos(pagos, total_bs, tasa.tasa_bcv, catalogo)
     except (ValueError, KeyError, OSError, ArithmeticError) as error:
         raise ValidationError(str(error)) from error
     documento = DocumentoVenta.objects.create(
@@ -235,6 +293,9 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
     _sellar(documento)
     from bancos.vinculacion import vincular_pagos_nuevos
     vincular_pagos_nuevos(usuario, 'SERVICIOS', pagos, creados)
+    if tarjeta:
+        from .tarjetas_regalo import confirmar_canje
+        confirmar_canje(tarjeta, documento)
     return documento
 
 
@@ -271,7 +332,8 @@ def registrar_reverso(*, documento_id, motivo, usuario):
             impuesto_normal=linea.impuesto_normal,
             base_imponible_usd=-linea.base_imponible_usd if linea.base_imponible_usd is not None else None,
             base_imponible_bs=-linea.base_imponible_bs if linea.base_imponible_bs is not None else None,
-            precio_manual=linea.precio_manual, linea_original=linea,
+            precio_manual=linea.precio_manual, linea_original=linea, promocion=linea.promocion,
+            oferta_nombre=linea.oferta_nombre, oferta_porcentaje=linea.oferta_porcentaje,
             monto_descuento_usd=-linea.monto_descuento_usd,
             monto_descuento_bs=-linea.monto_descuento_bs,
         )

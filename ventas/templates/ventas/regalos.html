@@ -1,0 +1,22 @@
+{% extends base_regalos %}
+{% block content %}
+<h2>Tarjetas de regalo</h2>
+{% if ambiente_admin %}<p><a href="{% url 'admin:index' %}">Volver a Administración</a></p>{% endif %}
+<div class="row g-3 mb-4">
+{% if perms.ventas.add_tarjetaregalo %}
+<div class="col-md-6"><form method="post" class="card card-body">{% csrf_token %}
+<h3>Generar e imprimir</h3>{{ lote.as_p }}<button name="accion" value="generar" class="btn btn-primary">Generar PDF</button>
+</form></div>{% endif %}
+</div>
+<form method="get" class="d-flex gap-2 mb-3">
+<label for="estado-tarjeta">Estado</label><select id="estado-tarjeta" name="estado">
+{% for valor, nombre in estados %}<option value="{{ valor }}"{% if valor == estado %} selected{% endif %}>{{ nombre }}</option>{% endfor %}
+</select><button class="btn btn-outline-primary">Filtrar</button>
+</form>
+<table class="table"><thead><tr><th>Código</th><th>Valor</th><th>Estado</th><th>Comprobante de venta</th><th>Canje</th><th>Imprimir</th></tr></thead>
+<tbody>{% for t in pagina %}<tr><td>{{ t.codigo }}</td><td>{{ t.monto }} {{ t.moneda }}</td><td>{{ t.get_estado_display }}</td>
+<td>{{ t.referencia_venta|default:"—" }}</td><td>{{ t.factura_id|default:"—" }}</td><td><a href="{% url 'ventas:regalo_pdf' t.lote %}">PDF del lote</a></td></tr>
+{% empty %}<tr><td colspan="6">Todavía no hay tarjetas.</td></tr>{% endfor %}</tbody></table>
+{% if pagina.has_previous %}<a href="?estado={{ estado|urlencode }}&amp;pagina={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+{% if pagina.has_next %}<a href="?estado={{ estado|urlencode }}&amp;pagina={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+{% endblock %}

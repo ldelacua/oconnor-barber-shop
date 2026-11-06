@@ -11,3 +11,5 @@ DATABASES['default'] = dict(DATABASES['default'])
 DATABASES['default']['NAME'] = BASE_COMISIONES
 MIGRATION_MODULES = dict(MIGRATION_MODULES)
 MIGRATION_MODULES['mysql_nuevo'] = 'mysql_nuevo.esquema_programas_pruebas'
+
+PROMOCIONES_FIDELIDAD = True

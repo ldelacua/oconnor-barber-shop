@@ -35,6 +35,7 @@ body{margin:2rem auto;padding:0 1rem;max-width:46rem;background:#171511;color:#f
 <div class="acciones"><button name="accion" value="reservar">Agendar cita</button>
 <button class="salir" name="salir" value="1" formnovalidate>Salir</button></div></form></section>
 <section aria-labelledby="mis-citas">
+{% include "clientes/tarjetas.html" %}
 <h2 id="mis-citas">Mis citas</h2>
 <ul>{% for cita in citas %}<li>{{ cita.fecha|date:"d/m/Y" }} · {{ cita.hora|time:"H:i" }} · {{ cita.barbero }} · {{ cita.get_estado_display }}</li>{% empty %}<li>Todavía no tienes citas.</li>{% endfor %}</ul>
 </section></div>

@@ -59,9 +59,12 @@ def reglas(nombre, metodo='GET', datos=None):
         acciones={'listar_citas':'view','agenda_citas':'view','crear_cita':'add','editar_cita':'change','eliminar_cita':'delete','cambiar_estado_cita':'change','consultar_disponibilidad':'view'}
         return p('citas.cita',acciones[ruta]) if ruta in acciones else []
     if ns=='ventas':
+        if ruta in {'tarjetas_regalo','regalo_pdf'}:return p('ventas.tarjetaregalo')
+        if ruta=='venta_tarjetas':return [('ventas.view_tarjetaregalo','ventas.change_tarjetaregalo')]
+        if ruta=='regalo_consultar':return p('ventas.documentoventa','add')
         if ruta=='registrar_tasa_bcv':return p('tasas_bcv.tasabcv','add')
         if ruta=='consulta_pagos':return p('ventas.pagoventa')
-        acciones={'lista':'view','ver':'view','crear':'add','cotizacion':'view','reporte_servicios':'view','reversar':'delete'}
+        acciones={'lista':'view','ver':'view','crear':'add','tarjeta_cliente':'add','consultar_ofertas':'add','cotizacion':'view','reporte_servicios':'view','reversar':'delete'}
         return p('ventas.documentoventa',acciones[ruta]) if ruta in acciones else []
     if ns=='gastos':
         if ruta.startswith('catalogo'):

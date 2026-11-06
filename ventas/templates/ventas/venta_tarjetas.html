@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block content %}
+<h2>Venta de tarjetas</h2>
+<form method="get" class="d-flex gap-2 mb-3">
+<label for="codigo-tarjeta">Código</label>
+<input id="codigo-tarjeta" name="codigo" value="{{ codigo }}" maxlength="24" autocomplete="off" required>
+<button class="btn btn-outline-primary">Buscar tarjeta</button>
+</form>
+{% if tarjeta %}
+<form method="post" class="card card-body mb-3">{% csrf_token %}
+<input type="hidden" name="codigo" value="{{ tarjeta.codigo }}">
+<h3>Tarjeta {{ tarjeta.codigo }} · {{ tarjeta.monto }} {{ tarjeta.moneda }}</h3>
+<p>La tarjeta se activa al guardar el cobro completo. No se agregan impuestos.</p>
+{% if total_bs is not None %}<p><strong>Importe exacto: {{ total_bs|monto_venta }} Bs. o {{ total_usd|monto_venta }} USD.</strong></p>{% else %}<p>Registra la tasa Bs de hoy antes de cobrar.</p>{% endif %}
+{{ pago.as_p }}
+<div><button class="btn btn-primary">Registrar cobro y activar</button>
+{% if perms.tasas_bcv.add_tasabcv %}<a class="btn btn-outline-primary" href="{% url 'ventas:registrar_tasa_bcv' %}?next={{ request.get_full_path|urlencode }}">Cargar tasa Bs</a>{% endif %}</div>
+</form>
+{% elif codigo %}<p role="status">No se encontró una tarjeta pendiente con ese código.</p>{% endif %}
+<h3>Tarjetas pendientes</h3>
+<table class="table"><thead><tr><th>Código</th><th>Valor</th><th>Acción</th></tr></thead>
+<tbody>{% for t in pagina %}<tr><td>{{ t.codigo }}</td><td>{{ t.monto }} {{ t.moneda }}</td><td><a href="?codigo={{ t.codigo|urlencode }}">Cobrar</a></td></tr>
+{% empty %}<tr><td colspan="3">No hay tarjetas pendientes.</td></tr>{% endfor %}</tbody></table>
+{% if pagina.has_previous %}<a href="?pagina={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+{% if pagina.has_next %}<a href="?pagina={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+<a href="{% url 'ventas:lista' %}">Regresar a Ventas</a>
+{% endblock %}

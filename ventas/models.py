@@ -139,6 +139,11 @@ class DetalleVenta(Inmutable):
     base_imponible_usd = models.DecimalField(max_digits=18, decimal_places=2, null=True, editable=False)
     base_imponible_bs = models.DecimalField(max_digits=18, decimal_places=2, null=True, editable=False)
 
+    oferta_nombre = models.CharField(max_length=120, blank=True, default="")
+    oferta_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, null=True, editable=False)
+    promocion = models.CharField(max_length=10, blank=True, default="", choices=[
+        ("FIDELIDAD", "Corte gratis por fidelidad"), ("MARKETING", "Promoción de marketing"),
+    ])
     precio_manual = models.BooleanField(default=False)
     monto_descuento_usd = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     monto_descuento_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
@@ -212,3 +217,131 @@ class PagoVenta(Inmutable):
                 except (ValidationError, ValueError, TypeError, ArithmeticError) as error:
                     raise IntegrityError("Pago de factura inválido.") from error
             return super().save(*args, **kwargs)
+
+
+class TarjetaFidelidad(models.Model):
+    servicio = models.OneToOneField("servicios.Servicio", on_delete=models.PROTECT)
+    cortes = models.PositiveSmallIntegerField()
+    desde = models.DateField(default=timezone.localdate)
+    activa = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.servicio}: {self.cortes} PAGADOS Y EL SIGUIENTE GRATIS".upper()
+
+    class Meta:
+        verbose_name = "Tarjeta de fidelidad"
+        verbose_name_plural = "Tarjetas de fidelidad"
+        constraints = [models.CheckConstraint(condition=models.Q(cortes__gt=0), name="ventas_tarjeta_cortes_positivos")]
+
+
+class EntidadConvenio(models.Model):
+    nombre = models.CharField(max_length=120, unique=True)
+    activa = models.BooleanField(default=True)
+    clientes = models.ManyToManyField("clientes.Cliente", blank=True, related_name="convenios")
+
+    def save(self, *args, **kwargs):
+        self.nombre = self.nombre.strip().upper()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nombre
+
+    class Meta:
+        verbose_name = "Entidad de convenio"
+        verbose_name_plural = "Entidades de convenio"
+
+
+class PromocionServicio(models.Model):
+    nombre = models.CharField(max_length=120)
+    servicio = models.ForeignKey("servicios.Servicio", on_delete=models.PROTECT)
+    desde = models.DateField()
+    hasta = models.DateField()
+    porcentaje = models.DecimalField(max_digits=5, decimal_places=2)
+    activa = models.BooleanField(default=True)
+    entidad = models.ForeignKey(EntidadConvenio, null=True, blank=True, on_delete=models.PROTECT)
+    dia = models.PositiveSmallIntegerField(null=True, blank=True, choices=list(enumerate(
+        ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"), 1)))
+    dias = models.JSONField(default=list, blank=True)
+    hora_desde = models.TimeField(null=True, blank=True)
+    hora_hasta = models.TimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        self.nombre = self.nombre.strip().upper()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nombre
+
+    def clean(self):
+        super().clean()
+        if self.desde and self.hasta and self.hasta < self.desde:
+            raise ValidationError({"hasta": "La vigencia final no puede ser anterior al inicio."})
+        if self.porcentaje is not None and not 0 < self.porcentaje <= 100:
+            raise ValidationError({"porcentaje": "Indica un porcentaje mayor que cero y hasta 100."})
+        franja = (self.dia, self.hora_desde, self.hora_hasta)
+        if any(v is not None for v in franja) and (
+            any(v is None for v in franja) or self.hora_desde >= self.hora_hasta
+        ):
+            raise ValidationError("Para Happy Hour indica el día y un intervalo de horas válido del mismo día.")
+
+    class Meta:
+        verbose_name = "Promoción de servicio"
+        verbose_name_plural = "Promociones de servicios"
+        constraints = [
+            models.CheckConstraint(condition=models.Q(porcentaje__gt=0, porcentaje__lte=100), name="ventas_promo_porcentaje"),
+            models.CheckConstraint(condition=models.Q(hasta__gte=models.F("desde")), name="ventas_promo_vigencia"),
+            models.CheckConstraint(condition=(
+                models.Q(dia__isnull=True, hora_desde__isnull=True, hora_hasta__isnull=True)
+                | models.Q(dia__isnull=False, dia__range=(1, 7), hora_desde__isnull=False, hora_hasta__isnull=False,
+                           hora_hasta__gt=models.F("hora_desde"))
+            ), name="ventas_promo_franja"),
+        ]
+
+
+class TarjetaRegalo(models.Model):
+    class Estado(models.TextChoices):
+        PENDIENTE = "P", "Pendiente de venta"
+        ACTIVA = "A", "Activa"
+        USADA = "U", "Usada"
+        ANULADA = "X", "Anulada"
+
+    codigo = models.CharField(max_length=20, unique=True, editable=False)
+    lote = models.UUIDField(db_index=True, editable=False)
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+    moneda = models.CharField(max_length=3, choices=[("BS", "Bs."), ("USD", "USD")])
+    estado = models.CharField(max_length=1, choices=Estado.choices, default=Estado.PENDIENTE)
+    creada = models.DateTimeField(auto_now_add=True)
+    activada = models.DateTimeField(null=True, blank=True)
+    activada_por = models.CharField(max_length=150, blank=True)
+    referencia_venta = models.CharField(max_length=120, blank=True)
+    factura = models.OneToOneField(DocumentoVenta, null=True, blank=True, on_delete=models.PROTECT,
+                                   related_name="tarjeta_regalo")
+
+    class Meta:
+        verbose_name = "Tarjeta de regalo"
+        verbose_name_plural = "Tarjetas de regalo"
+        constraints = [
+            models.CheckConstraint(condition=models.Q(monto__gt=0), name="ventas_regalo_monto_positivo"),
+            models.CheckConstraint(condition=models.Q(moneda__in=["BS", "USD"]), name="ventas_regalo_moneda"),
+            models.CheckConstraint(condition=(
+                models.Q(estado="U", factura__isnull=False, activada__isnull=False)
+                | models.Q(estado="A", factura__isnull=True, activada__isnull=False)
+                | models.Q(estado__in=["P", "X"], factura__isnull=True)
+            ), name="ventas_regalo_estado"),
+        ]
+
+
+class CobroTarjetaRegalo(models.Model):
+    tarjeta = models.OneToOneField(TarjetaRegalo, on_delete=models.PROTECT, related_name="cobro")
+    fecha = models.DateField()
+    tipo_pago = models.PositiveIntegerField()
+    nombre_tipo_pago = models.CharField(max_length=100)
+    moneda = models.CharField(max_length=3)
+    monto = models.DecimalField(max_digits=18, decimal_places=2)
+    tasa = models.DecimalField(max_digits=18, decimal_places=2)
+    equivalente_bs = models.DecimalField(max_digits=18, decimal_places=2)
+    ajuste_redondeo_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    referencia = models.CharField(max_length=100, blank=True)
+    observacion = models.CharField(max_length=500, blank=True)
+    cuenta = models.ForeignKey("bancos.CuentaBancaria", null=True, blank=True, on_delete=models.PROTECT)
+    usuario = models.CharField(max_length=150)

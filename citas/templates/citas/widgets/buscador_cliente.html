@@ -32,7 +32,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     buscar.addEventListener("input", function () {
-        campo.value = "";
+        if (campo.value) {
+            campo.value = "";
+            campo.dispatchEvent(new Event("change", {bubbles: true}));
+        }
         const actual = ++version;
         clearTimeout(temporizador);
         if (controlador) controlador.abort();
@@ -66,6 +69,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         buscar.value = cliente.texto;
                         ayuda.textContent = "Cliente seleccionado.";
                         limpiar();
+                        campo.dispatchEvent(new Event("change", {bubbles: true}));
                         buscar.focus();
                     });
                     resultados.appendChild(boton);

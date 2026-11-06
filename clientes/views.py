@@ -39,13 +39,14 @@ def lista_clientes(request):
 
 @login_required
 def detalle_cliente(request, pk):
+    from ventas.fidelidad import tarjetas
     cliente = get_object_or_404(Cliente, pk=pk)
 
     return render(
         request,
         "clientes/detalle.html",
         {
-            "cliente": cliente,
+            "cliente": cliente, "tarjetas": tarjetas(cliente),
         },
     )
 

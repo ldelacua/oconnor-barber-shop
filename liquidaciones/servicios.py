@@ -6,7 +6,7 @@ from barberos.models import Barbero
 from tasas_bcv.models import TasaBCV
 from ventas.calculos import dinero
 from ventas.models import DetalleVenta
-from ventas.pagos_calculos import leer_tipos_pago, validar_pagos_guardados
+from ventas.pagos_calculos import leer_tipos_pago, total_en_usd, validar_pagos_guardados
 from .models import Liquidacion, DetalleLiquidacion, PagoLiquidacion
 from .pagos import preparar_pagos
 
@@ -86,24 +86,26 @@ def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usu
     total_productos = productos['resumen']['comision_usd'] if productos else Decimal('0.00')
     total_reintegros = -sum((r.comision_usd for r in reintegros), Decimal('0.00'))
     total = sum((s["comision"] for s in elegidas), Decimal("0.00")) + total_productos + total_reintegros
-    if total <= 0:
-        raise ValidationError("Los descuentos dejan un saldo cero o negativo. Quedan pendientes para una próxima liquidación con saldo a pagar.")
+    propinas_bs = sum((s["linea"].propina_bs for s in elegidas), Decimal("0.00"))
     tasa = TasaBCV.objects.filter(fecha=fecha).first()
     if not tasa:
         raise ValidationError("Registra la tasa Bs de la fecha de cancelación antes de pagar.")
     with localcontext() as contexto:
         contexto.prec = 60
-        total_bs = dinero(total * tasa.tasa_bcv)
+        total_bs = dinero(total * tasa.tasa_bcv) + propinas_bs
+    if total_bs <= 0:
+        raise ValidationError("Los ajustes dejan un saldo cero o negativo. Quedan pendientes para una próxima liquidación.")
+    total_usd_pago = total_en_usd(total_bs, tasa.tasa_bcv) if propinas_bs else total
     if total >= Decimal("10000000000000000") or total_bs >= Decimal("10000000000000000"):
         raise ValidationError("La liquidación supera el límite de importes.")
     try:
-        preparados = preparar_pagos(pagos, total_bs, tasa.tasa_bcv, leer_tipos_pago(), total_usd_objetivo=total)
+        preparados = preparar_pagos(pagos, total_bs, tasa.tasa_bcv, leer_tipos_pago(), total_usd_objetivo=total_usd_pago)
     except (ValueError, KeyError, OSError, ArithmeticError) as error:
         raise ValidationError(str(error)) from error
     liquidacion = Liquidacion.objects.create(
         prestador=prestador, nombre_prestador=f"{prestador.nombre} {prestador.apellido}",
         periodo_desde=desde, periodo_hasta=hasta, fecha_cancelacion=fecha,
-        tasa_bcv=tasa.tasa_bcv, total_comision_usd=total, total_bs=total_bs,
+        tasa_bcv=tasa.tasa_bcv, total_comision_usd=total, total_propinas_bs=propinas_bs, total_bs=total_bs,
         total_servicios_usd=sum((s["base"] for s in elegidas), Decimal("0.00")),
         registrado_por=usuario.get_username(), clave=clave,
     )
@@ -147,12 +149,13 @@ def registrar(*, prestador_id, desde, hasta, fecha, seleccion, pagos, clave, usu
         raise ValidationError("La liquidación necesita servicios originales.")
     try:
         validar_pagos_guardados(pagos_guardados, liquidacion.total_bs, liquidacion.tasa_bcv,
-                               total_usd_objetivo=liquidacion.total_comision_usd)
+                               total_usd_objetivo=total_usd_pago)
     except ValueError as error:
         raise ValidationError(str(error)) from error
     if (liquidacion.total_servicios_usd != sum((d.monto_servicio_usd for d in detalles_guardados), cero)
         or liquidacion.total_comision_usd != sum((d.comision_usd for d in detalles_guardados), cero) + total_productos + total_reintegros
-        or liquidacion.total_bs != dinero(liquidacion.total_comision_usd * liquidacion.tasa_bcv)
+        or liquidacion.total_propinas_bs != sum((d.detalle_venta.propina_bs for d in detalles_guardados), cero)
+        or liquidacion.total_bs != dinero(liquidacion.total_comision_usd * liquidacion.tasa_bcv) + liquidacion.total_propinas_bs
         or liquidacion.total_bs != sum((p.equivalente_bs + p.ajuste_redondeo_bs for p in pagos_guardados), cero)):
         raise ValidationError("Los servicios o pagos no coinciden con el total de la liquidación.")
     with connection.cursor() as cursor:

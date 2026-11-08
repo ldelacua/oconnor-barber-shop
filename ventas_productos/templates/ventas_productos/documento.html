@@ -3,6 +3,14 @@
 {% load ventas_formato %}
 {% block extra_css %}<style>@media print{nav,.col-md-2,.no-imprimir{display:none!important}main{width:100%!important;max-width:100%!important;flex:0 0 100%!important}}</style>{% endblock %}
 {% block content %}
+{% if documento.cobro_compartido %}
+<p class="alert alert-info">Cobro compartido #{{ documento.cobro_compartido.pk }} · El pago mostrado corresponde a esta factura.
+{% if perms.ventas.view_documentoventa %}
+<a href="{% url 'ventas:ver' documento.cobro_compartido.servicios_id %}">Ver factura relacionada</a>
+<a class="ms-2" href="{% url 'ventas:ver_cobro_compartido' documento.cobro_compartido.pk %}">Ver cobro completo</a>
+{% endif %}</p>
+{% endif %}
+
 <div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{{ documento }}</h2><div class="no-imprimir">
 <button class="btn btn-outline-primary" onclick="window.print()">Imprimir</button>
 <a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div></div>
@@ -10,12 +18,20 @@
 {% if documento.observacion %}<p>{{ documento.observacion|linebreaksbr }}</p>{% endif %}
 {% if documento.documento_original %}<p>Reverso de <a href="{% url 'ventas_productos:ver' documento.documento_original_id %}">{{ documento.documento_original }}</a>. Motivo: {{ documento.motivo }}</p>
 {% elif documento.reverso %}<p class="text-danger">Venta reversada por <a href="{% url 'ventas_productos:ver' documento.reverso.pk %}">{{ documento.reverso }}</a>.</p>{% endif %}
-<div class="table-responsive"><table class="table"><thead><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Precio Unitario USD</th><th class="text-end">Subtotal USD</th></tr></thead><tbody>{% for l in documento.detalles.all %}<tr><td>{{ l.descripcion }}</td><td class="text-end">{{ l.cantidad|monto_venta }}</td><td class="text-end">{{ l.precio_unitario_usd|monto_venta }}</td><td class="text-end">{{ l.subtotal_usd|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-responsive"><table class="table">
+<thead><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Precio unitario USD</th><th class="text-end">Subtotal USD</th><th class="text-end">Promoción USD</th><th class="text-end">Descuento por cantidad USD</th><th class="text-end">Neto USD sin IVA</th></tr></thead>
+<tbody>{% for fila in filas %}{% with l=fila.linea %}<tr>
+<td>{{ l.descripcion }}{% if l.promocion %}<div class="text-success">1 unidad gratis por promoción</div>{% endif %}{% if l.sin_comision %}<div class="small text-muted">Sin comisión{% if not fila.cantidad_usd %} · Sin descuento por cantidad{% endif %}</div>{% endif %}</td>
+<td class="text-end">{{ l.cantidad|monto_venta }}</td><td class="text-end">{{ l.precio_unitario_usd|monto_venta }}</td>
+<td class="text-end">{{ l.subtotal_usd|monto_venta }}</td><td class="text-end">{{ fila.promo_usd|monto_venta }}</td>
+<td class="text-end">{{ fila.cantidad_usd|monto_venta }}</td><td class="text-end">{{ l.neto_usd|monto_venta }}</td>
+</tr>{% endwith %}{% endfor %}</tbody></table></div>
 <div class="ms-auto" style="max-width:470px">
 <p class="text-end"><strong>Unidades de la factura:</strong> {{ documento.total_unidades|monto_venta }}</p>
 <table class="table"><tbody>
 <tr><th class="text-end">Subtotal</th><td class="text-end">Bs {{ documento.subtotal_bs|monto_venta }}</td></tr>
-{% if documento.descuento_porcentaje %}<tr><th class="text-end">Descuento {{ documento.descuento_porcentaje|monto_venta }} %{% if documento.umbral_descuento is not None %}<br><small class="fw-normal">Umbral: {{ documento.umbral_descuento|monto_venta }} unidades</small>{% endif %}</th><td class="text-end">Bs {{ documento.descuento_bs|monto_venta }}</td></tr>{% endif %}
+{% if promo_total_bs %}<tr><th class="text-end">Unidades gratis por promoción</th><td class="text-end">Bs {{ promo_total_bs|monto_venta }}</td></tr>{% endif %}
+{% if descuento_cantidad_bs %}<tr><th class="text-end">Descuento por cantidad{% if documento.descuento_porcentaje %} · {{ documento.descuento_porcentaje|monto_venta }} %{% endif %}{% if documento.umbral_descuento is not None %}<br><small class="fw-normal">Umbral: {{ documento.umbral_descuento|monto_venta }} unidades</small>{% endif %}</th><td class="text-end">Bs {{ descuento_cantidad_bs|monto_venta }}</td></tr>{% endif %}
 <tr><th class="text-end">Base imponible</th><td class="text-end">Bs {{ documento.base_bs|monto_venta }}</td></tr>
 <tr><th class="text-end">IVA {{ documento.iva|monto_venta }} %</th><td class="text-end">Bs {{ documento.impuesto_bs|monto_venta }}</td></tr>
 <tr class="table-light fs-5"><th class="text-end">Total general</th><td class="text-end fw-bold">Bs {{ documento.total_bs|monto_venta }}</td></tr>

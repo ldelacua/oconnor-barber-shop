@@ -83,6 +83,8 @@ class Producto(models.Model):
                                      verbose_name="Unidad de medida")
     # Columna histórica: se conserva sin utilizarla en la captura nueva.
     modelo = models.CharField("Modelo del producto", max_length=100, blank=True)
+    sin_comision = models.BooleanField("No aplica comisión en venta", default=False)
+    promocionable = models.BooleanField("Promocionable", default=False)
     nombre_producto = models.CharField("Nombre", max_length=150)
     observacion = models.TextField("Observación", blank=True)
     activo = models.BooleanField(default=True)

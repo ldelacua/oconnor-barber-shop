@@ -36,7 +36,9 @@ def reglas(nombre, metodo='GET', datos=None):
                     'nueva_cuenta':'add_cuentabancaria', 'editar_cuenta':'change_cuentabancaria'}
         return [lectura + ('bancos.' + acciones[ruta],)] if ruta in acciones else []
     if ns=='pagos':
-        if ruta in {'lista','consulta'}:return [permisos(m) for m in ['inventario.pagoproveedor','liquidaciones.pagoliquidacion','ventas.pagoventa','ventas_productos.pagoproducto']]
+        if ruta=='cobros_clientes':return [permisos(m) for m in ['ventas.pagoventa','ventas_productos.pagoproducto','ventas.tarjetaregalo']]
+        if ruta=='lista':return [permisos(m) for m in ['inventario.pagoproveedor','liquidaciones.pagoliquidacion','ventas.pagoventa','ventas_productos.pagoproducto','ventas.tarjetaregalo']]
+        if ruta=='consulta':return [permisos(m) for m in ['inventario.pagoproveedor','liquidaciones.pagoliquidacion','ventas.pagoventa','ventas_productos.pagoproducto']]
         if ruta=='reverso_proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_reversopagoproveedor')]
         if ruta=='proveedores':return [('inventario.view_compra','inventario.view_pagoproveedor')]
         if ruta=='tasa_proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_pagoproveedor')]
@@ -59,11 +61,15 @@ def reglas(nombre, metodo='GET', datos=None):
         acciones={'listar_citas':'view','agenda_citas':'view','crear_cita':'add','editar_cita':'change','eliminar_cita':'delete','cambiar_estado_cita':'change','consultar_disponibilidad':'view'}
         return p('citas.cita',acciones[ruta]) if ruta in acciones else []
     if ns=='ventas':
+        if ruta in {'historico', 'historico_prestadores', 'historico_facturas'}:return p('ventas.documentoventa')
+        if ruta=='cotizar_productos_combinados':return [('ventas.add_documentoventa','ventas_productos.add_documentoproducto')]
+        if ruta=='ver_cobro_compartido':return [('ventas.view_documentoventa','ventas_productos.view_documentoproducto')]
         if ruta in {'tarjetas_regalo','regalo_pdf'}:return p('ventas.tarjetaregalo')
         if ruta=='venta_tarjetas':return [('ventas.view_tarjetaregalo','ventas.change_tarjetaregalo')]
         if ruta=='regalo_consultar':return p('ventas.documentoventa','add')
         if ruta=='registrar_tasa_bcv':return p('tasas_bcv.tasabcv','add')
         if ruta=='consulta_pagos':return p('ventas.pagoventa')
+        if ruta=='cotizacion':return p('ventas.documentoventa') + p('ventas.documentoventa','add')
         acciones={'lista':'view','ver':'view','crear':'add','tarjeta_cliente':'add','consultar_ofertas':'add','cotizacion':'view','reporte_servicios':'view','reversar':'delete'}
         return p('ventas.documentoventa',acciones[ruta]) if ruta in acciones else []
     if ns=='gastos':
@@ -87,7 +93,7 @@ def reglas(nombre, metodo='GET', datos=None):
     if ns=='ventas_productos':
         comisiones={'escalas_comision':'view','nueva_escala_comision':'add','editar_escala_comision':'change'}
         if ruta in comisiones:return p('ventas_productos.escalacomisionproducto',comisiones[ruta])
-        if ruta=='reporte_prestador':return p('ventas_productos.documentoproducto')
+        if ruta in {'reporte_prestador', 'historico', 'historico_detalle', 'historico_prestadores', 'historico_prestador_detalle'}:return p('ventas_productos.documentoproducto')
         configuracion={'porcentajes':('porcentajeproducto','view'),'nuevo_porcentaje':('porcentajeproducto','add'),'editar_porcentaje':('porcentajeproducto','change'),
                        'descuentos':('escaladescuento','view'),'nuevo_descuento':('escaladescuento','add'),'editar_descuento':('escaladescuento','change')}
         if ruta in configuracion:

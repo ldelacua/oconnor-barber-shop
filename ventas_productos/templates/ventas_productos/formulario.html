@@ -23,12 +23,13 @@
 <div class="row g-3">{% for campo in form.visible_fields %}<div class="{% if campo.name == 'observacion' %}col-12{% else %}col-md-6{% endif %}">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
 <p class="mt-3"><strong>Tasa Bs:</strong> <output id="bcv-venta" class="text-end">CONSULTANDO…</output></p>
 <h4>Productos</h4>
-<p class="text-muted">Busca por código o nombre. El precio USD se calcula automáticamente con el último costo y el porcentaje del producto.</p>
+<p class="text-muted">Busca por código o nombre. El precio USD se calcula automáticamente con el último costo y el porcentaje del producto. Si marcas Promoción, solo una unidad de ese producto queda gratis.</p>
 {{ lineas.management_form }}{{ lineas.non_form_errors }}
-<div class="table-responsive"><table class="table align-middle" style="min-width:800px"><thead><tr><th style="width:45%">Producto · Volumen · Unidad</th><th class="text-end">Cantidad</th><th class="text-end">Precio Unitario USD</th><th class="text-end">Total USD</th><th></th></tr></thead><tbody id="lineas-cuerpo">
+<div class="table-responsive"><table class="table align-middle" style="min-width:800px"><thead><tr><th style="width:45%">Producto · Volumen · Unidad</th><th class="text-end">Cantidad</th><th class="text-end">Precio Unitario USD</th><th class="text-end">Total USD</th>{% if puede_promocionar_productos %}<th>Promoción</th>{% endif %}<th></th></tr></thead><tbody id="lineas-cuerpo">
 {% for fila in lineas %}{% include "ventas_productos/fila.html" %}{% endfor %}</tbody></table></div>
 <template id="linea-vacia">{% include "ventas_productos/fila.html" with fila=lineas.empty_form %}</template>
 <div><button type="button" class="btn btn-outline-primary" id="agregar-producto">Agregar producto</button></div>
+<p class="small text-muted mt-2 mb-0">Cantidad en unidades enteras. Si marcas Quitar, el renglón no se incluye al guardar.</p>
 <div id="resumen-factura" class="text-end mt-3" aria-live="polite"></div>
 <p id="total-venta" class="text-end fw-bold mt-3" aria-live="polite">Total: —</p>
 <h4>Formas de pago</h4><p class="text-muted">Los pagos deben cubrir exactamente el total. Puedes combinar USD y Bs.</p>
@@ -44,7 +45,7 @@
 {% endblock %}
 {% block extra_js %}
 <script src="{% static 'inventario/mayusculas.js' %}?v=7"></script>
-<script src="{% static 'inventario/buscador_productos.js' %}?v=7"></script>
-<script src="{% static 'ventas_productos/venta.js' %}?v=9"></script>
+<script src="{% static 'inventario/buscador_productos.js' %}?v=9"></script>
+<script src="{% static 'ventas_productos/venta.js' %}?v=14"></script>
 <script src="{% static 'ventas_productos/aviso.js' %}?v=7"></script>
 {% endblock %}

@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% load ventas_formato %}
-{% block title %}Venta de productos{% endblock %}
+{% block title %}Facturación de Productos{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><div><h2>Venta de productos</h2><p class="text-muted">Ventas y reversos con control de existencias.</p></div><div>
-<a class="btn btn-primary" href="{% url 'ventas_productos:nueva' %}">Nueva venta</a>
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><div><h2>Facturación de Productos</h2><p class="text-muted">Facturas y reversos con control de existencias.</p></div><div>
+<a class="btn btn-primary" href="{% url 'ventas_productos:nueva' %}">Facturación Producto</a>
 <a class="btn btn-outline-secondary" href="{% url 'inventario:productos' %}?next={{ request.get_full_path|urlencode }}">Consulta de productos</a>
 <a class="btn btn-outline-primary" href="{% url 'ventas_productos:porcentajes' %}">Porcentajes de venta</a>
 <a class="btn btn-outline-primary" href="{% url 'ventas_productos:descuentos' %}">Descuentos por cantidad</a>
 <a class="btn btn-outline-primary" href="{% url 'ventas_productos:escalas_comision' %}">Comisiones por unidades</a>
 <a class="btn btn-outline-primary" href="{% url 'ventas_productos:reporte_prestador' %}">Ventas por prestador</a>
+<a class="btn btn-outline-primary" href="{% url 'ventas_productos:historico' %}">Histórico por producto</a>
+<a class="btn btn-outline-primary" href="{% url 'ventas_productos:historico_prestadores' %}">Histórico por prestador</a>
 <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Regresar</a></div></div>
 <form class="card card-body mb-3">{{ filtros.non_field_errors }}<div class="row g-3">{% for campo in filtros %}<div class="col-md-4 col-lg-2">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
 <div class="mt-3"><button class="btn btn-primary">Consultar</button> <a class="btn btn-outline-secondary" href="{% url 'ventas_productos:lista' %}">Limpiar</a></div></form>

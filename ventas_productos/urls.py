@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .historico import historico
 
 app_name="ventas_productos"
 urlpatterns=[
@@ -14,6 +15,10 @@ urlpatterns=[
     path("comisiones/nueva/", views.editar_escala_comision, name="nueva_escala_comision"),
     path("comisiones/<int:pk>/", views.editar_escala_comision, name="editar_escala_comision"),
     path("reporte-prestador/", views.reporte_prestador, name="reporte_prestador"),
+    path("historico-prestadores/", historico, {"por_prestador": True}, name="historico_prestadores"),
+    path("historico-prestadores/<int:vendedor_id>/", historico, {"por_prestador": True}, name="historico_prestador_detalle"),
+    path("historico/", historico, name="historico"),
+    path("historico/<int:producto_id>/", historico, name="historico_detalle"),
     path("",views.lista,name="lista"),
     path("nueva/",views.nueva,name="nueva"),
     path("condiciones/",views.condiciones,name="condiciones"),

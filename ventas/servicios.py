@@ -12,6 +12,8 @@ from .pagos_calculos import leer_tipos_pago, preparar_pagos, validar_pagos_guard
 
 
 def _validar_linea_factura(documento, linea):
+    if any(not 0 <= importe < Decimal("1000000000000") for importe in (linea.propina_usd, linea.propina_bs)):
+        raise ValidationError("La propina debe ser un importe positivo o cero.")
     servicio = linea.servicio
     if linea.promocion not in ('', 'FIDELIDAD', 'MARKETING') or (linea.promocion and linea.cantidad_servicio != 1):
         raise ValidationError('La promoción solo admite una unidad por línea.')
@@ -22,7 +24,7 @@ def _validar_linea_factura(documento, linea):
         or linea.impuesto_normal != (not linea.retencion_impuesto)):
         raise ValidationError("Los datos del servicio o su impuesto son inválidos.")
     if linea.oferta_porcentaje is not None and (
-        linea.promocion or not linea.oferta_nombre or not 0 < linea.oferta_porcentaje <= 100
+        linea.promocion == "MARKETING" or not linea.oferta_nombre or not 0 < linea.oferta_porcentaje <= 100
     ):
         raise ValidationError("La promoción automática no es válida.")
     manual = servicio.modo_precio == 'manual'
@@ -33,7 +35,7 @@ def _validar_linea_factura(documento, linea):
     calculado = calcular_linea_segun_retencion(
         linea.precio_unitario_usd, linea.cantidad_servicio,
         Decimal(str(documento.tasa_bcv)), Decimal(str(documento.impuesto)),
-        Decimal("100") if linea.promocion else (linea.oferta_porcentaje if linea.oferta_porcentaje is not None else Decimal(str(documento.descuento_porcentaje))), linea.retencion_impuesto)
+        linea.oferta_porcentaje if linea.oferta_porcentaje is not None else (Decimal("100") if linea.promocion else Decimal(str(documento.descuento_porcentaje))), linea.retencion_impuesto)
     if any(getattr(linea, campo) != valor for campo, valor in calculado.items()):
         raise ValidationError("El precio, descuento o impuesto del servicio no coincide.")
 
@@ -45,7 +47,7 @@ def _validar_linea_reverso(documento, linea):
                'descripcion_servicio', 'cantidad_servicio', 'precio_manual',
                'retencion_impuesto', 'impuesto_normal', 'promocion', 'oferta_nombre', 'oferta_porcentaje')
     negativos = ('precio_unitario_usd', 'monto_servicio', 'monto_servicio_bs',
-                 'monto_impuesto', 'monto_descuento_usd', 'monto_descuento_bs')
+                 'monto_impuesto', 'monto_descuento_usd', 'monto_descuento_bs', 'propina_usd', 'propina_bs')
     if (not original or not anterior or anterior.documento_id != original.pk
         or any(getattr(linea, c) != getattr(anterior, c) for c in iguales)
         or any(getattr(linea, c) != -getattr(anterior, c) for c in negativos)):
@@ -115,7 +117,7 @@ def _validar_sello(documento):
         (documento.total_impuesto_bs, sum((d.monto_impuesto for d in detalles), cero)),
         (documento.descuento_usd, sum((d.monto_descuento_usd for d in detalles), cero)),
         (documento.descuento_bs, sum((d.monto_descuento_bs for d in detalles), cero)),
-        (documento.total_bs, documento.subtotal_bs + documento.total_impuesto_bs),
+        (documento.total_bs, documento.subtotal_bs + documento.total_impuesto_bs + sum((d.propina_bs for d in detalles), cero)),
         (documento.total_bs, sum((p.equivalente_bs + p.ajuste_redondeo_bs for p in pagos), cero)),
     )
     if any(actual != esperado for actual, esperado in esperados):
@@ -156,7 +158,7 @@ def _sellar(documento):
 
 
 @transaction.atomic
-def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_descuento=False, descuento_porcentaje=Decimal("50.00"), hora_atencion=None, cita_id=None, entidad_id=None, fidelidad_automatica=False, codigo_regalo=""):
+def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_descuento=False, descuento_porcentaje=Decimal("50.00"), hora_atencion=None, cita_id=None, entidad_id=None, fidelidad_automatica=False, codigo_regalo="", _asignar_pago=None):
     from mysql_nuevo.bloqueos import serializar_operacion
     serializar_operacion()
     existente = DocumentoVenta.objects.filter(clave_operacion=clave, sellado=True).first()
@@ -187,7 +189,7 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
     vigentes = ofertas(cliente, fecha, hora_atencion, cita_id, entidad_id) if getattr(settings, "PROMOCIONES_FIDELIDAD", False) else {}
     preparadas = []
     canjes = set()
-    elegibles = set()
+    elegibles = {}
     if any(l.get("promocion") for l in lineas):
         from django.conf import settings
         if not getattr(settings, "PROMOCIONES_FIDELIDAD", False):
@@ -197,7 +199,7 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
     if fidelidad_automatica and getattr(settings, "PROMOCIONES_FIDELIDAD", False) or any(l.get("promocion") for l in lineas):
         from .fidelidad import tarjetas
         cliente = Cliente.objects.select_for_update().get(pk=cliente.pk, activo=True)
-        elegibles = {t.servicio_id for t in tarjetas(cliente) if t.disponible and fecha >= t.desde}
+        elegibles = {t.servicio_id: t.porcentaje for t in tarjetas(cliente) if t.disponible and fecha >= t.desde}
 
     for linea in lineas:
         servicio = Servicio.objects.get(pk=linea["servicio"].pk, activo=True)
@@ -222,8 +224,14 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
                 raise ValidationError("Cada línea de promoción debe tener una unidad y un precio normal positivo.")
             if promocion == "FIDELIDAD":
                 if servicio.pk not in elegibles or servicio.pk in canjes:
-                    raise ValidationError("El cliente no tiene un corte gratis disponible para este servicio.")
+                    raise ValidationError("El cliente no tiene un descuento de fidelidad disponible para este servicio.")
                 canjes.add(servicio.pk)
+        try:
+            propinas = {campo: Decimal(str(linea.get(campo) or 0)) for campo in ("propina_usd", "propina_bs")}
+            if any(not v.is_finite() or not 0 <= v < Decimal("1000000000000") or dinero(v) != v for v in propinas.values()):
+                raise ValueError()
+        except (ArithmeticError, ValueError):
+            raise ValidationError("Indica una propina no negativa con hasta dos decimales.")
         partes = [(cantidad, promocion)]
         if (fidelidad_automatica and not promocion and precio > 0
                 and servicio.pk in elegibles and servicio.pk not in canjes):
@@ -231,11 +239,13 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
             partes = [(1, "FIDELIDAD")]
             if cantidad > 1:
                 partes.append((cantidad - 1, ""))
-        for cantidad, promocion in partes:
+        for indice, (cantidad, promocion) in enumerate(partes):
             oferta = vigentes.get(servicio.pk) if not promocion else None
             if oferta and oferta.porcentaje < descuento:
                 oferta = None
-            porcentaje_linea = Decimal("100") if promocion else oferta.porcentaje if oferta else descuento
+            pct_fidelidad = elegibles[servicio.pk] if promocion == "FIDELIDAD" else None
+            porcentaje_linea = (pct_fidelidad if pct_fidelidad is not None else
+                                Decimal("100") if promocion else oferta.porcentaje if oferta else descuento)
             importes = calcular_linea_segun_retencion(precio, cantidad, tasa.tasa_bcv, impuesto,
                                                        porcentaje_linea, servicio.retencion_impuesto)
             preparadas.append({
@@ -243,8 +253,9 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
                 "servicio": servicio, "codigo_servicio": servicio.codigo,
                 "descripcion_servicio": servicio.nombre,
                 "cantidad_servicio": cantidad, "promocion": promocion,
-                "oferta_nombre": oferta.nombre if oferta else "",
-                "oferta_porcentaje": oferta.porcentaje if oferta else None,
+                **{campo: valor if indice == 0 else Decimal("0") for campo, valor in propinas.items()},
+                "oferta_nombre": "Fidelidad" if pct_fidelidad is not None else oferta.nombre if oferta else "",
+                "oferta_porcentaje": pct_fidelidad if pct_fidelidad is not None else oferta.porcentaje if oferta else None,
                 "precio_unitario_usd": precio, "precio_manual": manual, "retencion_impuesto": servicio.retencion_impuesto, "impuesto_normal": not servicio.retencion_impuesto, **importes,
             })
     if not preparadas:
@@ -255,11 +266,13 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
     }
     totales["descuento_usd"] = sum((p["monto_descuento_usd"] for p in preparadas), Decimal("0.00"))
     totales["descuento_bs"] = sum((p["monto_descuento_bs"] for p in preparadas), Decimal("0.00"))
-    importes_totales = [p[c] for p in preparadas for c in ("monto_servicio", "monto_servicio_bs", "precio_unitario_usd")] + list(totales.values()) + [totales["subtotal_bs"] + totales["total_impuesto_bs"]]
+    total_bs = totales["subtotal_bs"] + totales["total_impuesto_bs"] + sum(p["propina_bs"] for p in preparadas)
+    importes_totales = [p[c] for p in preparadas for c in ("monto_servicio", "monto_servicio_bs", "precio_unitario_usd")] + list(totales.values()) + [total_bs]
     if any(abs(valor) >= Decimal("10000000000000000") for valor in importes_totales):
         raise ValidationError("El importe supera la capacidad del documento. Revisa la tasa y las cantidades.")
+    if _asignar_pago is not None:
+        pagos = _asignar_pago(total_bs, tasa.tasa_bcv)
     try:
-        total_bs = totales["subtotal_bs"] + totales["total_impuesto_bs"]
         tarjeta = None
         if total_bs == 0 and canjes:
             codigo_regalo = ""  # Fidelidad cubrió la factura; no tocar la tarjeta.
@@ -283,7 +296,7 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, aplicar_de
         tasa_bcv=tasa.tasa_bcv, impuesto=impuesto, clave_operacion=clave,
         descuento_porcentaje=descuento,
         registrado_por=usuario.get_username(), **totales,
-        total_bs=totales["subtotal_bs"] + totales["total_impuesto_bs"],
+        total_bs=total_bs,
     )
     for datos in preparadas:
         DetalleVenta.objects.create(documento=documento, **datos)
@@ -333,6 +346,7 @@ def registrar_reverso(*, documento_id, motivo, usuario):
             base_imponible_usd=-linea.base_imponible_usd if linea.base_imponible_usd is not None else None,
             base_imponible_bs=-linea.base_imponible_bs if linea.base_imponible_bs is not None else None,
             precio_manual=linea.precio_manual, linea_original=linea, promocion=linea.promocion,
+            propina_usd=-linea.propina_usd, propina_bs=-linea.propina_bs,
             oferta_nombre=linea.oferta_nombre, oferta_porcentaje=linea.oferta_porcentaje,
             monto_descuento_usd=-linea.monto_descuento_usd,
             monto_descuento_bs=-linea.monto_descuento_bs,

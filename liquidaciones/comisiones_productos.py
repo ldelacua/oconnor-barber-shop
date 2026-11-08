@@ -21,7 +21,9 @@ def pendientes_productos(prestador, desde, hasta, fecha_cancelacion):
     ventas = list(DocumentoProducto.objects.filter(prestador=prestador, tipo='VP', sellado=True,
         fecha__range=(desde, hasta), comision_productos__isnull=True).filter(
             Q(reverso__isnull=True) | Q(reverso__sellado=False) | Q(reverso__fecha__gt=fecha_cancelacion)
-        ).order_by('fecha', 'pk'))
+        ).prefetch_related('detalles').order_by('fecha', 'pk'))
+    ventas = [(v, *v.importes_comision()) for v in ventas]
+    ventas = [(v, unidades, base) for v, unidades, base in ventas if unidades > 0]
     # Solo se cierra un nuevo período si hay ventas pendientes de productos.
     # Consultar servicios con la casilla marcada no debe reabrir lo ya liquidado.
     if ventas and PeriodoComisionProductos.objects.filter(prestador=prestador, liquidacion__sellado=True,
@@ -29,14 +31,14 @@ def pendientes_productos(prestador, desde, hasta, fecha_cancelacion):
         raise ValidationError('Hay productos pendientes, pero el período incluye fechas de productos ya liquidadas. Selecciona el período pendiente de productos.')
     escalas = list(EscalaComisionProducto.objects.filter(activo=True).values('unidades', 'porcentaje')) if ventas else []
     resumen = calcular_comision_periodo(
-        [{'unidades': v.unidades_total, 'base_usd': v.base_usd} for v in ventas], escalas)
+        [{'unidades': unidades, 'base_usd': base} for _, unidades, base in ventas], escalas)
     acumulado = Decimal('0.00')
     comision_acumulada = Decimal('0.00')
     lineas = []
-    for venta in ventas:
-        acumulado += venta.base_usd
+    for venta, unidades, base in ventas:
+        acumulado += base
         nueva_comision = dinero(acumulado * resumen['porcentaje'] / Decimal('100'))
-        lineas.append({'venta': venta, 'unidades': venta.unidades_total, 'base_usd': venta.base_usd,
+        lineas.append({'venta': venta, 'unidades': unidades, 'base_usd': base,
                        'comision_usd': nueva_comision - comision_acumulada})
         comision_acumulada = nueva_comision
     reintegros = reintegros_pendientes(prestador, fecha_cancelacion)

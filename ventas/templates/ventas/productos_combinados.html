@@ -1,0 +1,14 @@
+<section id="productos-combinados" class="card card-body mb-3" aria-labelledby="titulo-productos-combinados">
+<h3 id="titulo-productos-combinados" class="h5">Productos</h3>
+<div class="mb-2" style="max-width: 20rem">{{ vendedor_productos.prestador.label_tag }} {{ vendedor_productos.prestador }}{{ vendedor_productos.prestador.errors }}</div>
+<p class="text-muted small">Los productos generan su propia factura y se cobran junto con los servicios. Usa una sola forma de pago. Si marcas Promoción, solo una unidad de ese producto queda gratis.</p>
+{{ productos_combinados.management_form }}{{ productos_combinados.non_form_errors }}
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Producto</th><th>Cantidad</th><th class="text-end">Precio unitario USD</th><th class="text-end">Neto USD sin IVA</th>{% if puede_promocionar_productos %}<th>Promoción</th>{% endif %}<th>Quitar</th></tr></thead>
+<tbody id="filas-productos-combinados">
+{% for fila in productos_combinados %}{% include "ventas/fila_producto_combinado.html" %}{% endfor %}
+</tbody></table></div>
+<template id="producto-combinado-vacio">{% include "ventas/fila_producto_combinado.html" with fila=productos_combinados.empty_form %}</template>
+<div><button type="button" id="agregar-producto-combinado" class="btn btn-outline-primary">Añadir producto</button></div>
+<p class="small text-muted mt-2 mb-0">Cantidad en unidades enteras. Si marcas Quitar, el renglón no se incluye al guardar.</p>
+<p id="estado-productos-combinados" class="mt-2 mb-0" role="status"></p>
+</section>

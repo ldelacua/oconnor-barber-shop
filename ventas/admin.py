@@ -46,7 +46,7 @@ from .models import TarjetaFidelidad
 
 @admin.register(TarjetaFidelidad)
 class TarjetaFidelidadAdmin(admin.ModelAdmin):
-    list_display = ("servicio", "cortes", "desde", "activa")
+    list_display = ("servicio", "cortes", "porcentaje", "desde", "activa")
 
 
 from .models import EntidadConvenio, PromocionServicio

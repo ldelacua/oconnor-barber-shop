@@ -19,7 +19,16 @@ def decimal_valido(valor, decimales, limite, nombre):
             raise ValueError()
         return numero
     except (ValueError, ArithmeticError):
+        if decimales == 0:
+            raise ValidationError(f"{nombre}: introduce un número entero positivo.")
         raise ValidationError(f"{nombre}: introduce un valor positivo con hasta {decimales} decimales.")
+
+def descuento_renglon(subtotal, precio, cantidad, porcentaje, promocion):
+    if promocion and cantidad < 1:
+        raise ValidationError("La promoción requiere al menos una unidad del producto.")
+    base_pagada = dinero((cantidad - 1) * precio) if promocion else subtotal
+    return subtotal - base_pagada + dinero(base_pagada * porcentaje / Decimal("100"))
+
 
 def _validar_sello(doc):
     doc.refresh_from_db()
@@ -73,7 +82,8 @@ def _validar_sello(doc):
             precio = dinero(linea.costo_unitario_usd * (Decimal('1') + linea.porcentaje_venta / Decimal('100')))
             subtotal = dinero(linea.cantidad * precio)
             subtotal_bs = dinero(subtotal * doc.tasa_bcv)
-            descuento_usd = dinero(subtotal * doc.descuento_porcentaje / Decimal('100'))
+            porcentaje = Decimal("0") if linea.sin_comision else doc.descuento_porcentaje
+            descuento_usd = descuento_renglon(subtotal, precio, linea.cantidad, porcentaje, linea.promocion)
             descuento_bs = subtotal_bs - dinero((subtotal - descuento_usd) * doc.tasa_bcv)
             impuesto_bs = dinero((subtotal_bs - descuento_bs) * doc.iva / Decimal('100'))
             esperados = (precio, subtotal, subtotal_bs, descuento_usd, descuento_bs, impuesto_bs)
@@ -95,7 +105,7 @@ def _validar_sello(doc):
             raise ValidationError("El reverso no coincide con la venta original.")
         for linea in lineas:
             anterior = linea.linea_original
-            iguales_linea = ('producto_id', 'cantidad', 'precio_unitario_usd', 'costo_unitario_usd', 'porcentaje_venta')
+            iguales_linea = ('producto_id', 'cantidad', 'precio_unitario_usd', 'costo_unitario_usd', 'porcentaje_venta', 'promocion', 'sin_comision')
             negativos_linea = ('subtotal_usd', 'subtotal_bs', 'impuesto_bs', 'descuento_usd', 'descuento_bs')
             if (not anterior or anterior.documento_id != original.pk
                 or any(getattr(linea,c) != getattr(anterior,c) for c in iguales_linea)
@@ -117,8 +127,71 @@ def sellar(doc):
         raise ValidationError("No se pudo registrar el documento.")
     doc.sellado=True
 
+def puede_dar_promocion(usuario):
+    return bool(usuario and (usuario.is_superuser or usuario.groups.filter(name__iexact="ENCARGADO").exists()))
+
+
+def calcular_productos(fecha, lineas, *, bloquear=False, usuario=None):
+    tasa, iva = tasa_para_fecha(fecha), iva_vigente()
+    consulta = Producto.objects.select_related("unidad_medida")
+    if bloquear:
+        consulta = consulta.select_for_update()
+    preparadas, vistos = [], set()
+    if not lineas or len(lineas) > 50: raise ValidationError("Registra entre 1 y 50 productos.")
+    for fila in lineas:
+        try:
+            producto = consulta.get(pk=fila["producto"].pk, activo=True)
+        except Producto.DoesNotExist:
+            raise ValidationError("Un producto ya no está activo.")
+        if producto.pk in vistos: raise ValidationError("Cada producto debe aparecer una sola vez. Suma las cantidades.")
+        vistos.add(producto.pk)
+        promocion = bool(fila.get("promocion"))
+        if promocion and not puede_dar_promocion(usuario):
+            raise ValidationError("Solo el encargado o un superusuario puede aplicar promociones de productos.")
+        if promocion and not producto.promocionable:
+            raise ValidationError(f"{producto.codigo_producto} no está marcado como promocionable.")
+        cantidad = decimal_valido(fila["cantidad"],0,Decimal("100000000000"),"Cantidad")
+        calculado=precio_producto(producto,fecha)
+        precio=calculado["precio_unitario_usd"]
+        disponible = existencia_producto(producto.pk)
+        if cantidad > disponible:
+            raise ValidationError(f"Existencias insuficientes para {producto.codigo_producto} · {producto.nombre_producto}. "
+                                  f"Disponible: {disponible_visible(disponible):,.2f}. Cantidad solicitada: {cantidad:,.2f}.",
+                                  code="stock_insuficiente",params={"producto_id":producto.pk})
+        with localcontext() as contexto:
+            contexto.prec=60
+            subtotal_usd=dinero(cantidad*precio)
+            subtotal_bs=dinero(subtotal_usd*tasa)
+            impuesto_bs=dinero(subtotal_bs*iva/Decimal("100"))
+        if subtotal_usd <= 0:
+            raise ValidationError(f"El importe de {producto.codigo_producto} debe ser al menos USD 0.01.")
+        preparadas.append(dict(producto=producto, codigo=producto.codigo_producto,
+            descripcion=str(producto), cantidad=cantidad, promocion=promocion, sin_comision=producto.sin_comision, **calculado,
+            subtotal_usd=subtotal_usd, subtotal_bs=subtotal_bs, impuesto_bs=impuesto_bs))
+    unidades=sum((p["cantidad"] for p in preparadas),Decimal("0.00"))
+    unidades_elegibles = sum((p["cantidad"] for p in preparadas if not p["sin_comision"]), Decimal("0"))
+    regla_descuento = descuento_para(unidades_elegibles) if unidades_elegibles else None
+    porcentaje_descuento=regla_descuento.porcentaje if regla_descuento else Decimal("0.00")
+    for p in preparadas:
+        with localcontext() as contexto:
+            contexto.prec=60
+            porcentaje = Decimal("0") if p["sin_comision"] else porcentaje_descuento
+            rebaja = descuento_renglon(p["subtotal_usd"], p["precio_unitario_usd"], p["cantidad"], porcentaje, p["promocion"])
+            neto_bs=dinero((p["subtotal_usd"]-rebaja)*tasa)
+            p["descuento_usd"]=rebaja
+            p["descuento_bs"]=p["subtotal_bs"]-neto_bs
+            p["impuesto_bs"]=dinero(neto_bs*iva/Decimal("100"))
+    totales = {campo:sum((p[campo] for p in preparadas),Decimal("0.00"))
+               for campo in ("subtotal_usd","subtotal_bs","impuesto_bs","descuento_usd","descuento_bs")}
+    total=totales["subtotal_bs"]-totales["descuento_bs"]+totales["impuesto_bs"]
+    if total < 0 or any(abs(v)>=Decimal("10000000000000000") for p in preparadas for v in
+        (p["subtotal_usd"],p["subtotal_bs"],p["impuesto_bs"])) or any(abs(v)>=Decimal("10000000000000000") for v in [*totales.values(),total]):
+        raise ValidationError("El importe de la venta está fuera del límite permitido.")
+    return tasa, iva, preparadas, unidades, regla_descuento, porcentaje_descuento, totales, total
+
+
 @transaction.atomic
-def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacion="", prestador=None):
+def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacion="", prestador=None, _asignar_pago=None):
     from mysql_nuevo.bloqueos import serializar_operacion
     serializar_operacion()
     existente = DocumentoProducto.objects.filter(clave=clave, sellado=True).first()
@@ -144,51 +217,9 @@ def registrar_venta(*, fecha, cliente, lineas, pagos, clave, usuario, observacio
     if apps.is_installed("control_inventario"):
         from control_inventario.servicios import validar_fecha
         validar_fecha(fecha)
-    tasa, iva = tasa_para_fecha(fecha), iva_vigente()
-    preparadas, vistos = [], set()
-    if not lineas or len(lineas) > 50: raise ValidationError("Registra entre 1 y 50 productos.")
-    for fila in lineas:
-        try:
-            producto = Producto.objects.select_for_update().select_related("unidad_medida").get(pk=fila["producto"].pk, activo=True)
-        except Producto.DoesNotExist:
-            raise ValidationError("Un producto ya no está activo.")
-        if producto.pk in vistos: raise ValidationError("Cada producto debe aparecer una sola vez. Suma las cantidades.")
-        vistos.add(producto.pk)
-        cantidad = decimal_valido(fila["cantidad"],2,Decimal("100000000000"),"Cantidad")
-        calculado=precio_producto(producto,fecha)
-        precio=calculado["precio_unitario_usd"]
-        disponible = existencia_producto(producto.pk)
-        if cantidad > disponible:
-            raise ValidationError(f"Existencias insuficientes para {producto.codigo_producto} · {producto.nombre_producto}. "
-                                  f"Disponible: {disponible_visible(disponible):,.2f}. Cantidad solicitada: {cantidad:,.2f}.",
-                                  code="stock_insuficiente",params={"producto_id":producto.pk})
-        with localcontext() as contexto:
-            contexto.prec=60
-            subtotal_usd=dinero(cantidad*precio)
-            subtotal_bs=dinero(subtotal_usd*tasa)
-            impuesto_bs=dinero(subtotal_bs*iva/Decimal("100"))
-        if subtotal_usd <= 0:
-            raise ValidationError(f"El importe de {producto.codigo_producto} debe ser al menos USD 0.01.")
-        preparadas.append(dict(producto=producto, codigo=producto.codigo_producto,
-            descripcion=str(producto), cantidad=cantidad, **calculado,
-            subtotal_usd=subtotal_usd, subtotal_bs=subtotal_bs, impuesto_bs=impuesto_bs))
-    unidades=sum((p["cantidad"] for p in preparadas),Decimal("0.00"))
-    regla_descuento=descuento_para(unidades)
-    porcentaje_descuento=regla_descuento.porcentaje if regla_descuento else Decimal("0.00")
-    for p in preparadas:
-        with localcontext() as contexto:
-            contexto.prec=60
-            rebaja=dinero(p["subtotal_usd"]*porcentaje_descuento/Decimal("100"))
-            neto_bs=dinero((p["subtotal_usd"]-rebaja)*tasa)
-            p["descuento_usd"]=rebaja
-            p["descuento_bs"]=p["subtotal_bs"]-neto_bs
-            p["impuesto_bs"]=dinero(neto_bs*iva/Decimal("100"))
-    totales = {campo:sum((p[campo] for p in preparadas),Decimal("0.00"))
-               for campo in ("subtotal_usd","subtotal_bs","impuesto_bs","descuento_usd","descuento_bs")}
-    total=totales["subtotal_bs"]-totales["descuento_bs"]+totales["impuesto_bs"]
-    if total < 0 or any(abs(v)>=Decimal("10000000000000000") for p in preparadas for v in
-        (p["subtotal_usd"],p["subtotal_bs"],p["impuesto_bs"])) or any(abs(v)>=Decimal("10000000000000000") for v in [*totales.values(),total]):
-        raise ValidationError("El importe de la venta está fuera del límite permitido.")
+    tasa, iva, preparadas, unidades, regla_descuento, porcentaje_descuento, totales, total = calcular_productos(fecha, lineas, bloquear=True, usuario=usuario)
+    if _asignar_pago is not None:
+        pagos = _asignar_pago(total, tasa)
     try:
         if total==0:
             if pagos: raise ValueError("El total es cero. Quita los pagos de esta factura.")
@@ -239,7 +270,7 @@ def registrar_reverso(*, documento_id, motivo, usuario):
         validar_fecha(doc.fecha)
     for l in original.detalles.all():
         LineaProducto.objects.create(documento=doc,producto_id=l.producto_id,descripcion=l.descripcion,codigo=l.codigo,
-            cantidad=l.cantidad,precio_unitario_usd=l.precio_unitario_usd,
+            cantidad=l.cantidad,precio_unitario_usd=l.precio_unitario_usd,promocion=l.promocion,sin_comision=l.sin_comision,
             subtotal_usd=-l.subtotal_usd,subtotal_bs=-l.subtotal_bs,impuesto_bs=-l.impuesto_bs,linea_original=l,
             costo_unitario_usd=l.costo_unitario_usd,porcentaje_venta=l.porcentaje_venta,
             descuento_usd=-l.descuento_usd,descuento_bs=-l.descuento_bs)

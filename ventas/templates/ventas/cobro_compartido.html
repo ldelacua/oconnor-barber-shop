@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block content %}
+<h2>Cobro compartido #{{ cobro.pk }}</h2>
+<p>{{ cobro.fecha|date:"d/m/Y" }} · {{ cobro.nombre_tipo_pago }} · {{ cobro.monto|monto_venta }} {{ cobro.moneda }}</p>
+{% if cobro.referencia %}<p>Referencia: {{ cobro.referencia }}</p>{% endif %}
+{% if cobro.cuenta and perms.bancos.view_cuentabancaria %}<p>Banco y cuenta: {{ cobro.cuenta }}</p>{% endif %}
+<ul>
+<li><a href="{% url 'ventas:ver' cobro.servicios_id %}">{{ cobro.servicios }}</a> · {{ cobro.servicios.total_bs|monto_venta }} Bs.</li>
+<li><a href="{% url 'ventas_productos:ver' cobro.productos_id %}">{{ cobro.productos }}</a> · {{ cobro.productos.total_bs|monto_venta }} Bs.</li>
+</ul>
+<a class="btn btn-secondary" href="{% url 'ventas:ver' cobro.servicios_id %}">Volver a la factura de servicios</a>
+{% endblock %}

@@ -17,7 +17,7 @@ def buscar_productos(request):
     for palabra in texto.split()[:5]:
         productos = productos.filter(Q(codigo_producto__icontains=palabra) | Q(nombre_producto__icontains=palabra))
     encontrados = list(productos.order_by("codigo_producto", "pk")[:21])
-    return JsonResponse({"resultados": [{"id": p.pk, "texto": str(p), "existencia": format(disponible_visible(p.existencia),".2f")} for p in encontrados[:20]],
+    return JsonResponse({"resultados": [{"id": p.pk, "texto": str(p), "promocionable": p.promocionable, "existencia": format(disponible_visible(p.existencia),".2f")} for p in encontrados[:20]],
                          "hay_mas": len(encontrados) > 20})
 
 class BuscadorProductoWidget(forms.HiddenInput):
@@ -37,5 +37,6 @@ class BuscadorProductoWidget(forms.HiddenInput):
                 producto = None
             if producto:
                 etiqueta = str(producto)
+                contexto["widget"]["promocionable"] = producto.promocionable
         contexto["widget"]["etiqueta_producto"] = etiqueta
         return contexto

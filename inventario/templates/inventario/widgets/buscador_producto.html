@@ -1,6 +1,6 @@
 {% load static %}
 <div class="buscador-producto position-relative" data-url="{% if widget.url %}{{ widget.url }}{% else %}{% url 'inventario:buscar_productos' %}{% endif %}">
-<input type="hidden" name="{{ widget.name }}" value="{{ widget.value|default_if_none:'' }}" id="{{ widget.attrs.id }}">
+<input type="hidden" name="{{ widget.name }}" value="{{ widget.value|default_if_none:'' }}" id="{{ widget.attrs.id }}" data-promocionable="{{ widget.promocionable|yesno:'true,false,false' }}">
 <input type="text" id="{{ widget.attrs.id }}_buscar" name="{{ widget.name }}_texto"
        value="{{ widget.etiqueta_producto }}" class="form-control producto-buscar" autocomplete="off"
        placeholder="CÓDIGO O NOMBRE DEL PRODUCTO" aria-label="Buscar producto por código o nombre"

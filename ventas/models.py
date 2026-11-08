@@ -108,6 +108,10 @@ class DocumentoVenta(Inmutable):
         return self.subtotal_bs + self.descuento_bs
 
     @property
+    def propinas_bs(self):
+        return sum(d.propina_bs for d in self.detalles.all())
+
+    @property
     def total_usd(self):
         from .pagos_calculos import total_en_usd
         return total_en_usd(self.total_bs, self.tasa_bcv)
@@ -139,6 +143,8 @@ class DetalleVenta(Inmutable):
     base_imponible_usd = models.DecimalField(max_digits=18, decimal_places=2, null=True, editable=False)
     base_imponible_bs = models.DecimalField(max_digits=18, decimal_places=2, null=True, editable=False)
 
+    propina_bs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    propina_usd = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     oferta_nombre = models.CharField(max_length=120, blank=True, default="")
     oferta_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, null=True, editable=False)
     promocion = models.CharField(max_length=10, blank=True, default="", choices=[
@@ -222,16 +228,20 @@ class PagoVenta(Inmutable):
 class TarjetaFidelidad(models.Model):
     servicio = models.OneToOneField("servicios.Servicio", on_delete=models.PROTECT)
     cortes = models.PositiveSmallIntegerField()
+    porcentaje = models.DecimalField("Descuento (%)", max_digits=5, decimal_places=2, default=100)
     desde = models.DateField(default=timezone.localdate)
     activa = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.servicio}: {self.cortes} PAGADOS Y EL SIGUIENTE GRATIS".upper()
+        return f"{self.servicio}: {self.cortes} PAGADOS Y {self.porcentaje}% EN EL SIGUIENTE".upper()
 
     class Meta:
         verbose_name = "Tarjeta de fidelidad"
         verbose_name_plural = "Tarjetas de fidelidad"
-        constraints = [models.CheckConstraint(condition=models.Q(cortes__gt=0), name="ventas_tarjeta_cortes_positivos")]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(cortes__gt=0), name="ventas_tarjeta_cortes_positivos"),
+            models.CheckConstraint(condition=models.Q(porcentaje__gt=0, porcentaje__lte=100), name="ventas_fidelidad_pct"),
+        ]
 
 
 class EntidadConvenio(models.Model):
@@ -345,3 +355,20 @@ class CobroTarjetaRegalo(models.Model):
     observacion = models.CharField(max_length=500, blank=True)
     cuenta = models.ForeignKey("bancos.CuentaBancaria", null=True, blank=True, on_delete=models.PROTECT)
     usuario = models.CharField(max_length=150)
+
+
+class CobroCompartido(models.Model):
+    clave = models.UUIDField(unique=True, editable=False)
+    servicios = models.OneToOneField(DocumentoVenta, on_delete=models.PROTECT, related_name="cobro_compartido")
+    productos = models.OneToOneField("ventas_productos.DocumentoProducto", on_delete=models.PROTECT,
+                                     related_name="cobro_compartido")
+    cuenta = models.ForeignKey("bancos.CuentaBancaria", null=True, blank=True, on_delete=models.PROTECT)
+    fecha = models.DateField()
+    tipo_pago = models.PositiveIntegerField()
+    nombre_tipo_pago = models.CharField(max_length=100)
+    moneda = models.CharField(max_length=3)
+    monto = models.DecimalField(max_digits=18, decimal_places=2)
+    equivalente_bs = models.DecimalField(max_digits=18, decimal_places=2)
+    ajuste_redondeo_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    referencia = models.CharField(max_length=100, blank=True)
+    observacion = models.CharField(max_length=500, blank=True)

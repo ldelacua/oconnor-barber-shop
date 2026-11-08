@@ -24,12 +24,11 @@ class CabeceraForm(forms.Form):
         return self.cleaned_data["observacion"].upper()
 
 class LineaForm(forms.Form):
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
-        configurar_decimales(self)
+    promocion = forms.BooleanField(required=False, label="Promoción")
     producto = forms.ModelChoiceField(Producto.objects.filter(activo=True), widget=BuscadorProductoWidget())
-    cantidad = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"),
-        initial=1, widget=forms.NumberInput(attrs={"class":"form-control","min":"0.01","step":"0.01"}))
+    cantidad = forms.IntegerField(min_value=1, max_value=99_999_999_999, initial=1,
+        error_messages={"invalid": "Introduce una cantidad entera, sin decimales."},
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "1", "inputmode": "numeric"}))
 
 LineasFormSet = formset_factory(LineaForm, extra=1, min_num=1, validate_min=True, can_delete=True,
                                 max_num=50, absolute_max=50, validate_max=True)

@@ -43,7 +43,7 @@ class ProductoForm(EstiloForm):
 
     class Meta:
         model = Producto
-        fields = ["codigo_producto", "nombre_producto", "volumen", "unidad_medida", "observacion", "activo"]
+        fields = ["codigo_producto", "nombre_producto", "volumen", "unidad_medida", "observacion", "promocionable", "sin_comision", "activo"]
         widgets = {"observacion": forms.Textarea(attrs={"rows": 3})}
 
 class ProveedorForm(EstiloForm):

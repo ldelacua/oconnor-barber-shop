@@ -1,11 +1,14 @@
 from django.urls import path
-from . import views, vistas_regalo
+from . import views, vistas_regalo, vistas_cobro_compartido
 from .reportes import reporte_servicios
+from .historico import historico
 from .consulta_pagos import consulta_pagos
 from .tasa_bcv import registrar_tasa_bcv
 
 app_name = "ventas"
 urlpatterns = [
+    path("cobro-compartido/cotizar/", vistas_cobro_compartido.cotizar, name="cotizar_productos_combinados"),
+    path("cobro-compartido/<int:pk>/", vistas_cobro_compartido.ver, name="ver_cobro_compartido"),
     path("venta-tarjetas/", vistas_regalo.vender, name="venta_tarjetas"),
     path("regalos/", vistas_regalo.tarjetas, name="tarjetas_regalo"),
     path("regalos/pdf/<uuid:lote>/", vistas_regalo.imprimir, name="regalo_pdf"),
@@ -16,6 +19,9 @@ urlpatterns = [
     path("nueva/", views.nueva_venta, name="crear"),
     path("cotizacion/", views.cotizacion, name="cotizacion"),
     path("reporte-servicios/", reporte_servicios, name="reporte_servicios"),
+    path("historico/", historico, name="historico"),
+    path("historico/<int:servicio_id>/", historico, name="historico_prestadores"),
+    path("historico/<int:servicio_id>/<int:prestador_id>/", historico, name="historico_facturas"),
     path("pagos/", consulta_pagos, name="consulta_pagos"),
     path("<int:pk>/", views.ver_documento, name="ver"),
     path("<int:pk>/reversar/", views.reversar_documento, name="reversar"),

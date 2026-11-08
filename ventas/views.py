@@ -35,7 +35,7 @@ def lista_documentos(request):
             documentos = documentos.filter(Q(cliente__nombre__icontains=palabra) | Q(cliente__apellido__icontains=palabra))
     else:
         documentos = documentos.none()
-    pagina = Paginator(documentos, 25).get_page(request.GET.get("page"))
+    pagina = Paginator(documentos, 15).get_page(request.GET.get("page"))
     parametros = request.GET.copy()
     parametros.pop("page", None)
     return render(request, "ventas/lista.html", {"pagina": pagina, "filtros": filtros, "parametros": parametros.urlencode(), "paginas": pagina.paginator.get_elided_page_range(pagina.number, on_each_side=2, on_ends=1)})
@@ -44,6 +44,10 @@ def lista_documentos(request):
 @login_required
 def nueva_venta(request):
     datos = request.POST if request.method == "POST" else None
+    from .vistas_cobro_compartido import LineasProductos, VendedorForm, habilitado, filas_productos
+    combinada = habilitado(request.user)
+    productos = LineasProductos(datos, prefix="productos") if combinada else None
+    vendedor = VendedorForm(datos, prefix="vendedor") if combinada else None
     form = VentaForm(datos)
     lineas = LineasFormSet(datos, prefix="lineas")
     try:
@@ -77,18 +81,32 @@ def nueva_venta(request):
         cabecera_valida = form.is_valid()
         detalle_valido = lineas.is_valid()
         pagos_validos = pagos.is_valid()
-        if cabecera_valida and detalle_valido and pagos_validos and not error_config:
+        productos_validos = productos is None or productos.is_valid()
+        vendedor_valido = vendedor is None or vendedor.is_valid()
+        if cabecera_valida and detalle_valido and pagos_validos and productos_validos and vendedor_valido and not error_config:
             filas = [f.cleaned_data for f in lineas if f.cleaned_data and not f.cleaned_data.get("DELETE")]
             for fila in filas:
                 fila.pop("promocion", None)
             try:
-                documento = registrar_venta(
+                opciones = dict(
                     fecha=form.cleaned_data["fecha"], cliente=form.cleaned_data["cliente"],
                     aplicar_descuento=form.cleaned_data["aplicar_descuento"], descuento_porcentaje=form.cleaned_data["descuento_porcentaje"],
                     hora_atencion=form.cleaned_data["hora_atencion"], cita_id=form.cleaned_data["cita_id"],
                     entidad_id=form.cleaned_data["entidad"].pk if form.cleaned_data["entidad"] else None,
-                    fidelidad_automatica=True, codigo_regalo=form.cleaned_data["codigo_regalo"], lineas=filas, pagos=[p.cleaned_data for p in pagos if p.cleaned_data and not p.cleaned_data.get("DELETE")], clave=form.cleaned_data["clave"], usuario=request.user,
+                    fidelidad_automatica=True, codigo_regalo=form.cleaned_data["codigo_regalo"],
+                    clave=form.cleaned_data["clave"], usuario=request.user,
                 )
+                filas_pagos = [p.cleaned_data for p in pagos if p.cleaned_data and not p.cleaned_data.get("DELETE")]
+                detalle_productos = filas_productos(productos) if productos is not None else []
+                if detalle_productos:
+                    from .cobro_compartido import registrar_venta_combinada
+                    if len(filas_pagos) != 1:
+                        raise ValidationError("Para una venta combinada registra una sola forma de pago.")
+                    cobro = registrar_venta_combinada(servicios=filas, productos=detalle_productos,
+                        pago=filas_pagos[0], prestador=vendedor.cleaned_data["prestador"], **opciones)
+                    messages.success(request, f"Cobro compartido #{cobro.pk} registrado con sus dos facturas.")
+                    return redirect("ventas:ver", pk=cobro.servicios_id)
+                documento = registrar_venta(lineas=filas, pagos=filas_pagos, **opciones)
             except ValidationError as error:
                 form.add_error(None, error)
             except ObjectDoesNotExist:
@@ -105,11 +123,13 @@ def nueva_venta(request):
             else:
                 messages.success(request, f"Documento {documento} registrado.")
                 return redirect("ventas:ver", pk=documento.pk)
+    tasa_factura = TasaBCV.objects.filter(fecha=form["fecha"].initial, tasa_bcv__gt=0).values_list("tasa_bcv", flat=True).first()
+    from ventas_productos.servicios import puede_dar_promocion
     promociones = getattr(settings, "PROMOCIONES_FIDELIDAD", False) and puede_promocionar(request.user)
     precios = {str(s.pk): str(s.precio) for s in lineas.empty_form.fields["servicio"].queryset}
     retenciones = {str(s.pk): s.retencion_impuesto for s in lineas.empty_form.fields["servicio"].queryset}
     modos_precio = {str(s.pk): s.modo_precio for s in lineas.empty_form.fields["servicio"].queryset}
-    return render(request, "ventas/formulario.html", {"ofertas_habilitadas": getattr(settings, "PROMOCIONES_FIDELIDAD", False), "promociones": promociones, "retenciones": retenciones, "modos_precio": modos_precio, "form": form, "lineas": lineas, "pagos": pagos, "catalogo_pagos": catalogo, "porcentaje": porcentaje, "error_config": error_config, "precios": precios})
+    return render(request, "ventas/formulario.html", {"puede_promocionar_productos": puede_dar_promocion(request.user), "tasa_factura": format(tasa_factura, ".2f") if tasa_factura is not None else "", "productos_combinados": productos, "vendedor_productos": vendedor, "ofertas_habilitadas": getattr(settings, "PROMOCIONES_FIDELIDAD", False), "promociones": promociones, "retenciones": retenciones, "modos_precio": modos_precio, "form": form, "lineas": lineas, "pagos": pagos, "catalogo_pagos": catalogo, "porcentaje": porcentaje, "error_config": error_config, "precios": precios})
 
 
 @login_required
@@ -122,7 +142,9 @@ def ver_documento(request, pk):
         "bs": sum((p.monto for p in pagos if p.moneda == "BS"), Decimal("0.00")),
         "ajuste_bs": sum((p.ajuste_redondeo_bs for p in pagos), Decimal("0.00")),
     }
-    return render(request, "ventas/documento.html", {"documento": documento, "pagos": pagos, "resumen_pagos": resumen_pagos})
+    from inventario.views import regreso
+    return render(request, "ventas/documento.html", {"documento": documento, "pagos": pagos,
+                  "resumen_pagos": resumen_pagos, "regresar": regreso(request, "ventas:lista")})
 
 
 @login_required
@@ -160,7 +182,7 @@ def cotizacion(request):
     tasa = TasaBCV.objects.filter(fecha=fecha).first()
     if not tasa:
         return JsonResponse({"error": "No hay tasa Bs para esta fecha. Regístrala antes de vender."}, status=404)
-    return JsonResponse({"tasa": str(tasa.tasa_bcv)})
+    return JsonResponse({"tasa": format(tasa.tasa_bcv, ".2f")})
 
 def puede_promocionar(usuario):
     return usuario.has_perm("ventas.change_tarjetafidelidad") or usuario.groups.filter(name__iexact="ENCARGADO").exists()
@@ -180,7 +202,7 @@ def tarjeta_cliente(request, pk):
     disponibles = tarjetas(cliente, incluir_historial=not resumen)
     if resumen:
         return JsonResponse({
-            "servicios_gratis": [t.servicio.nombre for t in disponibles if t.disponible],
+            "beneficios": [{"servicio": t.servicio.nombre, "porcentaje": str(t.porcentaje)} for t in disponibles if t.disponible],
             "progreso": [{"servicio": t.servicio.nombre, "acumulados": t.acumulados, "meta": t.cortes}
                          for t in disponibles],
         })
@@ -209,7 +231,7 @@ def consultar_ofertas(request, pk):
     except ValidationError as error:
         return JsonResponse({"error": error.messages[0]}, status=400)
     return JsonResponse({
-        "fidelidad": [t.servicio_id for t in tarjetas(cliente) if t.disponible and fecha >= t.desde],
+        "fidelidad": {t.servicio_id: str(t.porcentaje) for t in tarjetas(cliente) if t.disponible and fecha >= t.desde},
         "horas": [h.isoformat(timespec="seconds" if h.second else "minutes") for h in horas_atencion(fecha, entidad_id)],
         "ofertas": {pk: {"nombre": p.nombre, "porcentaje": str(p.porcentaje)} for pk, p in vigentes.items()},
         "citas": [{"id": c.pk, "hora": c.hora.strftime("%H:%M"), "prestador": str(c.barbero)}

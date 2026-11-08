@@ -83,15 +83,18 @@ def crear(request):
             else:
                 messages.success(request, f"Cancelación {liquidacion} registrada.")
                 return redirect("liquidaciones:ver",pk=liquidacion.pk)
+    descuentos = sorted(descuentos, key=lambda s: (s["linea"].documento.fecha, s["linea"].pk), reverse=True)
+    total_facturas_productos_bs = sum((p["venta"].total_bs for p in productos["ventas"]), Decimal("0.00")) if productos else Decimal("0.00")
     for s in servicios:
         s["seleccionada"] = str(s["linea"].pk) in seleccion
     return render(request,"liquidaciones/formulario.html",{
         "cabecera":cabecera,"pagos":pagos,"catalogo":catalogo,"servicios":servicios,
         "descuentos":descuentos,"tasa":tasa,"clave":clave,"errores":errores,"consultado":valido,
         "productos":productos,"reintegros_productos":reintegros_productos,
+        "total_facturas_productos_bs":total_facturas_productos_bs,
         "descuento_usd":sum((s["comision"] for s in descuentos),Decimal("0.00")),
         "datos":cabecera.cleaned_data if valido else {},
-        "estado":{"tasa":str(tasa.tasa_bcv) if tasa else "0", "descuento":str(sum((s["comision"] for s in descuentos),Decimal("0.00")) - sum((r.comision_usd for r in reintegros_productos), Decimal('0.00'))),
+        "estado":{"propinas_ajustes":str(sum((s["linea"].propina_bs for s in descuentos), Decimal("0.00"))), "tasa":str(tasa.tasa_bcv) if tasa else "0", "descuento":str(sum((s["comision"] for s in descuentos),Decimal("0.00")) - sum((r.comision_usd for r in reintegros_productos), Decimal('0.00'))),
                   "productos":str(productos['resumen']['comision_usd']) if productos else '0',
                   "hay_productos":bool(productos and productos['ventas'])},
     })
@@ -108,7 +111,7 @@ def lista(request):
         if d.get("desde"):documentos=documentos.filter(fecha_cancelacion__gte=d["desde"])
         if d.get("hasta"):documentos=documentos.filter(fecha_cancelacion__lte=d["hasta"])
     else:documentos=documentos.none()
-    pagina=Paginator(documentos,30).get_page(request.GET.get("page"))
+    pagina=Paginator(documentos.order_by("-fecha_cancelacion", "-pk"),30).get_page(request.GET.get("page"))
     parametros=request.GET.copy();parametros.pop("page",None)
     return render(request,"liquidaciones/lista.html",{"pagina":pagina,"filtros":filtros,"parametros":parametros.urlencode()})
 
@@ -116,4 +119,6 @@ def lista(request):
 @login_required
 def ver(request,pk):
     documento=get_object_or_404(Liquidacion.objects.prefetch_related("detalles__detalle_venta__documento","detalles__ajuste_de__liquidacion","pagos"),pk=pk,sellado=True)
-    return render(request,"liquidaciones/documento.html",{"documento":documento})
+    propinas_directas = sum((d.detalle_venta.propina_usd for d in documento.detalles.all()
+                            if d.ajuste_de_id is None), Decimal("0.00"))
+    return render(request,"liquidaciones/documento.html",{"documento":documento, "propinas_directas":propinas_directas})

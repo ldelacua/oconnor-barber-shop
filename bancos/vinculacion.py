@@ -10,8 +10,8 @@ def fuentes():
     from liquidaciones.models import PagoLiquidacion
     from inventario.models import PagoProveedor
     return {
-        'SERVICIOS': (PagoVenta.objects.filter(documento__sellado=True), 1),
-        'PRODUCTOS': (PagoProducto.objects.filter(documento__sellado=True), 1),
+        'SERVICIOS': (PagoVenta.objects.filter(documento__sellado=True, documento__cobro_compartido__isnull=True), 1),
+        'PRODUCTOS': (PagoProducto.objects.filter(documento__sellado=True, documento__cobro_compartido__isnull=True), 1),
         'PRESTADOR': (PagoLiquidacion.objects.filter(liquidacion__sellado=True), -1),
         'PROVEEDOR': (PagoProveedor.objects.all(), -1),
     }
@@ -64,6 +64,16 @@ def vincular_pagos_nuevos(usuario, origen, filas, pagos):
 def reflejar_reversos_venta(origen, pagos):
     for pago in pagos:
         original = MovimientoInterno.objects.filter(origen=origen, pago_id=pago.pago_original_id).first()
+        if original is None:
+            cobro = getattr(pago.pago_original.documento, "cobro_compartido", None)
+            if cobro and cobro.cuenta_id:
+                from .models import CierreBancario
+                cuenta = CuentaBancaria.objects.select_for_update().get(pk=cobro.cuenta_id)
+                if CierreBancario.objects.filter(cuenta=cuenta, fecha_cierre__gte=pago.documento.fecha.replace(day=1)).exists():
+                    raise ValidationError("El mes está cerrado para la cuenta del cobro compartido.")
+                original = MovimientoInterno.objects.filter(origen="COBRO_COMPARTIDO", pago_id=cobro.pk).first()
+                if original is None:
+                    raise ValidationError("Falta el movimiento bancario del cobro compartido.")
         if original:
             MovimientoInterno.objects.get_or_create(origen=origen, pago_id=pago.pk,
                 defaults={'cuenta_id': original.cuenta_id, 'fecha': pago.documento.fecha,

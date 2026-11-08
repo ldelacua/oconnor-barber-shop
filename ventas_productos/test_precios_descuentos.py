@@ -257,3 +257,113 @@ class PreciosDescuentosTests(TestCase):
         r=self.client.get(reverse("ventas_productos:porcentajes"))
         self.assertNotContains(r,"Precio USD =")
         self.assertNotContains(r,"Ejemplo: costo")
+
+    def test_venta_combinada_guarda_dos_facturas_y_un_movimiento(self):
+        from unittest.mock import patch
+        from django.test import override_settings
+        from bancos.models import Banco, CuentaBancaria, MovimientoInterno
+        from barberos.models import Barbero
+        from servicios.models import Servicio
+        from ventas.models import CobroCompartido, DocumentoVenta
+        from .servicios import calcular_productos
+        fecha = date(2026, 10, 20)
+        prestador = Barbero.objects.create(codigo="COMB", nombre="ANA", apellido="PÉREZ",
+                                           fecha_ingreso=fecha, porcentaje=50)
+        servicio = Servicio.objects.create(codigo="COMB", nombre="CORTE", precio=8,
+                                           duracion=30, retencion_impuesto=True)
+        cuenta = CuentaBancaria.objects.create(banco=Banco.objects.create(nombre="BANCO COMBINADO"),
+                                               nro_cuenta="001", moneda="BS")
+        *_, total_productos = calcular_productos(fecha, [{"producto": self.a, "cantidad": Decimal("1")}])
+        total = total_productos + Decimal("320")
+        datos = {
+            "fecha": fecha, "cliente": self.cliente.pk, "clave": uuid.uuid4(),
+            "lineas-TOTAL_FORMS": 1, "lineas-INITIAL_FORMS": 0,
+            "lineas-0-servicio": servicio.pk, "lineas-0-barbero": prestador.pk, "lineas-0-cantidad_servicio": 1,
+            "productos-TOTAL_FORMS": 1, "productos-INITIAL_FORMS": 0,
+            "productos-0-producto": self.a.pk, "productos-0-cantidad": 1, "vendedor-prestador": prestador.pk,
+            "pagos-TOTAL_FORMS": 1, "pagos-INITIAL_FORMS": 0,
+            "pagos-0-tipo_pago": 3, "pagos-0-fecha": fecha, "pagos-0-monto": str(total),
+            "pagos-0-cuenta_bancaria": cuenta.pk, "pagos-0-referencia": "COMP-01",
+        }
+        url = reverse("ventas:crear")
+        from ventas.forms import VentaForm
+        with override_settings(VENTA_COMBINADA=True), patch("django.utils.timezone.localdate", return_value=fecha), patch.object(VentaForm.base_fields["fecha"], "initial", fecha):
+            respuesta = self.client.post(url, {**datos, "pagos-0-monto": "1.00"})
+            self.assertIn("Faltan", str((respuesta.context["form"].errors, respuesta.context["lineas"].errors, respuesta.context["productos_combinados"].errors, respuesta.context["pagos"].errors)))
+            self.assertFalse(DocumentoVenta.objects.exists())
+            self.assertFalse(DocumentoProducto.objects.exists())
+            self.assertFalse(MovimientoInterno.objects.exists())
+            respuesta = self.client.post(url, datos)
+            self.assertEqual(respuesta.status_code, 302, respuesta.content)
+            cobro = CobroCompartido.objects.get()
+            self.assertEqual(cobro.productos.prestador, prestador)
+            self.assertEqual(cobro.servicios.total_bs + cobro.productos.total_bs, total)
+            self.assertEqual(MovimientoInterno.objects.get().monto, total)
+            self.assertContains(self.client.get(reverse("ventas:ver", args=[cobro.servicios_id])), str(cuenta))
+            self.assertContains(self.client.get(reverse("ventas_productos:ver", args=[cobro.productos_id])), str(cuenta))
+            self.assertEqual(existencia_producto(self.a.pk), 199)
+            self.assertEqual(self.client.post(url, datos).status_code, 302)
+            self.assertEqual(MovimientoInterno.objects.count(), 1)
+            consulta = self.client.get(reverse("pagos:cobros_clientes"), {"banco": cuenta.banco_id})
+            self.assertEqual(consulta.context["pagina"].paginator.count, 1)
+            self.assertEqual(consulta.context["totales"]["neto_bs"], total)
+            reverso = registrar_reverso(documento_id=cobro.productos_id, motivo="DEVOLUCIÓN", usuario=self.usuario)
+            self.assertEqual(existencia_producto(self.a.pk), 200)
+            self.assertEqual(MovimientoInterno.objects.get(origen="PRODUCTOS", pago_id=reverso.pagos.get().pk).monto, -total_productos)
+            self.assertFalse(DocumentoVenta.objects.filter(documento_original=cobro.servicios).exists())
+
+    def test_promocion_solo_producto_autorizado_y_repone_stock_al_reversar(self):
+        from django.contrib.auth.models import Group
+        from unittest.mock import patch
+        fecha = date(2026, 10, 20)
+        def regalar(usuario):
+            return registrar_venta(fecha=fecha, cliente=self.cliente, usuario=usuario,
+                lineas=[{"producto": self.a, "cantidad": Decimal("3"), "promocion": True}],
+                pagos=[{"tipo_pago": "5", "fecha": fecha, "monto": Decimal("34.80")}], clave=uuid.uuid4())
+        with self.assertRaisesMessage(ValidationError, "no está marcado como promocionable"):
+            regalar(self.usuario)
+        self.a.promocionable = True
+        self.a.save()
+        encargado = get_user_model().objects.create_user(username="encargado-promo")
+        with self.assertRaisesMessage(ValidationError, "Solo el encargado"):
+            regalar(encargado)
+        encargado.groups.add(Group.objects.create(name="ENCARGADO"))
+        doc = regalar(encargado)
+        linea = doc.detalles.get()
+        self.assertTrue(linea.promocion)
+        self.assertEqual(doc.total_usd, Decimal("34.80"))
+        self.assertEqual(doc.descuento_usd, Decimal("15"))
+        self.assertEqual(doc.pagos.get().monto, Decimal("34.80"))
+        self.assertEqual(existencia_producto(self.a.pk), 197)
+        with patch("django.utils.timezone.localdate", return_value=fecha):
+            re = registrar_reverso(documento_id=doc.pk, motivo="PRUEBA", usuario=self.usuario)
+        self.assertTrue(re.detalles.get().promocion)
+        self.assertEqual(existencia_producto(self.a.pk), 200)
+
+    def test_producto_sin_comision_no_suma_unidades_ni_base(self):
+        from barberos.models import Barbero
+        from liquidaciones.comisiones_productos import pendientes_productos
+        from liquidaciones.servicios import registrar
+        from .models import EscalaComisionProducto
+
+        fecha = date(2026, 10, 20)
+        prestador = Barbero.objects.create(codigo="EXC", nombre="ANA", apellido="PÉREZ",
+                                           fecha_ingreso=fecha, porcentaje=50)
+        EscalaComisionProducto.objects.create(unidades=1, porcentaje=10)
+        EscalaComisionProducto.objects.create(unidades=2, porcentaje=20)
+        self.b.sin_comision = True
+        self.b.save()
+        venta = registrar_venta(fecha=fecha, cliente=self.cliente, prestador=prestador, usuario=self.usuario,
+            lineas=[{"producto": self.a, "cantidad": 1}, {"producto": self.b, "cantidad": 1}],
+            pagos=[{"tipo_pago": 5, "fecha": fecha, "monto": Decimal("40.60")}], clave=uuid.uuid4())
+        self.b.sin_comision = False
+        self.b.save()
+        pendientes = pendientes_productos(prestador, fecha, fecha, fecha)
+        self.assertEqual(pendientes["resumen"]["unidades"], Decimal("1"))
+        self.assertEqual(pendientes["resumen"]["base_usd"], Decimal("15"))
+        self.assertEqual(pendientes["resumen"]["comision_usd"], Decimal("1.50"))
+        liq = registrar(prestador_id=prestador.pk, desde=fecha, hasta=fecha, fecha=fecha,
+            seleccion=[], pagos=[{"tipo_pago": 5, "fecha": fecha, "monto": Decimal("1.50")}],
+            clave=uuid.uuid4(), usuario=self.usuario, incluir_productos=True)
+        detalle = liq.periodo_productos.ventas.get(venta=venta)
+        self.assertEqual(detalle.comision_usd, Decimal("1.50"))

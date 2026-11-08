@@ -1,9 +1,10 @@
+{% load ventas_formato %}
 {% if tarjetas %}
 <section aria-label="Tarjeta de fidelidad">
 <h2>Tarjeta de fidelidad</h2>
 {% for tarjeta in tarjetas %}
 <p><strong>{{ tarjeta.servicio.nombre }}</strong> · {{ tarjeta.acumulados }} de {{ tarjeta.cortes }} cortes.
-{% if tarjeta.disponible %}<strong>Tienes un corte gratis disponible.</strong>{% else %}Faltan {{ tarjeta.faltan }}.{% endif %}</p>
+{% if tarjeta.disponible %}<strong>{% if tarjeta.porcentaje == 100 %}Tienes un corte gratis disponible.{% else %}Tienes un descuento de {{ tarjeta.porcentaje|porcentaje_venta }}% disponible.{% endif %}</strong>{% else %}Faltan {{ tarjeta.faltan }}.{% endif %}</p>
 {% endfor %}
 </section>
 {% endif %}

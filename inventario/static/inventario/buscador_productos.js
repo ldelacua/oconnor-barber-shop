@@ -1,9 +1,10 @@
 (() => {
  const formato = n => Number(n).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
-  function iniciar(raiz) {
+  const iniciados = new WeakSet();
+  function iniciar(raiz = document) {
     raiz.querySelectorAll(".buscador-producto").forEach(contenedor => {
-      if (contenedor.dataset.iniciado) return;
-      contenedor.dataset.iniciado = "1";
+      if (iniciados.has(contenedor)) return;
+      iniciados.add(contenedor);
       const input = contenedor.querySelector(".producto-buscar");
       const id = contenedor.querySelector('input[type="hidden"]');
       const lista = contenedor.querySelector(".producto-resultados");
@@ -22,7 +23,7 @@
       };
       input.addEventListener("input", () => {
         input.value = input.value.toUpperCase();
-        id.value = ""; id.dispatchEvent(new Event("change", {bubbles:true}));
+        id.value = ""; id.dataset.promocionable = "false"; id.dispatchEvent(new Event("change", {bubbles:true}));
         clearTimeout(temporizador); peticion?.abort(); secuencia++; cerrar();
         const texto = input.value.trim();
         if (!texto) { ayuda.textContent = "ESCRIBE Y SELECCIONA UN RESULTADO."; return; }
@@ -45,7 +46,7 @@
               boton.setAttribute("role", "option");
               boton.textContent = p.texto;
               boton.addEventListener("click", () => {
-                id.value = String(p.id); input.value = p.texto;
+                id.value = String(p.id); id.dataset.promocionable = String(!!p.promocionable); input.value = p.texto;
                 ayuda.textContent = p.existencia !== undefined ? "EXISTENCIA: " + formato(Math.floor(Number(p.existencia)*100+1e-8)/100) : "PRODUCTO SELECCIONADO."; cerrar();
                 id.dispatchEvent(new Event("change", {bubbles:true}));
               });

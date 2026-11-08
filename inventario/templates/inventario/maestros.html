@@ -12,12 +12,12 @@
 <div class="table-responsive card"><table class="table align-middle mb-0"><thead><tr>
 <th>ID</th>{% if es_producto %}<th>Código</th><th>Nombre</th><th class="text-end">Volumen</th><th>Unidad</th><th>Existencias</th>
 {% elif tipo == 'unidades' %}<th>Unidad</th><th>Descripción</th>
-{% else %}<th>Nombre</th><th>Dirección</th><th>RIF</th><th>Teléfono</th>{% endif %}<th>Activo</th><th></th></tr></thead>
+{% else %}<th>Nombre</th><th>Dirección</th><th>RIF</th><th>Teléfono</th>{% endif %}{% if es_producto %}<th>Promocionable</th><th>Sin comisión</th>{% endif %}<th>Activo</th><th></th></tr></thead>
 <tbody>{% for objeto in pagina %}<tr><td>{{ objeto.pk }}</td>
 {% if es_producto %}<td>{{ objeto.codigo_producto }}</td><td>{{ objeto.nombre_producto }}</td><td class="text-end">{% if objeto.volumen is not None %}{{ objeto.volumen|monto_venta }}{% else %}POR ASIGNAR{% endif %}</td><td>{{ objeto.unidad_medida.codigo|default:"POR ASIGNAR" }}</td><td class="text-end">{{ objeto.existencia|monto_venta }}</td>
 {% elif tipo == 'unidades' %}<td>{{ objeto.codigo }}</td><td>{{ objeto.nombre }}</td>
 {% else %}<td>{{ objeto.nombre }}</td><td>{{ objeto.direccion }}</td><td>{{ objeto.rif }}</td><td>{{ objeto.telefono }}</td>{% endif %}
-<td><input type="checkbox" disabled aria-label="Activo" {% if objeto.activo %}checked{% endif %}></td><td><a class="btn btn-sm btn-outline-primary" href="{% if es_producto %}{% url 'inventario:editar_producto' objeto.pk %}{% elif tipo == 'unidades' %}{% url 'inventario:editar_unidad' objeto.pk %}{% else %}{% url 'inventario:editar_proveedor' objeto.pk %}{% endif %}?next={{ ruta_actual|urlencode }}">Editar</a></td></tr>
+{% if es_producto %}<td><input type="checkbox" disabled aria-label="Promocionable" {% if objeto.promocionable %}checked{% endif %}></td><td><input type="checkbox" disabled aria-label="No aplica comisión en venta" {% if objeto.sin_comision %}checked{% endif %}></td>{% endif %}<td><input type="checkbox" disabled aria-label="Activo" {% if objeto.activo %}checked{% endif %}></td><td><a class="btn btn-sm btn-outline-primary" href="{% if es_producto %}{% url 'inventario:editar_producto' objeto.pk %}{% elif tipo == 'unidades' %}{% url 'inventario:editar_unidad' objeto.pk %}{% else %}{% url 'inventario:editar_proveedor' objeto.pk %}{% endif %}?next={{ ruta_actual|urlencode }}">Editar</a></td></tr>
 {% empty %}<tr><td colspan="8" class="p-4 text-center">No hay registros.</td></tr>{% endfor %}</tbody></table></div>
 {% include "inventario/paginacion.html" %}
 {% endblock %}

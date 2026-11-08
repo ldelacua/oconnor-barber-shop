@@ -1,3 +1,4 @@
+from decimal import Decimal
 import uuid
 from django.db import models
 from django.core.exceptions import ValidationError
@@ -100,6 +101,11 @@ class DocumentoProducto(models.Model):
     def total_unidades(self):
         return self.unidades_total or sum((l.cantidad for l in self.detalles.all()), 0)
 
+    def importes_comision(self):
+        elegibles = [linea for linea in self.detalles.all() if not linea.sin_comision]
+        return (sum((l.cantidad for l in elegibles), Decimal("0")),
+                sum((l.neto_usd for l in elegibles), Decimal("0")))
+
     def __str__(self):
         return f"{self.tipo}-{self.pk:06d}"
 
@@ -122,6 +128,8 @@ class LineaProducto(models.Model):
     descripcion = models.CharField(max_length=300)
     codigo = models.CharField(max_length=50)
     cantidad = models.DecimalField(max_digits=14, decimal_places=3)
+    sin_comision = models.BooleanField(default=False, editable=False)
+    promocion = models.BooleanField(default=False, editable=False)
     precio_unitario_usd = models.DecimalField(max_digits=18, decimal_places=2)
     subtotal_usd = models.DecimalField(max_digits=18, decimal_places=2)
     subtotal_bs = models.DecimalField(max_digits=18, decimal_places=2)
@@ -131,6 +139,10 @@ class LineaProducto(models.Model):
     descuento_usd = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     descuento_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     linea_original = models.OneToOneField("self", null=True, blank=True, on_delete=models.PROTECT, related_name="reverso")
+
+    @property
+    def neto_usd(self):
+        return self.subtotal_usd - self.descuento_usd
 
     class Meta:
         ordering = ["pk"]

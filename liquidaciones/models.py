@@ -16,6 +16,7 @@ class Liquidacion(Inmutable):
     tasa_bcv = models.DecimalField(max_digits=18, decimal_places=2)
     total_servicios_usd = models.DecimalField(max_digits=18, decimal_places=2)
     total_comision_usd = models.DecimalField(max_digits=18, decimal_places=2)
+    total_propinas_bs = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     total_bs = models.DecimalField(max_digits=18, decimal_places=2)
     registrado_por = models.CharField(max_length=150)
     creado_en = models.DateTimeField(auto_now_add=True)
@@ -31,7 +32,7 @@ class Liquidacion(Inmutable):
         if self._state.adding:
             if self.sellado:
                 raise ValidationError("La liquidación debe validarse antes de finalizarla.")
-            if (self.tasa_bcv <= 0 or self.total_comision_usd <= 0 or self.total_bs <= 0
+            if (self.tasa_bcv <= 0 or self.total_bs <= 0
                 or self.periodo_desde > self.periodo_hasta or self.periodo_hasta > self.fecha_cancelacion):
                 raise ValidationError("Datos de liquidación inválidos.")
         return super().save(*args, **kwargs)
@@ -175,9 +176,10 @@ class ComisionVentaProducto(Inmutable):
             serializar_operacion()
             periodo = PeriodoComisionProductos.objects.select_related('liquidacion').get(pk=self.periodo_id)
             venta = self.venta
+            unidades, base = venta.importes_comision()
             if (periodo.liquidacion.sellado or not venta.sellado or venta.tipo != 'VP'
                     or venta.prestador_id != periodo.prestador_id or not periodo.desde <= venta.fecha <= periodo.hasta
-                    or venta.unidades_total != self.unidades or venta.base_usd != self.base_usd
+                    or unidades <= 0 or unidades != self.unidades or base != self.base_usd
                     or self.comision_usd < 0):
                 raise IntegrityError('La venta no corresponde al período de comisión.')
             from ventas_productos.models import DocumentoProducto

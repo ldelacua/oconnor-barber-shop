@@ -1,4 +1,5 @@
 from decimal import Decimal
+from collections import defaultdict
 from django import forms
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -7,7 +8,8 @@ from django.db.models.functions import Concat
 from django.db.models.functions import Collate
 from django.db import connection
 from django.shortcuts import render
-from .models import PagoVenta
+from .models import PagoVenta, CobroTarjetaRegalo, CobroCompartido
+from .tarjetas_regalo import TIPOS_REGALO
 from .pagos_calculos import leer_tipos_pago
 from ventas_productos.models import PagoProducto
 from liquidaciones.models import PagoLiquidacion
@@ -49,16 +51,34 @@ class Filtros(forms.Form):
 
 
 @login_required(login_url='iniciar_sesion')
-def consulta_general(request):
+def consulta_general(request, cobros_clientes=False):
     fuentes = []
     reversos = ReversoPagoProveedor.objects.annotate(**{n: F('pago__'+n) for n in ['tipo_pago','nombre_tipo_pago','referencia','moneda']}, monto=-F('pago__monto'), observacion=F('motivo'))
     definiciones = [
-        ('SERVICIOS', 'Cobros de servicios', 'ventas.view_pagoventa', PagoVenta.objects.filter(documento__sellado=True), 'documento_id', Concat(F('documento__cliente__nombre'), Value(' '), F('documento__cliente__apellido')), 1, 'ventas.view_documentoventa'),
-        ('PRODUCTOS', 'Cobros de productos', 'ventas_productos.view_pagoproducto', PagoProducto.objects.filter(documento__sellado=True), 'documento_id', F('documento__descripcion_cliente'), 1, 'ventas_productos.view_documentoproducto'),
+        ('SERVICIOS', 'Cobros de servicios', 'ventas.view_pagoventa', PagoVenta.objects.filter(documento__sellado=True, documento__cobro_compartido__isnull=True), 'documento_id', Concat(F('documento__cliente__nombre'), Value(' '), F('documento__cliente__apellido')), 1, 'ventas.view_documentoventa'),
+        ('PRODUCTOS', 'Cobros de productos', 'ventas_productos.view_pagoproducto', PagoProducto.objects.filter(documento__sellado=True, documento__cobro_compartido__isnull=True), 'documento_id', F('documento__descripcion_cliente'), 1, 'ventas_productos.view_documentoproducto'),
         ('REVERSO_PROVEEDOR', 'Reversos de pagos a proveedores', 'inventario.view_pagoproveedor', reversos, 'pago__compra_id', F('pago__compra__proveedor__nombre'), -1, 'inventario.view_compra'),
         ('PROVEEDOR', 'Pagos a proveedores', 'inventario.view_pagoproveedor', PagoProveedor.objects.all(), 'compra_id', F('compra__proveedor__nombre'), -1, 'inventario.view_compra'),
         ('LIQUIDACION', 'Liquidaciones', 'liquidaciones.view_pagoliquidacion', PagoLiquidacion.objects.filter(liquidacion__sellado=True), 'liquidacion_id', F('liquidacion__nombre_prestador'), -1, 'liquidaciones.view_liquidacion'),
     ]
+    if cobros_clientes:
+        # El canje no es dinero nuevo: el ingreso se registró al vender la tarjeta.
+        servicio, producto = definiciones[:2]
+        ids_regalo = [tipo["id"] for tipo in TIPOS_REGALO.values()]
+        servicio = (*servicio[:3], servicio[3].exclude(tipo_pago__in=ids_regalo), *servicio[4:])
+        definiciones = [
+            servicio, producto,
+            ('TARJETA_REGALO', 'Venta de tarjetas de regalo', 'ventas.view_tarjetaregalo',
+             CobroTarjetaRegalo.objects.all(), 'id', Value('—', output_field=CharField()), 1, None),
+        ]
+    if request.user.has_perms(("ventas.view_pagoventa", "ventas_productos.view_pagoproducto")):
+        definiciones.append((
+            'COBRO_COMPARTIDO', 'Cobro de servicios y productos', 'ventas.view_pagoventa',
+            CobroCompartido.objects.all(), 'id',
+            Concat(F('servicios__cliente__nombre'), Value(' '), F('servicios__cliente__apellido')),
+            1, 'ventas.view_documentoventa',
+        ))
+    agrupados = defaultdict(lambda: {'USD': Decimal('0.00'), 'BS': Decimal('0.00')})
     formas = {}
     catalogo = {}
     try:
@@ -72,6 +92,8 @@ def consulta_general(request):
             for k, n in consulta.order_by().values_list('tipo_pago', 'nombre_tipo_pago').distinct():
                 formas.setdefault(str(k), n)
     filtro = Filtros(request.GET, origenes=[(f[0], f[1]) for f in fuentes], formas=sorted(formas.items()), ver_bancos=request.user.has_perm('bancos.view_cuentabancaria'))
+    if cobros_clientes:
+        filtro.fields.pop("sentido")
     consultas = []
     totales = {k: Decimal('0.00') for k in ['entrada_usd', 'entrada_bs', 'salida_usd', 'salida_bs']}
     validos = filtro.is_valid()
@@ -103,6 +125,9 @@ def consulta_general(request):
                 valores = consulta.filter(moneda=moneda).aggregate(entrada=Sum('flujo', filter=Q(flujo__gt=0)), salida=Sum('flujo', filter=Q(flujo__lt=0)))
                 totales['entrada_' + sufijo] += valores['entrada'] or Decimal('0.00')
                 totales['salida_' + sufijo] -= valores['salida'] or Decimal('0.00')
+            if cobros_clientes:
+                for grupo in consulta.values('tipo_pago', 'nombre_tipo_pago', 'moneda').annotate(total=Sum('flujo')):
+                    agrupados[formas.get(str(grupo['tipo_pago']), grupo['nombre_tipo_pago'])][grupo['moneda']] += grupo['total']
             if connection.vendor == 'mysql':
                 # Las columnas antiguas pueden ser utf8mb3: COLLATE por sí solo
                 # no cambia su charset. Primero convertir, después unificar.
@@ -110,7 +135,9 @@ def consulta_general(request):
                     nombre: Collate(TextoUTF8MB4(F(nombre)), 'utf8mb4_0900_ai_ci') for nombre in
                     ('nombre_tipo_pago', 'referencia', 'observacion', 'moneda', 'origen', 'tercero')})
             consultas.append(consulta.values(*campos))
-            enlaces[codigo] = request.user.has_perm(permiso_documento)
+            enlaces[codigo] = bool(permiso_documento and request.user.has_perm(permiso_documento))
+            if codigo == 'COBRO_COMPARTIDO':
+                enlaces[codigo] = enlaces[codigo] and request.user.has_perm('ventas_productos.view_documentoproducto')
     if validos and request.GET.get('excel') == '1':
         from .pagos_excel import descargar_excel
         filas_excel = consultas[0].union(*consultas[1:], all=True).order_by('fecha', 'origen', 'id') if consultas else []
@@ -123,7 +150,6 @@ def consulta_general(request):
     cuentas = {}
     if request.user.has_perm('bancos.view_cuentabancaria'):
         from bancos.models import MovimientoInterno
-        from collections import defaultdict
         por_origen = defaultdict(set)
         for fila in pagina:
             por_origen[fila['origen']].add(fila['id'])
@@ -146,4 +172,5 @@ def consulta_general(request):
     query = request.GET.copy()
     query.pop('page', None)
     query.pop('excel', None)
-    return render(request, 'ventas/pagos_general.html', {'filtro': filtro, 'pagina': pagina, 'totales': totales, 'query': query.urlencode()})
+    return render(request, 'ventas/pagos_general.html', {'filtro': filtro, 'pagina': pagina, 'totales': totales, 'query': query.urlencode(), 'cobros_clientes': cobros_clientes,
+        'agrupados': [(nombre, importes['BS'], importes['USD']) for nombre, importes in sorted(agrupados.items())]})

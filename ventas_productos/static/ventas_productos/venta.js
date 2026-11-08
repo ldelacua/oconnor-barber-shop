@@ -11,30 +11,37 @@
  function calcular(){
    const salida=document.getElementById("total-venta"),resumen=document.getElementById("resumen-factura");
    resumen.replaceChildren();
+   todas().forEach(fila=>{fila.querySelector('[name$="-cantidad"]').disabled=borrada(fila);});
    const filas=todas().filter(f=>!borrada(f)&&f.querySelector('[name$="-producto"]').value);
-   if(!tasa||iva===null||filas.some(f=>!f.dataset.precio||num(f,"cantidad")<=0)){
+   if(!tasa||iva===null||filas.some(f=>!f.dataset.precio||!Number.isInteger(num(f,"cantidad"))||num(f,"cantidad")<=0)){
      salida.textContent="Total general: —";document.getElementById("saldo-pagos").textContent="";return;
    }
    const unidades=redondear(filas.reduce((s,f)=>s+num(f,"cantidad"),0));
-   const tramo=escalas.filter(r=>unidades>=Number(r.unidades)).sort((a,b)=>Number(b.unidades)-Number(a.unidades))[0];
+   const unidadesElegibles=redondear(filas.reduce((s,f)=>s+(f.dataset.sinComision==="true"?0:num(f,"cantidad")),0));
+   const tramo=escalas.filter(r=>unidadesElegibles>0&&unidadesElegibles>=Number(r.unidades)).sort((a,b)=>Number(b.unidades)-Number(a.unidades))[0];
    const descuento=tramo?Number(tramo.porcentaje):0;
-   let bruto=0,rebajas=0,impuestos=0;
+   let bruto=0,rebajas=0,promociones=0,impuestos=0;
    todas().forEach(fila=>{
       fila.style.opacity=borrada(fila)?".4":"1";
       const seleccion=fila.querySelector('[name$="-producto"]').value;
       if(borrada(fila)||!seleccion){fila.querySelector(".importe-linea").textContent=borrada(fila)?"SE QUITARÁ":"—";return;}
       const usd=redondear(num(fila,"cantidad")*Number(fila.dataset.precio));
-      const rebajaUSD=redondear(usd*descuento/100),bs=redondear(usd*tasa);
+      const gratis=fila.querySelector('[name$="-promocion"]')?.checked;
+      const basePagada=gratis?redondear(Math.max(0,num(fila,"cantidad")-1)*Number(fila.dataset.precio)):usd;
+      const rebajaUSD=redondear(usd-basePagada+redondear(basePagada*(fila.dataset.sinComision==="true"?0:descuento)/100)),bs=redondear(usd*tasa);
       const netoBS=redondear((usd-rebajaUSD)*tasa),impuesto=redondear(netoBS*iva/100);
       bruto+=bs;rebajas+=bs-netoBS;impuestos+=impuesto;
+      if(gratis)promociones+=bs-redondear(basePagada*tasa);
       fila.querySelector(".importe-linea").textContent=formato(redondear((netoBS+impuesto)/tasa));
    });
    bruto=redondear(bruto);rebajas=redondear(rebajas);impuestos=redondear(impuestos);
    const base=redondear(bruto-rebajas),totalBS=redondear(base+impuestos),totalUSD=redondear(totalBS/tasa);
    const parrafo=t=>{const p=document.createElement("p");p.className="mb-1";p.textContent=t;resumen.appendChild(p);};
    parrafo("Unidades de la factura: "+formato(unidades));
+   if(unidadesElegibles!==unidades)parrafo("Unidades elegibles para descuento: "+formato(unidadesElegibles));
    parrafo("Subtotal: Bs "+formato(bruto));
-   if(descuento)parrafo("Descuento "+formato(descuento)+" %: Bs "+formato(rebajas));
+   if(promociones)parrafo("Unidades gratis por promoción: Bs "+formato(promociones));
+   if(redondear(rebajas-promociones))parrafo("Descuento por cantidad: Bs "+formato(rebajas-promociones));
    parrafo("Base imponible: Bs "+formato(base));
    parrafo("IVA "+formato(iva)+" %: Bs "+formato(impuestos));
    salida.textContent="Total general: USD "+formato(totalUSD)+" · Bs "+formato(totalBS);
@@ -42,6 +49,17 @@
    document.querySelectorAll("#pagos-cuerpo .pago-producto").forEach(fila=>{
       const tipo=catalogo[fila.querySelector('[name$="-tipo_pago"]').value];
       fila.style.opacity=borrada(fila)?".4":"1";
+      const cuenta=fila.querySelector('[name$="-cuenta_bancaria"]');
+      const monedaCuenta=cuenta?.selectedOptions[0]?.dataset.moneda;
+      const aviso=fila.querySelector(".error-moneda-cuenta");
+      const error=!borrada(fila) && tipo?.afecta_banco
+          ? (!cuenta ? "No tienes permiso para seleccionar una cuenta bancaria."
+             : !cuenta.value ? "Selecciona el banco y la cuenta."
+             : monedaCuenta && monedaCuenta!==tipo.moneda
+               ? "La cuenta está en "+monedaCuenta+" y el pago es en "+tipo.moneda+". Selecciona una cuenta de la misma moneda." : "")
+          : "";
+      if(aviso){aviso.textContent=error;aviso.hidden=!error;}
+      cuenta?.classList.toggle("is-invalid",!!error);
       if(borrada(fila)||!tipo)return;
       contar++;
       if(tipo.moneda==="USD")usd+=num(fila,"monto");else{bs+=num(fila,"monto");soloUSD=false;}
@@ -57,6 +75,8 @@
    const fecha=form.elements.namedItem("fecha").value;
    const campo=fila.querySelector(".precio-automatico"),ayuda=fila.querySelector(".precio-ayuda");
    const turno=(Number(fila.dataset.versionPrecio)||0)+1;fila.dataset.versionPrecio=turno;
+   const promocion=fila.querySelector('[name$="-promocion"]');
+   if(promocion){promocion.disabled=!promocion.checked;}
    fila.dataset.precio="";ayuda.textContent="";
    if(!producto||!fecha){campo.value="—";calcular();return;}
    campo.value="CONSULTANDO…";calcular();
@@ -65,8 +85,10 @@
      const r=await fetch(url,{headers:{"Accept":"application/json"}});if(r.redirected)throw new Error();
      const datos=await r.json();if(Number(fila.dataset.versionPrecio)!==turno)return;
      if(!r.ok){campo.value="SIN PRECIO";ayuda.textContent=datos.error||"CONFIGURA EL PORCENTAJE.";return;}
+     if(promocion){promocion.disabled=!datos.promocionable && !promocion.checked;}
+     fila.dataset.sinComision=String(datos.sin_comision===true);
      fila.dataset.precio=datos.precio_unitario_usd;campo.value=formato(datos.precio_unitario_usd);
-     ayuda.textContent="COSTO USD "+formato(datos.costo_unitario_usd)+" + "+formato(datos.porcentaje_venta)+" %";
+     ayuda.textContent="COSTO USD "+formato(datos.costo_unitario_usd)+" + "+formato(datos.porcentaje_venta)+" %"+(datos.sin_comision?" · SIN DESCUENTO POR CANTIDAD":"");
      calcular();
    }catch(_){if(Number(fila.dataset.versionPrecio)===turno){campo.value="SIN PRECIO";ayuda.textContent="NO SE PUDO CALCULAR EL PRECIO.";}}
  }

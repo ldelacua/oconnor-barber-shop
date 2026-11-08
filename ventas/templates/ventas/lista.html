@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% load ventas_formato %}
-{% block title %}Ventas | BarberPro{% endblock %}
+{% block title %}Facturación de Servicios | BarberPro{% endblock %}
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
-        <h2>Ventas</h2>
+        <h2>Facturación de Servicios</h2>
         <p class="text-muted mb-0">Facturas y Reversos</p>
     </div>
 
     <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'ventas:historico' %}" class="btn btn-outline-primary btn-sm">Histórico por servicio</a>
         <a
             href="{% url 'ventas:consulta_pagos' %}"
             class="btn btn-outline-primary btn-sm"

@@ -11,6 +11,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_GET
 from inventario.condiciones import tasa_para_fecha, iva_vigente
 from inventario.views import regreso
+from ventas.calculos import dinero
 from ventas.pagos_calculos import leer_tipos_pago
 from .models import DocumentoProducto
 from .forms import CabeceraForm, LineasFormSet, PagosFormSet, FiltroForm, ReversoForm
@@ -32,7 +33,7 @@ def lista(request):
             texto=f["producto"].upper()
             datos=datos.filter(Q(detalles__codigo__icontains=texto)|Q(detalles__descripcion__icontains=texto)).distinct()
     else: datos=datos.none()
-    pagina=Paginator(datos,25).get_page(request.GET.get("page"))
+    pagina=Paginator(datos, 15).get_page(request.GET.get("page"))
     query=request.GET.copy();query.pop("page",None)
     return render(request,"ventas_productos/lista.html",{"filtros":filtros,"pagina":pagina,"query":query.urlencode()})
 
@@ -50,7 +51,7 @@ def nueva(request):
     except (ValueError,KeyError,OSError,TypeError,ArithmeticError,ValidationError):
         catalogo={};iva=None
         error_config="Revisa la configuración compartida de IVA y formas de pago de Ventas."
-    pagos=PagosFormSet(datos,prefix="pagos",form_kwargs={"catalogo": catalogo, "usuario": request.user if request.user.has_perm("ventas_productos.view_pagoproducto") else None})
+    pagos=PagosFormSet(datos,prefix="pagos",form_kwargs={"catalogo": catalogo, "exigir_cuenta": True, "usuario": request.user if request.user.has_perm("ventas_productos.view_pagoproducto") else None})
     if request.method=="POST":
         validos=[form.is_valid(),lineas.is_valid(),pagos.is_valid()]
         if all(validos) and not error_config:
@@ -72,7 +73,9 @@ def nueva(request):
             else:
                 messages.success(request,"Venta registrada. Las existencias se descontaron una sola vez.")
                 return redirect("ventas_productos:ver",pk=doc.pk)
+    from .servicios import puede_dar_promocion
     return render(request,"ventas_productos/formulario.html",{
+        "puede_promocionar_productos": puede_dar_promocion(request.user),
         "form":form,"lineas":lineas,"pagos":pagos,"catalogo":catalogo,"iva":iva,"error_config":error_config,"aviso_existencias":aviso_existencias,"aviso_producto":aviso_producto})
 
 @login_required(login_url="iniciar_sesion")
@@ -91,7 +94,17 @@ def condiciones(request):
 def ver(request,pk):
     doc=get_object_or_404(DocumentoProducto.objects.select_related("documento_original","reverso").prefetch_related("detalles","pagos"),
                          pk=pk,sellado=True)
-    return render(request,"ventas_productos/documento.html",{"documento":doc,"regresar":regreso(request,"ventas_productos:lista")})
+    filas = []
+    promo_total = Decimal("0.00")
+    for linea in doc.detalles.all():
+        promo_usd = linea.precio_unitario_usd * (-1 if doc.tipo == "RP" else 1) if linea.promocion else Decimal("0")
+        promo_total += linea.subtotal_bs - dinero((linea.subtotal_usd - promo_usd) * doc.tasa_bcv) if linea.promocion else Decimal("0")
+        filas.append({"linea": linea, "promo_usd": promo_usd, "cantidad_usd": linea.descuento_usd - promo_usd})
+    return render(request, "ventas_productos/documento.html", {
+        "documento": doc, "filas": filas, "promo_total_bs": -promo_total,
+        "descuento_cantidad_bs": promo_total - doc.descuento_bs,
+        "regresar": regreso(request, "ventas_productos:lista"),
+    })
 
 @login_required(login_url="iniciar_sesion")
 def reversar(request,pk):
@@ -123,7 +136,7 @@ def precio(request):
     producto=get_object_or_404(Producto,pk=pk,activo=True)
     try:datos=precio_producto(producto,fecha)
     except ValidationError as exc:return JsonResponse({"error":" ".join(exc.messages)},status=422)
-    return JsonResponse({k:format(v,".2f") for k,v in datos.items()})
+    return JsonResponse({**{k:format(v,".2f") for k,v in datos.items()}, "promocionable": producto.promocionable, "sin_comision": producto.sin_comision})
 
 @login_required(login_url="iniciar_sesion")
 def configuracion(request,tipo):
@@ -195,7 +208,6 @@ def editar_escala_comision(request, pk=None):
 
 @login_required(login_url='iniciar_sesion')
 def reporte_prestador(request):
-    from django.db.models import Sum
     from liquidaciones.models import PeriodoComisionProductos
     from .models import EscalaComisionProducto
     from .forms import FiltroComisionForm
@@ -214,9 +226,12 @@ def reporte_prestador(request):
             ventas = DocumentoProducto.objects.filter(comision_productos__periodo=periodo)
             resumen = {'unidades': periodo.unidades, 'base_usd': periodo.base_usd,
                        'porcentaje': periodo.porcentaje, 'comision_usd': periodo.comision_usd}
-        totales = ventas.aggregate(unidades=Sum('unidades_total'), subtotal=Sum('subtotal_usd'), descuento=Sum('descuento_usd'))
-        if totales['unidades'] and not cerrado:
-            registros = [{'unidades': totales['unidades'], 'base_usd': totales['subtotal'] - totales['descuento']}]
+        if not cerrado:
+            ventas = ventas.filter(detalles__sin_comision=False).distinct()
+            registros = [{'unidades': unidades, 'base_usd': base}
+                         for venta in ventas.prefetch_related('detalles')
+                         for unidades, base in [venta.importes_comision()]]
+        if not cerrado and registros:
             escalas = list(EscalaComisionProducto.objects.filter(activo=True).values('unidades', 'porcentaje'))
             try:
                 resumen = calcular_comision_periodo(registros, escalas)

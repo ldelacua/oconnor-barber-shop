@@ -1,0 +1,4 @@
+<tr><td>{{ fila.non_field_errors }}{{ fila.producto }}{{ fila.producto.errors }}</td>
+<td>{{ fila.cantidad }}{{ fila.cantidad.errors }}</td>
+<td class="text-end precio-producto-combinado">—</td><td class="text-end neto-producto-combinado">—</td>
+{% if puede_promocionar_productos %}<td>{{ fila.promocion }} {{ fila.promocion.label_tag }}</td>{% endif %}<td>{{ fila.DELETE }} <label for="{{ fila.DELETE.id_for_label }}">Quitar</label></td></tr>

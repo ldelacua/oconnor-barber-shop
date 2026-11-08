@@ -47,6 +47,10 @@ class ServicioChoiceField(forms.ModelChoiceField):
 
 
 class LineaForm(forms.Form):
+    propina_bs = forms.DecimalField(required=False, max_digits=14, decimal_places=2,
+        min_value=Decimal("0"), label="Propina Bs.",
+        widget=forms.NumberInput(attrs={"class": "form-control text-end", "min": "0", "step": "0.01", "aria-label": "Propina Bs."}))
+
     aplicar_promocion = forms.BooleanField(required=False, label="Promoción")
     promocion = forms.ChoiceField(required=False, label="Motivo de promoción", choices=[
         ("", "Selecciona un motivo"), ("FIDELIDAD", "Fidelidad"), ("MARKETING", "Marketing"),
@@ -104,6 +108,14 @@ class FiltrosForm(forms.Form):
         return datos
 
 
+class CuentaPagoSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        opcion = super().create_option(name, value, label, selected, index, subindex, attrs)
+        if hasattr(value, "instance"):
+            opcion["attrs"]["data-moneda"] = value.instance.moneda
+        return opcion
+
+
 class PagoForm(forms.Form):
     tipo_pago = forms.ChoiceField(label="Forma de pago", widget=forms.Select(attrs={"class": "form-select tipo-pago"}))
     fecha = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control"}))
@@ -119,7 +131,7 @@ class PagoForm(forms.Form):
             self.fields['cuenta_bancaria'] = forms.ModelChoiceField(
                 queryset=CuentaBancaria.objects.filter(activa=True, banco__activo=True).select_related('banco'),
                 required=False, empty_label='Sin banco ni cuenta', label='Banco y cuenta',
-                widget=forms.Select(attrs={'class': 'form-select mt-1', 'aria-label': 'Banco y cuenta'}))
+                widget=CuentaPagoSelect(attrs={'class': 'form-select mt-1', 'aria-label': 'Banco y cuenta'}))
         catalogo = catalogo or {}
         self.catalogo_pagos = catalogo
         self.fields['tipo_pago'].widget.attrs['data-tipos-banco'] = ','.join(
@@ -143,7 +155,7 @@ class PagoForm(forms.Form):
             elif 'cuenta_bancaria' not in self.errors:
                 self.add_error('cuenta_bancaria', 'Selecciona el banco y la cuenta para este pago.')
         elif self.exigir_cuenta and cuenta and cuenta.moneda != tipo.get('moneda'):
-            self.add_error('cuenta_bancaria', 'La moneda de la cuenta debe coincidir con la del pago.')
+            self.add_error('cuenta_bancaria', f'La cuenta está en {cuenta.moneda} y el pago es en {tipo.get("moneda")}. Selecciona una cuenta de la misma moneda.')
         return datos
 
 

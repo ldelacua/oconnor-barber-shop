@@ -74,9 +74,26 @@ class UnidadMedida(models.Model):
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
 
+class GrupoProducto(models.Model):
+    id_grupo = models.BigAutoField(primary_key=True)
+    descripcion = models.CharField("Descripción", max_length=150, unique=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["descripcion", "pk"]
+
+    def save(self, *args, **kwargs):
+        self.descripcion = self.descripcion.strip().upper()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.descripcion
+
+
 class Producto(models.Model):
     id_producto = models.BigAutoField(primary_key=True)
     codigo_producto = models.CharField("Código", max_length=50, unique=True)
+    grupo = models.ForeignKey(GrupoProducto, on_delete=models.PROTECT, null=True, blank=True, verbose_name="Grupo")
     volumen = models.DecimalField("Volumen", max_digits=14, decimal_places=3, null=True, blank=True,
                                   validators=[MinValueValidator(Decimal("0.001"))])
     unidad_medida = models.ForeignKey(UnidadMedida, on_delete=models.PROTECT, null=True, blank=True,
@@ -85,6 +102,7 @@ class Producto(models.Model):
     modelo = models.CharField("Modelo del producto", max_length=100, blank=True)
     sin_comision = models.BooleanField("No aplica comisión en venta", default=False)
     promocionable = models.BooleanField("Promocionable", default=False)
+    comercializacion = models.BooleanField("Comercialización", default=True)
     nombre_producto = models.CharField("Nombre", max_length=150)
     observacion = models.TextField("Observación", blank=True)
     activo = models.BooleanField(default=True)

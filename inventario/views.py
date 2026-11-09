@@ -11,8 +11,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 from datetime import date
-from .forms import ProductoForm, ProveedorForm, UnidadMedidaForm, CompraForm, DetalleFormSet, FiltroCompras
-from .models import Compra, Producto, Proveedor, UnidadMedida
+from .forms import ProductoForm, ProveedorForm, UnidadMedidaForm, CompraForm, DetalleFormSet, FiltroCompras, GrupoProductoForm
+from .models import Compra, Producto, Proveedor, UnidadMedida, GrupoProducto
 from .condiciones import tasa_para_fecha, iva_vigente
 from .services import actualizar_compra, guardar_borrador, eliminar_borrador
 
@@ -56,33 +56,38 @@ def compras(request):
             cuentas = compras_pagina[pagos[movimiento.pago_id]].cuentas_pago
             if movimiento.cuenta not in cuentas:
                 cuentas.append(movimiento.cuenta)
-    return render(request, "inventario/compras.html", {"filtro": filtro, "pagina": pagina, "query": query})
+    return render(request, "inventario/compras.html", {
+        "filtro": filtro, "pagina": pagina, "query": query,
+        "paginas": pagina.paginator.get_elided_page_range(pagina.number),
+    })
 
 @login_required(login_url="iniciar_sesion")
 def maestro_lista(request, tipo):
     es_producto = tipo == "productos"
-    modelo = {"productos": Producto, "proveedores": Proveedor, "unidades": UnidadMedida}[tipo]
+    modelo = {"productos": Producto, "proveedores": Proveedor, "unidades": UnidadMedida, "grupos": GrupoProducto}[tipo]
     datos = modelo.objects.all()
     q = request.GET.get("q", "").strip().upper()
     if es_producto:
         from .existencias import productos_con_existencia
-        datos = productos_con_existencia(datos.select_related("unidad_medida"))
+        datos = productos_con_existencia(datos.select_related("unidad_medida", "grupo"))
         if q:
             datos = datos.filter(Q(codigo_producto__icontains=q) | Q(nombre_producto__icontains=q))
+    elif tipo == "grupos" and q:
+        datos = datos.filter(descripcion__icontains=q)
     elif q:
         datos = datos.filter(Q(nombre__icontains=q) | (Q(codigo__icontains=q) if tipo == "unidades" else Q(rif__icontains=q)))
-    datos = datos.order_by("codigo_producto", "pk") if es_producto else datos.order_by("nombre", "pk")
+    datos = datos.order_by("codigo_producto", "pk") if es_producto else datos.order_by("descripcion" if tipo == "grupos" else "nombre", "pk")
     pagina, query = paginar(request, datos)
     return render(request, "inventario/maestros.html", {
         "pagina": pagina, "query": query, "tipo": tipo, "es_producto": es_producto,
-        "titulo": {"productos": "Consulta de productos", "proveedores": "Proveedores de inventario", "unidades": "Unidades de medida"}[tipo],
+        "titulo": {"productos": "Consulta de productos", "proveedores": "Proveedores de inventario", "unidades": "Unidades de medida", "grupos": "Grupos de productos"}[tipo],
         "q": q, "regresar": regreso(request), "ruta_actual": request.get_full_path()})
 
 @login_required(login_url="iniciar_sesion")
 def maestro_form(request, tipo, pk=None):
     es_producto = tipo == "productos"
     modelo, clase = {"productos": (Producto, ProductoForm), "proveedores": (Proveedor, ProveedorForm),
-                     "unidades": (UnidadMedida, UnidadMedidaForm)}[tipo]
+                     "unidades": (UnidadMedida, UnidadMedidaForm), "grupos": (GrupoProducto, GrupoProductoForm)}[tipo]
     objeto = get_object_or_404(modelo, pk=pk) if pk else None
     form = clase(request.POST or None, instance=objeto)
     destino = regreso(request, "inventario:" + tipo)
@@ -90,13 +95,13 @@ def maestro_form(request, tipo, pk=None):
         try:
             form.save()
         except IntegrityError:
-            form.add_error(None, "El código o RIF ya está registrado. Revisa los datos.")
+            form.add_error(None, "Ya existe un registro con esos datos.")
         else:
             messages.success(request, "Registro guardado.")
             return redirect(destino)
     return render(request, "inventario/maestro_form.html", {
         "form": form, "regresar": destino, "es_producto": es_producto, "ruta_actual": request.get_full_path(),
-        "titulo": ("Editar " if pk else "Nuevo ") + {"productos": "producto", "proveedores": "proveedor de inventario", "unidades": "unidad de medida"}[tipo]})
+        "titulo": ("Editar " if pk else "Nuevo ") + {"productos": "producto", "proveedores": "proveedor de inventario", "unidades": "unidad de medida", "grupos": "grupo de productos"}[tipo]})
 
 @login_required(login_url="iniciar_sesion")
 def compra_form(request, pk=None):

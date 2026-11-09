@@ -1,0 +1,8 @@
+{% if m.bloqueo %}
+<span class="text-muted">No modificable</span>
+{% elif perms.bancos.change_movimientobanco or perms.bancos.delete_movimientobanco %}
+    {% if perms.bancos.change_movimientobanco %}<a class="btn btn-outline-primary btn-sm" href="{% url 'bancos:editar_movimiento' m.pk %}{% if desde_estado %}?desde=estado{% endif %}">Editar</a>{% endif %}
+    {% if perms.bancos.delete_movimientobanco %}<a class="btn btn-outline-danger btn-sm" href="{% url 'bancos:eliminar_movimiento' m.pk %}{% if desde_estado %}?desde=estado{% endif %}">Eliminar</a>{% endif %}
+{% else %}
+<span class="text-muted">Sin permiso para modificar</span>
+{% endif %}

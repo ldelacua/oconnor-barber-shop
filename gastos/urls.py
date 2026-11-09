@@ -1,8 +1,12 @@
 from django.urls import path
 from . import views
+from .historico import historico
 app_name="gastos"
 urlpatterns=[
     path("",views.inicio,name="inicio"),
+    path("historico/", historico, name="historico"),
+    path("historico/<int:grupo_id>/", historico, name="historico_tipos"),
+    path("historico/<int:grupo_id>/<int:tipo_id>/", historico, name="historico_productos"),
     path("nuevo/",views.formulario_registro,name="crear"),
     path("<int:pk>/",views.ver_registro,name="ver"),
     path("<int:pk>/editar/",views.formulario_registro,name="editar"),

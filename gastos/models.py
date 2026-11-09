@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models.functions import Lower, Trim
@@ -58,6 +58,8 @@ class RegistroGasto(models.Model):
     numero_control = models.CharField(max_length=60, blank=True, verbose_name="Número de control")
     fecha_gasto = models.DateField(default=timezone.localdate, verbose_name="Fecha del gasto")
     moneda = models.CharField(max_length=3, choices=[("BS", "Bs."), ("USD", "USD")], default="BS")
+    tasa_bcv = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True, editable=False)
+    monto_usd = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True, editable=False)
     tipo_pago = models.PositiveIntegerField(null=True, blank=True)
     nombre_tipo_pago = models.CharField(max_length=100, blank=True, default='')
     referencia_pago = models.CharField(max_length=100, blank=True, default='', verbose_name='Referencia del pago')
@@ -112,6 +114,8 @@ class Producto(models.Model):
     descripcion = models.CharField(max_length=150, verbose_name="Descripción")
     activo = models.BooleanField(default=True)
 
+    facturable = models.BooleanField(default=False, help_text="Indica si este producto puede cobrarse al cliente.")
+
     class Meta:
         ordering = ["descripcion", "id_producto"]
         verbose_name = "Producto"
@@ -139,6 +143,21 @@ class DetalleRegistroGasto(models.Model):
         related_name="detalles_gasto", db_column="id_producto")
     cantidad = models.DecimalField(max_digits=12, decimal_places=3,
         validators=[MinValueValidator(Decimal("0.001"))])
+
+    precio_unitario = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0"))])
+    impuesto_linea = models.DecimalField(max_digits=18, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal("0"))], verbose_name="Impuesto del renglón")
+
+    @property
+    def subtotal(self):
+        if self.precio_unitario is None:
+            return None
+        return (self.cantidad * self.precio_unitario).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def total(self):
+        return None if self.subtotal is None else self.subtotal + self.impuesto_linea
 
     class Meta:
         ordering = ["id_detalle_registro"]

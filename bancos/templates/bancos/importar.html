@@ -1,13 +1,15 @@
 {% extends 'base.html' %}
 {% load ventas_formato %}
 {% block content %}
-<h2>Importar estado de cuenta</h2><p>Carga el CSV completo de un solo mes. Se reemplazarán los movimientos de ese mes que aún no estén conciliados. Los meses cerrados no admiten cambios.</p>
-<p><a href="{% url 'bancos:cargar_movimiento' %}{% if cuenta %}?cuenta={{ cuenta.pk }}{% endif %}">¿No tienes CSV? Carga un movimiento a mano</a></p>
+<h2>Importar estado de cuenta</h2><p>Carga un archivo de un solo mes. Los meses cerrados no admiten cambios.</p>
+<p><strong>Agregar movimientos</strong> conserva lo ya guardado y omite las referencias repetidas con la misma fecha e importe. Usa <strong>Reemplazar</strong> solo con el extracto completo: puede retirar movimientos pendientes que no estén en el archivo.</p>
+<p><a href="{% url 'bancos:cargar_movimiento' %}{% if cuenta %}?cuenta={{ cuenta.pk }}{% endif %}">Carga Movimiento Manual</a></p>
+<p>Se usa el formato configurado para el banco de la cuenta seleccionada. Si el banco no tiene un formato propio, se usa el CSV estándar.</p>
 <form method="post" enctype="multipart/form-data" class="card card-body mb-3">
 {% csrf_token %}
 {% if form.errors %}<div class="alert alert-danger" role="alert"><strong>No se cargó el archivo.</strong>{{ form.non_field_errors }}</div>{% endif %}
 {% for campo in form.visible_fields %}<div class="mb-2">{{ campo.label_tag }} {{ campo }} {{ campo.errors }}</div>{% endfor %}
-<div><button class="btn btn-primary">Importar CSV</button> <a class="btn btn-secondary" href="{% url 'bancos:lista' %}">Regresar</a></div>
+<div><button class="btn btn-primary">Importar archivo</button> <a class="btn btn-secondary" href="{% url 'bancos:lista' %}">Regresar</a></div>
 </form>
 {% if cuenta %}
 <h3>Movimientos guardados · {{ cuenta }}</h3>

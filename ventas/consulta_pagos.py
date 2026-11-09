@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 from django.shortcuts import render
 
 from .models import PagoVenta
@@ -36,8 +36,38 @@ class FiltrosPagosForm(forms.Form):
         return datos
 
 
+def _agrupar_pagos(usuario, pagina, nombres, por_forma):
+    from bancos.templatetags.bancos_pagos import filas_con_cuenta
+
+    grupos = {}
+    ver_bancos = usuario.has_perm("bancos.view_cuentabancaria")
+    for pago, cuenta in filas_con_cuenta(usuario, pagina, "SERVICIOS"):
+        banco = (cuenta.banco_id, cuenta.banco.nombre) if cuenta else (
+            0, "Sin banco" if ver_bancos else "Banco no disponible",
+        )
+        forma = (pago.tipo_pago, nombres.get(pago.tipo_pago, pago.nombre_tipo_pago))
+        (padre_id, padre_nombre), (hijo_id, hijo_nombre) = (forma, banco) if por_forma else (banco, forma)
+        padre = grupos.setdefault(padre_id, {
+            "id": padre_id, "nombre": padre_nombre, "hijos": {}, "cantidad": 0,
+        })
+        hijo = padre["hijos"].setdefault(hijo_id, {
+            "id": hijo_id, "nombre": hijo_nombre, "origenes": {}, "cantidad": 0,
+        })
+        tipo = pago.documento.tipo_documento
+        origen = hijo["origenes"].setdefault(tipo, {
+            "id": tipo, "nombre": "Factura (FA)" if tipo == "FA" else "Reverso (RE)", "filas": [],
+        })
+        padre["cantidad"] += 1
+        hijo["cantidad"] += 1
+        origen["filas"].append((pago, cuenta))
+    orden = lambda grupo: (not grupo["id"], grupo["nombre"].casefold(), grupo["id"])
+    for padre in grupos.values():
+        padre["hijos"] = sorted(padre["hijos"].values(), key=orden)
+    return sorted(grupos.values(), key=orden)
+
+
 @login_required
-def consulta_pagos(request):
+def consulta_pagos(request, historico=False, por_forma=False):
     # Se incluyen los tipos históricos aunque ya no estuvieran en el JSON.
     nombres = {}
     for codigo, nombre in PagoVenta.objects.filter(documento__sellado=True).order_by("tipo_pago", "nombre_tipo_pago").values_list("tipo_pago", "nombre_tipo_pago").distinct():
@@ -48,13 +78,17 @@ def consulta_pagos(request):
         pass
     opciones = [(str(codigo), nombre) for codigo, nombre in sorted(nombres.items())]
     filtros = FiltrosPagosForm(request.GET, opciones_pago=opciones, ver_bancos=request.user.has_perm("bancos.view_cuentabancaria"))
-    pagos = PagoVenta.objects.filter(documento__sellado=True).select_related("documento__cliente").order_by("-fecha", "-documento_id", "-pk")
+    pagos = PagoVenta.objects.filter(documento__sellado=True).select_related("documento").order_by("-fecha", "-documento_id", "-pk")
     if filtros.is_valid():
         datos = filtros.cleaned_data
         if datos.get("banco"):
             from bancos.models import MovimientoInterno
-            ids = MovimientoInterno.objects.filter(origen="SERVICIOS", cuenta__banco=datos["banco"]).values("pago_id")
-            pagos = pagos.filter(pk__in=ids)
+            directos = MovimientoInterno.objects.filter(origen="SERVICIOS")
+            ids = directos.filter(cuenta__banco=datos["banco"]).values("pago_id")
+            pagos = pagos.filter(Q(pk__in=ids) | (
+                Q(documento__cobro_compartido__cuenta__banco=datos["banco"])
+                & ~Q(pk__in=directos.values("pago_id"))
+            ))
         if datos.get("desde"):
             pagos = pagos.filter(fecha__gte=datos["desde"])
         if datos.get("hasta"):
@@ -75,14 +109,33 @@ def consulta_pagos(request):
         pagos = pagos.none()
     # Agregar ANTES de paginar: totales de todos los resultados de la consulta.
     totales = pagos.aggregate(
+        cantidad=Count("pk"),
         usd=Sum("monto", filter=Q(moneda="USD")),
         bs=Sum("monto", filter=Q(moneda="BS")),
     )
+    cantidad_total = totales.pop("cantidad")
     totales = {moneda: valor if valor is not None else Decimal("0.00") for moneda, valor in totales.items()}
-    pagina = Paginator(pagos, 30).get_page(request.GET.get("page"))
+    grupos = {}
+    if historico:
+        resumen = pagos.values("tipo_pago").annotate(
+            cantidad=Count("pk"),
+            usd=Sum("monto", filter=Q(moneda="USD"), default=0),
+            bs=Sum("monto", filter=Q(moneda="BS"), default=0),
+        ).order_by("tipo_pago")
+        pagina = Paginator(resumen, 15).get_page(request.GET.get("page"))
+        grupos = {fila["tipo_pago"]: fila for fila in pagina}
+        for codigo, fila in grupos.items():
+            fila["nombre"] = nombres.get(codigo, str(codigo))
+            fila["pagos"] = []
+        for pago in pagos.filter(tipo_pago__in=grupos).iterator():
+            grupos[pago.tipo_pago]["pagos"].append(pago)
+    else:
+        pagina = Paginator(pagos, 15).get_page(request.GET.get("page"))
+    grupos_pagina = [] if historico else _agrupar_pagos(request.user, pagina, nombres, por_forma)
     parametros = request.GET.copy()
     parametros.pop("page", None)
     return render(request, "ventas/consulta_pagos.html", {
-        "filtros": filtros, "pagina": pagina, "totales": totales,
+        "seccion_pagos": True, "filtros": filtros, "pagina": pagina, "grupos_pagina": grupos_pagina, "por_forma": por_forma, "totales": totales, "cantidad_total": cantidad_total, "historico": historico,
+        "paginas": pagina.paginator.get_elided_page_range(pagina.number),
         "parametros": parametros.urlencode(),
     })

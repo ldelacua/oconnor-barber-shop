@@ -28,10 +28,16 @@ class RegistroAdmin(admin.ModelAdmin):
     list_display=("id_registro_gasto","fecha_gasto","proveedor","numero_factura","moneda","monto_gasto","monto_impuesto")
     list_filter=("moneda","fecha_gasto")
     search_fields=("numero_factura","proveedor__descripcion")
-    def get_form(self,request,obj=None,**kwargs):
-        from .forms import RegistroForm
-        kwargs["form"]=RegistroForm
-        return super().get_form(request,obj,**kwargs)
+    # Los cambios pasan por Gastos Operativos para sincronizar el débito y la tasa.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 
 from .models import Producto, DetalleRegistroGasto
@@ -40,7 +46,7 @@ from .forms import ProductoForm, DetalleGastoForm
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
     form = ProductoForm
-    list_display = ("id_producto", "descripcion", "activo")
+    list_display = ("id_producto", "descripcion", "facturable", "activo")
     list_filter = ("activo",)
     search_fields = ("descripcion",)
 

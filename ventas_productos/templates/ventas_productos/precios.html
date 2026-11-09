@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Precios{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+    <h2>Precios</h2>
+    <a class="btn btn-outline-success" href="{% url 'dashboard' %}">Regresar</a>
+</div>
+<div class="card card-body">
+    <div class="d-flex flex-wrap gap-2">
+        {% if perms.ventas_productos.view_porcentajeproducto %}<a class="btn btn-outline-primary" href="{% url 'ventas_productos:consulta_precios' %}">Lista de precios</a>{% endif %}
+        {% if perms.ventas_productos.view_escaladescuento %}<a class="btn btn-outline-primary" href="{% url 'ventas_productos:descuentos' %}">% Descuento por volumen</a>{% endif %}
+        {% if perms.ventas_productos.view_escalacomisionproducto %}<a class="btn btn-outline-primary" href="{% url 'ventas_productos:escalas_comision' %}">% Descuento Venta al Mayor</a>{% endif %}
+    </div>
+</div>
+{% endblock %}

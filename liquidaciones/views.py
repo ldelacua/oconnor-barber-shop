@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db import IntegrityError, OperationalError
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from tasas_bcv.models import TasaBCV
 from ventas.forms import PagosFormSet
@@ -16,9 +17,17 @@ from .models import Liquidacion
 from .servicios import pendientes, registrar
 
 
+def _desde_pagos(request):
+    parametros = request.POST if request.method == "POST" else request.GET
+    return parametros.get("desde_pagos") == "1" and request.user.has_perm("liquidaciones.view_pagoliquidacion")
+
+
 @login_required
 def crear(request):
+    seccion_pagos = _desde_pagos(request)
+    sufijo = "?desde_pagos=1" if seccion_pagos else ""
     datos_get = request.GET.copy()
+    datos_get.pop("desde_pagos", None)
     if datos_get:
         hoy = timezone.localdate()
         for campo, valor in {"desde": hoy.replace(day=1), "hasta": hoy, "fecha_cancelacion": hoy}.items():
@@ -74,7 +83,7 @@ def crear(request):
             except IntegrityError:
                 existente=Liquidacion.objects.filter(clave=clave,sellado=True).first()
                 if existente:
-                    return redirect("liquidaciones:ver",pk=existente.pk)
+                    return redirect(reverse("liquidaciones:ver", args=[existente.pk]) + sufijo)
                 errores.append("Algún servicio ya fue liquidado o ajustado. Vuelve a consultar los pendientes.")
             except OperationalError as error:
                 if not es_error_transitorio(error):
@@ -82,13 +91,13 @@ def crear(request):
                 errores.append("Otra operación está guardando datos. Espera unos segundos y vuelve a consultar.")
             else:
                 messages.success(request, f"Cancelación {liquidacion} registrada.")
-                return redirect("liquidaciones:ver",pk=liquidacion.pk)
+                return redirect(reverse("liquidaciones:ver", args=[liquidacion.pk]) + sufijo)
     descuentos = sorted(descuentos, key=lambda s: (s["linea"].documento.fecha, s["linea"].pk), reverse=True)
     total_facturas_productos_bs = sum((p["venta"].total_bs for p in productos["ventas"]), Decimal("0.00")) if productos else Decimal("0.00")
     for s in servicios:
         s["seleccionada"] = str(s["linea"].pk) in seleccion
     return render(request,"liquidaciones/formulario.html",{
-        "cabecera":cabecera,"pagos":pagos,"catalogo":catalogo,"servicios":servicios,
+        "seccion_pagos":seccion_pagos, "cabecera":cabecera,"pagos":pagos,"catalogo":catalogo,"servicios":servicios,
         "descuentos":descuentos,"tasa":tasa,"clave":clave,"errores":errores,"consultado":valido,
         "productos":productos,"reintegros_productos":reintegros_productos,
         "total_facturas_productos_bs":total_facturas_productos_bs,
@@ -113,7 +122,7 @@ def lista(request):
     else:documentos=documentos.none()
     pagina=Paginator(documentos.order_by("-fecha_cancelacion", "-pk"),30).get_page(request.GET.get("page"))
     parametros=request.GET.copy();parametros.pop("page",None)
-    return render(request,"liquidaciones/lista.html",{"pagina":pagina,"filtros":filtros,"parametros":parametros.urlencode()})
+    return render(request,"liquidaciones/lista.html",{"seccion_pagos":_desde_pagos(request),"pagina":pagina,"filtros":filtros,"parametros":parametros.urlencode()})
 
 
 @login_required
@@ -121,4 +130,4 @@ def ver(request,pk):
     documento=get_object_or_404(Liquidacion.objects.prefetch_related("detalles__detalle_venta__documento","detalles__ajuste_de__liquidacion","pagos"),pk=pk,sellado=True)
     propinas_directas = sum((d.detalle_venta.propina_usd for d in documento.detalles.all()
                             if d.ajuste_de_id is None), Decimal("0.00"))
-    return render(request,"liquidaciones/documento.html",{"documento":documento, "propinas_directas":propinas_directas})
+    return render(request,"liquidaciones/documento.html",{"seccion_pagos":_desde_pagos(request),"documento":documento, "propinas_directas":propinas_directas})

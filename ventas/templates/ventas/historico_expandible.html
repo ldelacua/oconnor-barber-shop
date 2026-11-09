@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Histórico de Facturación de Servicios{% endblock %}
+{% block extra_css %}
+<style>
+.tabla-historico-servicios { width: 100%; table-layout: fixed; }
+#historico-servicios { min-width: 820px; }
+.historico-cantidad { width: 10%; }
+.historico-importe { width: 16%; }
+.tabla-historico-servicios > :not(caption) > * > .historico-subtabla { padding: 0; border: 0; }
+.tabla-historico-servicios .text-end { white-space: nowrap; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h2>Histórico de Facturación de Servicios</h2>
+    <a class="btn btn-outline-secondary" href="{% url 'ventas:lista' %}">Volver a Facturación</a>
+</div>
+<nav class="nav nav-pills gap-2 mb-3" aria-label="Orden del histórico de servicios">
+    <a class="nav-link{% if not por_prestador %} active{% endif %}" {% if not por_prestador %}aria-current="page"{% endif %}
+       href="{% url 'ventas:historico' %}{% if query %}?{{ query }}{% endif %}">Por servicio</a>
+    <a class="nav-link{% if por_prestador %} active{% endif %}" {% if por_prestador %}aria-current="page"{% endif %}
+       href="{% url 'ventas:historico_por_prestador' %}{% if query %}?{{ query }}{% endif %}">Por prestador</a>
+</nav>
+<form method="get" class="card card-body mb-3">
+    {{ filtro.non_field_errors }}
+    <div class="row g-3">
+        {% for campo in filtro %}<div class="col-sm-6 col-lg">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}
+    </div>
+    <div class="mt-3"><button class="btn btn-primary">Consultar</button> <a class="btn btn-outline-secondary" href="{{ request.path }}">Limpiar</a></div>
+</form>
+<p class="text-muted">Los importes se muestran después de descuentos, con IVA y sin propinas. El equivalente en USD usa la tasa de cada factura. Las facturas reversadas no suman a los totales.</p>
+<div class="card table-responsive">
+<table class="table align-middle mb-0 tabla-historico-servicios" id="historico-servicios">
+    <colgroup><col><col class="historico-cantidad"><col class="historico-importe"><col class="historico-importe"></colgroup>
+    <thead class="table-dark"><tr><th>{% if por_prestador %}Prestador de servicio{% else %}Tipo de servicio{% endif %}</th><th class="text-end">Cantidad</th><th class="text-end">Total Bs.</th><th class="text-end">Total USD</th></tr></thead>
+    <tbody>
+        {% for padre in pagina %}
+        <tr>
+            <td>
+                <button type="button" class="btn btn-success btn-sm me-2 fw-bold" data-expandir
+                        aria-label="{% if por_prestador %}Servicios de{% else %}Prestadores de{% endif %} {{ padre.nombre }}" aria-controls="grupos-{{ padre.id }}" aria-expanded="false"><span aria-hidden="true">+</span></button>
+                {{ padre.nombre }}
+            </td>
+            <td class="text-end">{{ padre.cantidad }}</td><td class="text-end">{{ padre.total_bs|monto_venta }}</td><td class="text-end">{{ padre.total_usd|monto_venta }}</td>
+        </tr>
+        <tr id="grupos-{{ padre.id }}" hidden><td colspan="4" class="bg-light historico-subtabla">
+            <table class="table align-middle mb-0 tabla-historico-servicios">
+                <colgroup><col><col class="historico-cantidad"><col class="historico-importe"><col class="historico-importe"></colgroup>
+                <caption class="caption-top ps-4">{% if por_prestador %}Servicios{% else %}Prestadores{% endif %} · {{ padre.nombre }}</caption>
+                <thead class="table-secondary"><tr><th class="ps-4">{% if por_prestador %}Tipo de servicio{% else %}Prestador de servicio{% endif %}</th><th class="text-end">Cantidad</th><th class="text-end">Total Bs.</th><th class="text-end">Total USD</th></tr></thead>
+                <tbody>
+                    {% for hijo in padre.grupos %}
+                    <tr>
+                        <td class="ps-4">
+                            <button type="button" class="btn btn-success btn-sm me-2 fw-bold" data-expandir
+                                    aria-label="Facturas de {{ hijo.nombre }}" aria-controls="facturas-{{ padre.id }}-{{ hijo.id }}" aria-expanded="false"><span aria-hidden="true">+</span></button>
+                            {{ hijo.nombre }}
+                        </td>
+                        <td class="text-end">{{ hijo.cantidad }}</td><td class="text-end">{{ hijo.total_bs|monto_venta }}</td><td class="text-end">{{ hijo.total_usd|monto_venta }}</td>
+                    </tr>
+                    <tr id="facturas-{{ padre.id }}-{{ hijo.id }}" hidden><td colspan="4" class="bg-white historico-subtabla">
+                        <table class="table align-middle mb-0 tabla-historico-servicios">
+                            <colgroup>
+                                <col style="width:17%"><col style="width:12%"><col><col style="width:12%">
+                                <col class="historico-cantidad"><col class="historico-importe"><col class="historico-importe">
+                            </colgroup>
+                            <caption class="caption-top ps-5">Facturas · {{ hijo.nombre }}</caption>
+                            <thead><tr><th class="ps-5">Factura</th><th>Fecha</th><th>Cliente</th><th>Estado</th><th class="text-end">Cantidad</th><th class="text-end">Total Bs.</th><th class="text-end">Total USD</th></tr></thead>
+                            <tbody>
+                                {% for factura in hijo.facturas %}
+                                <tr>
+                                    <td class="ps-5"><a href="{% url 'ventas:ver' factura.documento_id %}?next={{ request.get_full_path|urlencode:'' }}">FA-{{ factura.documento_id|stringformat:"06d" }}</a></td>
+                                    <td>{{ factura.documento__fecha|date:"d/m/Y" }}</td>
+                                    <td>{{ factura.documento__cliente__nombre }} {{ factura.documento__cliente__apellido }}</td>
+                                    <td>{% if factura.documento__reverso__sellado %}Reversada{% else %}Vigente{% endif %}</td>
+                                    <td class="text-end">{{ factura.cantidad }}</td>
+                                    <td class="text-end">{{ factura.total_bs|monto_venta }}</td><td class="text-end">{{ factura.total_usd|monto_venta }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot><tr class="table-light"><th colspan="4" class="ps-5">Total {{ hijo.nombre }}</th><th class="text-end">{{ hijo.cantidad }}</th><th class="text-end">{{ hijo.total_bs|monto_venta }}</th><th class="text-end">{{ hijo.total_usd|monto_venta }}</th></tr></tfoot>
+                        </table>
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot><tr class="table-secondary"><th class="ps-4">Total {{ padre.nombre }}</th><th class="text-end">{{ padre.cantidad }}</th><th class="text-end">{{ padre.total_bs|monto_venta }}</th><th class="text-end">{{ padre.total_usd|monto_venta }}</th></tr></tfoot>
+            </table>
+        </td></tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center py-4">No hay resultados para estos filtros.</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot class="table-dark"><tr><th>Total general</th><th class="text-end">{{ total.cantidad }}</th><th class="text-end">{{ total.total_bs|monto_venta }}</th><th class="text-end">{{ total_usd|monto_venta }}</th></tr></tfoot>
+</table>
+</div>
+{% include "inventario/paginacion.html" %}
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.getElementById("historico-servicios").addEventListener("click", (evento) => {
+    const boton = evento.target.closest("button[data-expandir]");
+    if (!boton) return;
+    const fila = document.getElementById(boton.getAttribute("aria-controls"));
+    fila.hidden = !fila.hidden;
+    boton.setAttribute("aria-expanded", String(!fila.hidden));
+    boton.querySelector("span").textContent = fila.hidden ? "+" : "−";
+});
+</script>
+{% endblock %}

@@ -10,6 +10,23 @@
 </form>
 {% if cierre %}<a class="btn btn-success" href="?cierre={{ cierre.pk }}&amp;excel=1">Descargar Excel del cierre</a><p class="mt-3">Cierre: {{ cierre.fecha_cierre|date:'d/m/Y' }} · Saldo: {{ cierre.saldo|monto_venta }} {{ cuenta.get_moneda_display }}</p>{% endif %}
 <p class="mt-3"><strong>Período: {{ periodo|date:"m/Y" }}</strong></p>
+{% if perms.bancos.add_cierrebancario and not cierre %}
+<section class="card card-body mb-3">
+<h3 class="h5">Preparar cierre mensual</h3>
+<p>Usa los saldos del extracto y del sistema al inicio del período. Cuando hay un cierre anterior, el sistema recupera los saldos disponibles de ese cierre.</p>
+<form method="post" action="{% url 'bancos:reporte_cuenta' cuenta.pk %}">{% csrf_token %}{{ form.as_p }}
+<div class="d-flex flex-wrap gap-2">
+<button class="btn btn-outline-primary" name="previsualizar" value="1">Calcular saldos</button>
+<button class="btn btn-primary" name="guardar" value="1">Guardar cierre</button>
+</div>
+</form>
+</section>
+{% endif %}
+{% if saldos %}
+{% include 'bancos/resumen_saldos.html' %}
+{% elif cierre %}
+<p class="alert alert-secondary">Este cierre se guardó antes de incorporar el resumen de saldos.</p>
+{% endif %}
 <h3 class="mt-3">Grupos conciliados ({{ resumen.conciliaciones|length }})</h3>
 {% for grupo in resumen.conciliaciones %}
 <details class="mb-2"><summary>Conciliación #{{ grupo.id }} · {{ grupo.monto|monto_venta }} {{ cuenta.get_moneda_display }} · {{ grupo.usuario }} · {{ grupo.metodo|default:"Sin registrar" }}</summary>
@@ -23,9 +40,4 @@
 {% include 'bancos/pendientes.html' with filas=resumen.sistema %}
 <h3>Cierres guardados</h3>
 <ul>{% for c in cierres %}<li><a href="?cierre={{ c.pk }}">{{ c.fecha_cierre|date:'d/m/Y' }}</a> · {{ c.saldo|monto_venta }} {{ cuenta.get_moneda_display }}</li>{% empty %}<li>No hay cierres registrados.</li>{% endfor %}</ul>
-{% if perms.bancos.add_cierrebancario and not cierre %}
-<h3>Registrar cierre mensual</h3>
-<form method="post" class="card card-body">{% csrf_token %}{{ form.as_p }}
-<div><button class="btn btn-primary">Guardar cierre</button></div></form>
-{% endif %}
 {% endblock %}

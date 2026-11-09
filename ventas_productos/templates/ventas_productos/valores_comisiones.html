@@ -1,0 +1,4 @@
+{% load ventas_formato %}
+<td class="text-end">{{ fila.cantidad|floatformat:"-3" }}</td>
+<td class="text-end">{{ fila.monto|monto_venta }}</td>
+<td class="text-end">{{ fila.comision|monto_venta }}</td>

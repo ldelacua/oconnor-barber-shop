@@ -1,4 +1,4 @@
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -12,6 +12,8 @@ from django.views.decorators.http import require_POST
 from .models import GrupoGasto, TipoGasto, Proveedor, RegistroGasto
 from .forms import GrupoForm, TipoForm, ProveedorForm, RegistroForm, FiltrosForm
 
+from bancos.models import CierreBancario, CuentaBancaria, MovimientoInterno, PartidaInterna
+from seguridad.models import Auditoria
 from .models import Producto
 from .forms import ProductoForm, DetalleGastoFormSet
 
@@ -56,41 +58,102 @@ def inicio(request):
 
 
 def movimiento_gasto(pk):
-    from bancos.models import MovimientoInterno
     return MovimientoInterno.objects.filter(origen='GASTO_OPERATIVO', pago_id=pk)
+
+
+def _validar_mes_abierto(cuenta_id, fecha):
+    if CierreBancario.objects.filter(cuenta_id=cuenta_id, fecha_cierre__gte=fecha).exists():
+        raise ValidationError("El gasto afecta un período bancario cerrado y no se puede modificar.")
+
+
+def _validar_movimiento_editable(movimiento):
+    if movimiento is None:
+        return
+    _validar_mes_abierto(movimiento.cuenta_id, movimiento.fecha)
+    if PartidaInterna.objects.filter(movimiento=movimiento).exists():
+        raise ValidationError("El gasto está conciliado. Revierte la conciliación en Bancos antes de editarlo o eliminarlo.")
+
+
+def _bloquear_cuentas(*ids):
+    return {cuenta.pk: cuenta for cuenta in CuentaBancaria.objects.select_for_update().filter(
+        pk__in={pk for pk in ids if pk is not None},
+    ).order_by("pk")}
+
+
+def _registrar_auditoria(usuario, accion, gasto_id):
+    Auditoria.objects.create(usuario=usuario, accion=f"{accion} gasto #{gasto_id}")
+
+
+def _redirigir_si_bloqueado(request, movimiento, pk):
+    try:
+        _validar_movimiento_editable(movimiento)
+    except ValidationError as error:
+        messages.warning(request, error.messages[0])
+        return redirect("gastos:ver", pk=pk)
+    return None
 
 
 @login_required
 def formulario_registro(request,pk=None):
+    if pk is not None and not request.user.is_superuser:
+        raise PermissionDenied
     registro=get_object_or_404(RegistroGasto,pk=pk) if pk else RegistroGasto()
     datos=request.POST if request.method=="POST" else None
-    if pk and movimiento_gasto(pk).exists():
-        messages.warning(request, 'El gasto está vinculado a una cuenta bancaria y no se puede editar.')
-        return redirect('gastos:ver', pk=pk)
-    form=RegistroForm(datos,instance=registro,usuario=request.user)
+    movimiento = movimiento_gasto(pk).first() if pk else None
+    if request.method == "GET":
+        bloqueo = _redirigir_si_bloqueado(request, movimiento, pk)
+        if bloqueo:
+            return bloqueo
     detalles=DetalleGastoFormSet(datos,instance=registro,prefix="detalles")
+    detalles_validos = detalles.is_valid() if datos is not None else False
+    admite_total_historico = bool(pk and not registro.detalles.filter(precio_unitario__isnull=False).exists())
+    datos_encabezado = datos
+    if datos is not None:
+        datos_encabezado = datos.copy()
+        importes = detalles.totales if detalles_validos else None
+        if detalles_validos and importes is None and not admite_total_historico:
+            detalles_validos = False
+        if importes is None:
+            importes = (registro.monto_gasto, registro.monto_impuesto) if pk else (Decimal("0.01"), Decimal("0"))
+        datos_encabezado["monto_gasto"], datos_encabezado["monto_impuesto"] = map(str, importes)
+        datos_encabezado["porcentaje_impuesto"] = str(registro.porcentaje_impuesto if pk else 0)
+    form=RegistroForm(datos_encabezado,instance=registro,usuario=request.user,registro_detallado=True)
+    if movimiento and "cuenta_bancaria" in form.fields:
+        form.initial["cuenta_bancaria"] = movimiento.cuenta_id
     if request.method=="POST":
         encabezado_valido=form.is_valid()
-        detalles_validos=detalles.is_valid()
+        if not detalles_validos and not any(detalles.errors) and not detalles.non_form_errors():
+            form.add_error(None, "Agrega al menos un renglón con precio para calcular el gasto.")
         if encabezado_valido and detalles_validos:
             try:
                 with transaction.atomic():
                     if pk:
                         RegistroGasto.objects.select_for_update().get(pk=pk)
-                        if movimiento_gasto(pk).exists():
-                            raise ValidationError('El gasto ya está vinculado a una cuenta bancaria.')
-                    objeto=form.save()
+                        movimiento = movimiento_gasto(pk).first()
+                    elegida = form.cleaned_data.get("cuenta_bancaria")
+                    cuentas = _bloquear_cuentas(movimiento.cuenta_id if movimiento else None,
+                                                elegida.pk if elegida else None)
+                    _validar_movimiento_editable(movimiento)
+                    cuenta = cuentas.get(elegida.pk) if elegida else None
+                    if elegida:
+                        if not cuenta or not cuenta.activa or not cuenta.banco.activo or cuenta.moneda != form.cleaned_data["moneda"]:
+                            raise ValidationError("Selecciona una cuenta activa en la moneda del gasto.")
+                        _validar_mes_abierto(cuenta.pk, form.cleaned_data["fecha_gasto"])
+                    from ventas.pagos_calculos import total_en_usd
+                    objeto = form.save(commit=False)
+                    objeto.tasa_bcv = form.cleaned_data["tasa_bcv"]
+                    objeto.monto_usd = objeto.total if objeto.moneda == "USD" else total_en_usd(objeto.total, objeto.tasa_bcv)
+                    objeto.save()
                     detalles.instance=objeto
                     detalles.save()
-                    cuenta = form.cleaned_data.get('cuenta_bancaria')
                     if cuenta:
-                        from bancos.models import CuentaBancaria, MovimientoInterno
-                        cuenta = CuentaBancaria.objects.select_for_update().select_related('banco').get(pk=cuenta.pk)
-                        if not cuenta.activa or not cuenta.banco.activo or cuenta.moneda != objeto.moneda:
-                            raise ValidationError('Selecciona una cuenta activa en la moneda del gasto.')
-                        MovimientoInterno.objects.create(cuenta=cuenta, origen='GASTO_OPERATIVO',
-                            pago_id=objeto.pk, fecha=objeto.fecha_gasto, referencia=objeto.referencia_pago,
-                            monto=-objeto.total)
+                        MovimientoInterno.objects.update_or_create(origen="GASTO_OPERATIVO", pago_id=objeto.pk,
+                            defaults={"cuenta": cuenta, "fecha": objeto.fecha_gasto,
+                                      "referencia": objeto.referencia_pago, "monto": -objeto.total})
+                    elif movimiento:
+                        movimiento.delete()
+                    if pk:
+                        _registrar_auditoria(request.user, "Editar", pk)
             except ValidationError as error:
                 form.add_error(None, error)
             except IntegrityError:
@@ -99,7 +162,7 @@ def formulario_registro(request,pk=None):
                 messages.success(request,"El gasto fue guardado correctamente.")
                 return redirect("gastos:ver",pk=objeto.pk)
     return render(request,"gastos/formulario.html",{
-        "form":form,"detalles":detalles,"titulo":"Editar gasto" if pk else "Registrar gasto",
+        "form":form,"detalles":detalles,"admite_total_historico":admite_total_historico,"titulo":"Editar gasto" if pk else "Registrar gasto",
         "seccion":"registros","volver":"gastos:inicio",
     })
 
@@ -109,22 +172,35 @@ def ver_registro(request,pk):
     objeto=get_object_or_404(RegistroGasto.objects.select_related("gasto__grupo","proveedor").prefetch_related("detalles__producto"),pk=pk)
     movimiento = movimiento_gasto(pk).select_related('cuenta__banco').first()
     return render(request,"gastos/documento.html",{"objeto":objeto,"seccion":"registros",
-        "vinculado": bool(movimiento), "cuenta_pago": movimiento.cuenta if movimiento and request.user.has_perm('bancos.view_cuentabancaria') else None})
+        "cuenta_pago": movimiento.cuenta if movimiento and request.user.has_perm('bancos.view_cuentabancaria') else None})
 
 
 @login_required
 def eliminar_registro(request,pk):
+    if not request.user.is_superuser:
+        raise PermissionDenied
     objeto=get_object_or_404(RegistroGasto,pk=pk)
     if request.method=="POST":
         try:
             with transaction.atomic():
                 objeto = RegistroGasto.objects.select_for_update().get(pk=pk)
-                if movimiento_gasto(pk).exists():
-                    raise ProtectedError('Gasto vinculado a Bancos.', [objeto])
+                movimiento = movimiento_gasto(pk).first()
+                if movimiento:
+                    _bloquear_cuentas(movimiento.cuenta_id)
+                    _validar_movimiento_editable(movimiento)
+                    movimiento.delete()
                 objeto.delete()
-        except ProtectedError:messages.warning(request,"El gasto tiene registros asociados y no puede eliminarse.")
-        else:messages.success(request,"El gasto fue eliminado correctamente.")
+                _registrar_auditoria(request.user, "Eliminar", pk)
+        except ValidationError as error:
+            messages.warning(request, error.messages[0])
+        except ProtectedError:
+            messages.warning(request, "El gasto tiene registros asociados y no puede eliminarse.")
+        else:
+            messages.success(request, "El gasto fue eliminado correctamente.")
         return redirect("gastos:inicio")
+    bloqueo = _redirigir_si_bloqueado(request, movimiento_gasto(pk).first(), pk)
+    if bloqueo:
+        return bloqueo
     return render(request,"gastos/eliminar.html",{"objeto":objeto,"seccion":"registros","catalogo":"","volver":"gastos:inicio"})
 
 

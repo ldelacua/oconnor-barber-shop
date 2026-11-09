@@ -1,11 +1,18 @@
 {% extends "base.html" %}
 {% load ventas_formato %}
 {% block title %}Compras{% endblock %}
+{% block extra_css %}
+<style>
+.productos-compra-toggle[aria-expanded="true"] .productos-compra-mas,
+.productos-compra-toggle[aria-expanded="false"] .productos-compra-menos { display: none; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between mb-4">
 <div><h2>Compras</h2><p class="text-muted mb-0">Consulta facturas y registra entradas de productos.</p></div>
 <div class="d-flex flex-wrap gap-2 align-items-start">
 <a class="btn btn-primary" href="{% url 'inventario:nueva_compra' %}?next={{ request.get_full_path|urlencode }}">Nueva compra</a>
+<a class="btn btn-outline-primary" href="{% url 'inventario:historico_compras' %}">Histórico de compras</a>
 <a class="btn btn-outline-secondary" href="{% url 'inventario:productos' %}?next={{ request.get_full_path|urlencode }}">Consulta de productos</a>
 <a class="btn btn-outline-secondary" href="{% url 'inventario:proveedores' %}?next={{ request.get_full_path|urlencode }}">Proveedores</a>
 <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Regresar</a>
@@ -19,7 +26,7 @@
 <thead><tr><th>ID compra</th><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Divisa</th><th class="text-end">Total</th><th>Banco y cuenta</th><th>Estado</th><th>Acciones</th></tr></thead>
 <tbody>{% for compra in pagina %}
 <tr><td>{{ compra.pk }}</td><td>{{ compra.fecha_compra|date:"d/m/Y" }}</td><td>{{ compra.proveedor.nombre }}</td><td>{{ compra.numero_factura }}</td><td>{{ compra.get_divisa_display }}</td><td class="text-end">{{ compra.total|monto_venta }}</td><td>{% for cuenta in compra.cuentas_pago %}<div>{{ cuenta }}</div>{% empty %}—{% endfor %}</td><td><span class="badge {% if compra.estado == 'A' %}bg-success{% else %}bg-secondary{% endif %}">{{ compra.get_estado_display }}</span></td>
-<td><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#productos-{{ compra.pk }}" aria-expanded="false" aria-controls="productos-{{ compra.pk }}">Productos</button>
+<td><button class="btn btn-sm btn-success fw-bold productos-compra-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#productos-{{ compra.pk }}" aria-expanded="false" aria-controls="productos-{{ compra.pk }}" aria-label="Mostrar u ocultar productos de la compra {{ compra.pk }}"><span class="productos-compra-mas" aria-hidden="true">+</span><span class="productos-compra-menos" aria-hidden="true">−</span></button>
 <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario:detalle' compra.pk %}?next={{ request.get_full_path|urlencode }}">Abrir</a>
 {% if compra.estado == 'B' %}
 <a class="btn btn-sm btn-outline-primary" href="{% url 'inventario:editar_compra' compra.pk %}?next={{ request.get_full_path|urlencode }}">Editar</a>
@@ -30,5 +37,5 @@
 <tr class="collapse" id="productos-{{ compra.pk }}"><td colspan="9" class="bg-light p-3">{% include "inventario/lineas.html" %}{% if compra.observacion %}<p>{{ compra.observacion }}</p>{% endif %}</td></tr>
 {% empty %}<tr><td colspan="9" class="p-5 text-center text-muted">No hay compras para estos filtros.</td></tr>{% endfor %}</tbody>
 </table></div></div>
-{% include "inventario/paginacion.html" %}
+{% include "ventas/paginacion_pagos.html" with parametros=query unidad="compras" etiqueta_paginacion="Páginas de compras" %}
 {% endblock %}

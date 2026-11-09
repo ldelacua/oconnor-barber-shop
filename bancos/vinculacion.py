@@ -1,7 +1,7 @@
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
-from .models import CuentaBancaria, MovimientoInterno
+from .models import CierreBancario, CuentaBancaria, MovimientoInterno
 
 
 def fuentes():
@@ -13,7 +13,7 @@ def fuentes():
         'SERVICIOS': (PagoVenta.objects.filter(documento__sellado=True, documento__cobro_compartido__isnull=True), 1),
         'PRODUCTOS': (PagoProducto.objects.filter(documento__sellado=True, documento__cobro_compartido__isnull=True), 1),
         'PRESTADOR': (PagoLiquidacion.objects.filter(liquidacion__sellado=True), -1),
-        'PROVEEDOR': (PagoProveedor.objects.all(), -1),
+        'PROVEEDOR': (PagoProveedor.objects.filter(reverso__isnull=True), -1),
     }
 
 
@@ -21,6 +21,9 @@ def fuentes():
 def vincular(usuario, cuenta, origen, pago_id):
     if not usuario.has_perm('bancos.add_movimientointerno'):
         raise PermissionDenied
+    if origen == 'PROVEEDOR':
+        from mysql_nuevo.bloqueos import serializar_operacion
+        serializar_operacion()
     consulta, signo = fuentes()[origen]
     modelo = consulta.model._meta
     if not usuario.has_perm(f'{modelo.app_label}.view_{modelo.model_name}'):
@@ -32,6 +35,9 @@ def vincular(usuario, cuenta, origen, pago_id):
     from ventas.pagos_calculos import leer_tipos_pago
     if not leer_tipos_pago().get(pago.tipo_pago, {}).get('afecta_banco'):
         raise ValidationError('Esta forma de pago no afecta al banco y no admite cuenta bancaria.')
+    if (CierreBancario.objects.filter(cuenta=cuenta, fecha_cierre__gte=pago.fecha).exists()
+            and not MovimientoInterno.objects.filter(cuenta=cuenta, origen=origen, pago_id=pago.pk).exists()):
+        raise ValidationError('El mes está cerrado para la cuenta del pago.')
     movimiento, nuevo = MovimientoInterno.objects.get_or_create(origen=origen, pago_id=pago.pk,
         defaults={'cuenta': cuenta, 'fecha': pago.fecha, 'referencia': pago.referencia, 'monto': pago.monto * signo})
     if not nuevo and movimiento.cuenta_id != cuenta.pk:

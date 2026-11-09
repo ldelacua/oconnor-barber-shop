@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load ventas_formato %}
+{% block content %}
+<h2>Registrar cargo bancario</h2>
+<div class="card card-body">
+    <dl class="row">
+        <dt class="col-sm-3">Cuenta</dt><dd class="col-sm-9">{{ movimiento.cuenta }}</dd>
+        <dt class="col-sm-3">Fecha</dt><dd class="col-sm-9">{{ movimiento.fecha|date:'d/m/Y' }}</dd>
+        <dt class="col-sm-3">Referencia</dt><dd class="col-sm-9">{{ movimiento.nro_transaccion }}</dd>
+        <dt class="col-sm-3">Importe</dt><dd class="col-sm-9">{{ movimiento.monto|monto_venta }} {{ movimiento.cuenta.get_moneda_display }}</dd>
+    </dl>
+    <p>Usa esta opción si el cargo todavía no está en el sistema. Al guardar, se registrará y se conciliará con esta línea del extracto.</p>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Registrar y conciliar</button>
+        <a class="btn btn-outline-secondary" href="{% url 'bancos:conciliar_cuenta' movimiento.cuenta_id %}">Regresar</a>
+    </form>
+</div>
+{% endblock %}

@@ -1,24 +1,68 @@
 <section class="mt-4" id="detalle-gasto">
 <h4 class="h5">Productos del gasto</h4>
-<p class="text-muted small">Registra únicamente productos y cantidades. Los montos e impuestos permanecen en el encabezado.</p>
+<p class="text-muted small">Introduce el precio unitario antes de impuesto y el impuesto total de cada renglón. El sistema calcula los importes en la moneda del gasto.</p>
 {{ detalles.management_form }}
 {% if detalles.non_form_errors %}<div class="alert alert-danger">{{ detalles.non_form_errors }}</div>{% endif %}
-<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Producto</th><th style="width:160px;">Cantidad</th><th>Quitar</th></tr></thead>
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Producto</th><th style="width:160px;">Cantidad</th><th>Precio unitario</th><th>Impuesto</th><th class="text-end">Total renglón</th><th>Quitar</th></tr></thead>
 <tbody id="filas-productos">
 {% for linea in detalles %}
 <tr><td>{% for oculto in linea.hidden_fields %}{{ oculto }}{% endfor %}{{ linea.non_field_errors }}{{ linea.producto }}{{ linea.producto.errors }}</td>
 <td>{{ linea.cantidad }}{{ linea.cantidad.errors }}</td>
+<td>{{ linea.precio_unitario }}{{ linea.precio_unitario.errors }}</td>
+<td>{{ linea.impuesto_linea }}{{ linea.impuesto_linea.errors }}</td>
+<td class="text-end total-renglon">—</td>
 <td>{{ linea.DELETE }}{{ linea.DELETE.errors }}</td></tr>
 {% endfor %}
 </tbody></table></div>
 <button type="button" class="btn btn-outline-primary btn-sm" id="agregar-producto">Agregar producto</button>
 <template id="producto-vacio"><tr>
 <td>{% for oculto in detalles.empty_form.hidden_fields %}{{ oculto }}{% endfor %}{{ detalles.empty_form.producto }}</td>
-<td>{{ detalles.empty_form.cantidad }}</td><td>{{ detalles.empty_form.DELETE }}</td>
+<td>{{ detalles.empty_form.cantidad }}</td><td>{{ detalles.empty_form.precio_unitario }}</td><td>{{ detalles.empty_form.impuesto_linea }}</td><td class="text-end total-renglon">—</td><td>{{ detalles.empty_form.DELETE }}</td>
 </tr></template>
+<table class="table table-sm mt-3 w-auto ms-auto" aria-label="Totales del gasto" aria-live="polite">
+<tbody>
+<tr><th scope="row" class="text-end">Monto antes de impuesto</th><td id="gasto-subtotal" class="ps-4 text-end">0.00</td></tr>
+<tr><th scope="row" class="text-end">Impuesto</th><td id="gasto-impuesto" class="ps-4 text-end">0.00</td></tr>
+<tr><th scope="row" class="text-end">Total del gasto</th><td id="gasto-total" class="ps-4 text-end fw-bold">0.00</td></tr>
+</tbody></table>
 </section>
 <script>
 (() => {
+ const seccion=document.getElementById('detalle-gasto');
+ const form=seccion.closest('form');
+ const base=form.elements.namedItem('monto_gasto'), impuesto=form.elements.namedItem('monto_impuesto');
+ const leer=(texto, decimales) => {
+  if (!/^\d+(\.\d+)?$/.test(texto)) return null;
+  const [entero, fraccion='']=texto.split('.');
+  if (fraccion.length>decimales) return null;
+  return BigInt(entero+fraccion.padEnd(decimales,'0'));
+ };
+ const formato=n=>(n/100n).toLocaleString('en-US')+'.'+String(n%100n).padStart(2,'0');
+ function actualizar(){
+  let neto=0n, iva=0n, calculado=false;
+  for(const fila of seccion.querySelectorAll('#filas-productos tr')){
+   const valor=campo=>fila.querySelector('[name$="-'+campo+'"]');
+   const precio=leer(valor('precio_unitario').value,2);
+   const cantidad=leer(valor('cantidad').value,3);
+   const imp=leer(valor('impuesto_linea').value,2)??0n;
+   const salida=fila.querySelector('.total-renglon');
+   salida.textContent='—';
+   if(valor('DELETE').checked || !valor('producto').value || precio===null || cantidad===null) continue;
+   calculado=true;
+   const subtotal=(precio*cantidad+500n)/1000n;
+   neto+=subtotal; iva+=imp; salida.textContent=formato(subtotal+imp);
+  }
+  if(!calculado && {{ admite_total_historico|yesno:"true,false" }}) {neto=leer(base.value,2)??0n; iva=leer(impuesto.value,2)??0n;}
+  document.getElementById('gasto-subtotal').textContent=formato(neto);
+  document.getElementById('gasto-impuesto').textContent=formato(iva);
+  document.getElementById('gasto-total').textContent=formato(neto+iva);
+  const pago=form.elements.namedItem('monto_pago');
+  const total=neto+iva;
+  if(pago) pago.value=total>0n ? String(total/100n)+'.'+String(total%100n).padStart(2,'0') : '';
+ }
+ form.addEventListener('input',actualizar);
+ form.addEventListener('change',actualizar);
+ document.addEventListener('DOMContentLoaded', actualizar, {once:true});
  const boton=document.getElementById('agregar-producto');
  const total=document.getElementById('id_detalles-TOTAL_FORMS');
  const limite=Number(document.getElementById('id_detalles-MAX_NUM_FORMS').value);
@@ -28,6 +72,7 @@
   const html=document.getElementById('producto-vacio').innerHTML.replaceAll('__prefix__',String(indice));
   document.getElementById('filas-productos').insertAdjacentHTML('beforeend',html);
   total.value=indice+1;
+  actualizar();
  });
 })();
 </script>

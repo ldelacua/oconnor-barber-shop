@@ -1,0 +1,30 @@
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-secondary"><tr><th>Producto</th><th class="text-end">Cantidad vendida</th><th class="text-end">Facturas</th></tr></thead>
+            <tbody>
+            {% for producto in productos %}
+            <tr>
+                <td><button type="button" class="btn btn-success btn-sm fw-bold me-2" data-expandir
+                        aria-label="Facturas de {{ producto.nombre }}" aria-controls="facturas-historico-{{ padre_id }}-{{ producto.id }}" aria-expanded="false"><span aria-hidden="true">+</span></button>{{ producto.codigo }} · {{ producto.nombre }}</td>
+                <td class="text-end">{{ producto.cantidad|floatformat:"-3" }}</td><td class="text-end">{{ producto.facturas|length }}</td>
+            </tr>
+            <tr id="facturas-historico-{{ padre_id }}-{{ producto.id }}" hidden><td colspan="3" class="bg-white p-3">
+                <table class="table table-sm mb-0">
+                    <caption class="caption-top">Facturas de {{ producto.nombre }}</caption>
+                    <thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th>{% if not por_prestador %}<th>Venta realizada por</th>{% endif %}<th class="text-end">Cantidad</th><th>Comisión</th><th>Estado</th></tr></thead>
+                    <tbody>
+                    {% for linea in producto.facturas %}{% with d=linea.documento %}
+                    <tr>
+                        <td><a href="{% url 'ventas_productos:ver' d.pk %}?next={{ request.get_full_path|urlencode:'' }}">{{ d }}</a></td>
+                        <td>{{ d.fecha|date:"d/m/Y" }}</td><td>{{ d.descripcion_cliente }}</td>
+                        {% if not por_prestador %}<td>{{ d.prestador|default:"Barbería" }}</td>{% endif %}
+                        <td class="text-end">{{ linea.cantidad|floatformat:"-3" }}</td>
+                        <td>{% if linea.sin_comision %}Sin comisión{% else %}Con comisión{% endif %}</td>
+                        <td>{% if d.reverso.sellado %}Reversada{% else %}Vigente{% endif %}</td>
+                    </tr>
+                    {% endwith %}{% endfor %}
+                    </tbody>
+                </table>
+            </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>

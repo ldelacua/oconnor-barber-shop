@@ -1,0 +1,6 @@
+{% load ventas_formato %}
+<tr class="{{ clase }}">
+    <th colspan="2">{{ etiqueta }}{% if nombre %} {{ nombre }}{% endif %}</th>
+    <th class="text-end">{{ fila.bs|monto_venta }}</th>
+    <th class="text-end">{{ fila.usd|monto_venta }}</th>
+</tr>

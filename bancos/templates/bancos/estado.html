@@ -4,9 +4,10 @@
 <h2>Estado de cuenta importado · {{ cuenta }}</h2>
 <form class="card card-body mb-3">{{ filtro.as_p }}<div><button class="btn btn-primary">Consultar</button> <a class="btn btn-secondary" href="{% url 'bancos:lista' %}">Regresar</a></div></form>
 <p>{{ pagina.paginator.count }} movimientos · Abonos: {{ totales.abonos|monto_venta }} · Débitos: {{ totales.debitos|monto_venta }} · Neto: {{ totales.neto|monto_venta }} {{ cuenta.get_moneda_display }}</p>
-<div class="table-responsive"><table class="table"><thead><tr><th>Fecha</th><th>Transacción</th><th>Descripción</th><th class="text-end">Importe</th><th>Estado</th></tr></thead><tbody>
-{% for m in pagina %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td><td class="text-end">{{ m.monto|monto_venta }}</td><td>{% if m.partida %}Conciliado{% else %}Pendiente{% endif %}</td></tr>
-{% empty %}<tr><td colspan="5">No hay movimientos para estos filtros.</td></tr>{% endfor %}
+<div class="table-responsive"><table class="table"><thead><tr><th>Fecha</th><th>Transacción</th><th>Descripción</th><th class="text-end">Importe</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+{% for m in pagina %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td><td class="text-end">{{ m.monto|monto_venta }}</td><td>{{ m.bloqueo|default:"Pendiente" }}</td>
+<td>{% include 'bancos/acciones_movimiento.html' with desde_estado=True %}</td></tr>
+{% empty %}<tr><td colspan="6">No hay movimientos para estos filtros.</td></tr>{% endfor %}
 </tbody></table></div>
 {% include 'inventario/paginacion.html' %}
 {% endblock %}

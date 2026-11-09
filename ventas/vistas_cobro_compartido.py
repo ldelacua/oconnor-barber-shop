@@ -61,4 +61,4 @@ def cotizar(request):
 @require_GET
 def ver(request, pk):
     cobro = get_object_or_404(CobroCompartido.objects.select_related("servicios", "productos", "cuenta__banco"), pk=pk)
-    return render(request, "ventas/cobro_compartido.html", {"cobro": cobro})
+    return render(request, "ventas/cobro_compartido.html", {"cobro": cobro, "seccion_pagos": request.GET.get("desde_pagos") == "1"})

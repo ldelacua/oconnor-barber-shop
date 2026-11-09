@@ -13,7 +13,7 @@
 
 <div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{{ documento }}</h2><div class="no-imprimir">
 <button class="btn btn-outline-primary" onclick="window.print()">Imprimir</button>
-<a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div></div>
+<a class="btn btn-outline-success" href="{{ regresar }}">Regresar</a></div></div>
 <div class="card card-body mb-3"><p><strong>Cliente:</strong> {{ documento.descripcion_cliente }}<br><strong>Fecha:</strong> {{ documento.fecha|date:"d/m/Y" }}<br><strong>Venta realizada por:</strong> {% if documento.prestador %}{{ documento.prestador }}{% else %}BARBERÍA{% endif %}<br><strong>Tasa Bs:</strong> {{ documento.tasa_bcv|monto_venta }}</p>
 {% if documento.observacion %}<p>{{ documento.observacion|linebreaksbr }}</p>{% endif %}
 {% if documento.documento_original %}<p>Reverso de <a href="{% url 'ventas_productos:ver' documento.documento_original_id %}">{{ documento.documento_original }}</a>. Motivo: {{ documento.motivo }}</p>

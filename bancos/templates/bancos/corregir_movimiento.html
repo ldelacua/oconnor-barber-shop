@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load ventas_formato %}
+{% block content %}
+<h2>{% if eliminar %}Eliminar{% else %}Editar{% endif %} movimiento bancario</h2>
+<p>{{ movimiento.cuenta }}</p>
+<form method="post" class="card card-body">
+    {% csrf_token %}
+    {% if eliminar %}
+        {{ form.non_field_errors }}
+        <p>¿Deseas eliminar el movimiento {{ movimiento.nro_transaccion }} del {{ movimiento.fecha|date:"d/m/Y" }}, por {{ movimiento.monto|monto_venta }} {{ movimiento.cuenta.get_moneda_display }}?</p>
+    {% else %}
+        {{ form.as_p }}
+    {% endif %}
+    <div class="d-flex gap-2">
+        {% if eliminar %}<button class="btn btn-danger">Confirmar eliminación</button>
+        {% else %}<button class="btn btn-primary">Guardar cambios</button>{% endif %}
+        <a class="btn btn-outline-secondary" href="{{ volver }}">Regresar</a>
+    </div>
+</form>
+{% endblock %}

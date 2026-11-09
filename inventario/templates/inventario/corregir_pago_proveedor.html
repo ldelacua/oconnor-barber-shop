@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block content %}
+<h2>{% if eliminar %}Eliminar pago al proveedor{% else %}Editar pago al proveedor{% endif %}</h2>
+<p><strong>Proveedor:</strong> {{ pago.compra.proveedor.nombre }} · <strong>Factura:</strong> {{ pago.compra.numero_factura }}</p>
+<p><strong>Pago original:</strong> {{ pago.monto|monto_venta }} {{ pago.get_moneda_display }} · {{ pago.fecha|date:"d/m/Y" }}</p>
+<p class="text-muted">El pago original se conserva en el historial. {% if eliminar %}Su importe vuelve al saldo pendiente.{% else %}Al guardar se registra el pago corregido y se recalcula el saldo.{% endif %}</p>
+<form method="post" class="card card-body">
+    {% csrf_token %}{{ form.non_field_errors }}
+    {% for campo in form.hidden_fields %}{{ campo }}{{ campo.errors }}{% endfor %}
+    <div class="row g-3">
+        {% for campo in form.visible_fields %}
+        <div class="col-md-6">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>
+        {% endfor %}
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-3">
+        <a href="{% url 'pagos:lista' %}" class="btn btn-secondary">Regresar</a>
+        {% if eliminar %}<button class="btn btn-danger" type="submit">Confirmar eliminación</button>
+        {% else %}<button class="btn btn-primary" type="submit">Guardar cambios</button>{% endif %}
+    </div>
+</form>
+{% endblock %}

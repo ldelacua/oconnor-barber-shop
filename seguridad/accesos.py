@@ -27,11 +27,17 @@ def reglas(nombre, metodo='GET', datos=None):
     if ns=='bancos':
         lectura = ('bancos.view_banco', 'bancos.view_cuentabancaria')
         if ruta == 'lista': return [lectura]
+        if ruta == 'formato_estado': return [lectura + ('bancos.change_banco',)]
         if ruta == 'estado_cuenta': return [lectura + ('bancos.view_movimientobanco',)]
         if ruta == 'reporte_cuenta': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.view_conciliacion', 'bancos.view_cierrebancario') + (('bancos.add_cierrebancario',) if escribir else ())]
         if ruta == 'conciliar_cuenta': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.add_conciliacion')]
+        if ruta == 'registrar_cargo_bancario': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.add_conciliacion', 'bancos.add_movimientointerno')]
+        if ruta == 'anular_cargo_bancario': return [lectura + ('bancos.view_movimientobanco', 'bancos.view_movimientointerno', 'bancos.add_conciliacion', 'bancos.delete_movimientointerno', 'bancos.add_reversoconciliacion')]
         if ruta == 'vincular_pago': return [lectura + ('bancos.add_movimientointerno',)]
         if ruta in {'importar_estado', 'cargar_movimiento'}: return [lectura + ('bancos.view_movimientobanco', 'bancos.add_movimientobanco')]
+        if ruta in {'editar_movimiento', 'eliminar_movimiento'}:
+            accion = 'change' if ruta == 'editar_movimiento' else 'delete'
+            return [lectura + ('bancos.view_movimientobanco', f'bancos.{accion}_movimientobanco')]
         acciones = {'nuevo_banco':'add_banco', 'editar_banco':'change_banco',
                     'nueva_cuenta':'add_cuentabancaria', 'editar_cuenta':'change_cuentabancaria'}
         return [lectura + ('bancos.' + acciones[ruta],)] if ruta in acciones else []
@@ -39,6 +45,7 @@ def reglas(nombre, metodo='GET', datos=None):
         if ruta=='cobros_clientes':return [permisos(m) for m in ['ventas.pagoventa','ventas_productos.pagoproducto','ventas.tarjetaregalo']]
         if ruta=='lista':return [permisos(m) for m in ['inventario.pagoproveedor','liquidaciones.pagoliquidacion','ventas.pagoventa','ventas_productos.pagoproducto','ventas.tarjetaregalo']]
         if ruta=='consulta':return [permisos(m) for m in ['inventario.pagoproveedor','liquidaciones.pagoliquidacion','ventas.pagoventa','ventas_productos.pagoproducto']]
+        if ruta in {'editar_pago_proveedor', 'eliminar_pago_proveedor'}:return [('inventario.view_compra','inventario.view_pagoproveedor')]
         if ruta=='reverso_proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_reversopagoproveedor')]
         if ruta=='proveedores':return [('inventario.view_compra','inventario.view_pagoproveedor')]
         if ruta=='tasa_proveedor':return [('inventario.view_compra','inventario.view_pagoproveedor','inventario.add_pagoproveedor')]
@@ -61,18 +68,19 @@ def reglas(nombre, metodo='GET', datos=None):
         acciones={'listar_citas':'view','agenda_citas':'view','crear_cita':'add','editar_cita':'change','eliminar_cita':'delete','cambiar_estado_cita':'change','consultar_disponibilidad':'view'}
         return p('citas.cita',acciones[ruta]) if ruta in acciones else []
     if ns=='ventas':
-        if ruta in {'historico', 'historico_prestadores', 'historico_facturas'}:return p('ventas.documentoventa')
+        if ruta in {'historico', 'historico_prestadores', 'historico_facturas', 'historico_por_prestador'}:return p('ventas.documentoventa')
         if ruta=='cotizar_productos_combinados':return [('ventas.add_documentoventa','ventas_productos.add_documentoproducto')]
         if ruta=='ver_cobro_compartido':return [('ventas.view_documentoventa','ventas_productos.view_documentoproducto')]
         if ruta in {'tarjetas_regalo','regalo_pdf'}:return p('ventas.tarjetaregalo')
         if ruta=='venta_tarjetas':return [('ventas.view_tarjetaregalo','ventas.change_tarjetaregalo')]
         if ruta=='regalo_consultar':return p('ventas.documentoventa','add')
         if ruta=='registrar_tasa_bcv':return p('tasas_bcv.tasabcv','add')
-        if ruta=='consulta_pagos':return p('ventas.pagoventa')
+        if ruta in {'consulta_pagos', 'consulta_pagos_por_forma', 'historico_pagos'}:return p('ventas.pagoventa')
         if ruta=='cotizacion':return p('ventas.documentoventa') + p('ventas.documentoventa','add')
         acciones={'lista':'view','ver':'view','crear':'add','tarjeta_cliente':'add','consultar_ofertas':'add','cotizacion':'view','reporte_servicios':'view','reversar':'delete'}
         return p('ventas.documentoventa',acciones[ruta]) if ruta in acciones else []
     if ns=='gastos':
+        if ruta in {'historico', 'historico_tipos', 'historico_productos'}:return p('gastos.registrogasto')
         if ruta.startswith('catalogo'):
             modelos={'grupos':'grupogasto','tipos':'tipogasto','productos':'producto','proveedores':'proveedor'}
             modelo=modelos.get(datos.get('catalogo'))
@@ -85,12 +93,16 @@ def reglas(nombre, metodo='GET', datos=None):
             return [permisos(m,a) for m,a in [('inventario.producto','view'),('inventario.compra','add'),('inventario.compra','change'),('ventas_productos.documentoproducto','add'),('control_inventario.documentoajuste','add')]]
         maestros={'productos':('producto','view'),'nuevo_producto':('producto','add'),'editar_producto':('producto','change'),
                   'proveedores':('proveedor','view'),'nuevo_proveedor':('proveedor','add'),'editar_proveedor':('proveedor','change'),
+                  'grupos':('grupoproducto','view'),'nuevo_grupo':('grupoproducto','add'),'editar_grupo':('grupoproducto','change'),
                   'unidades':('unidadmedida','view'),'nueva_unidad':('unidadmedida','add'),'editar_unidad':('unidadmedida','change')}
         if ruta in maestros:
             modelo,accion=maestros[ruta];return p('inventario.'+modelo,accion)
-        acciones={'compras':'view','detalle':'view','nueva_compra':'add','editar_compra':'change','actualizar':'change','eliminar':'delete','condiciones':'view'}
+        acciones={'compras':'view','historico_compras':'view','detalle':'view','nueva_compra':'add','editar_compra':'change','actualizar':'change','eliminar':'delete','condiciones':'view'}
         return p('inventario.compra',acciones[ruta]) if ruta in acciones else []
     if ns=='ventas_productos':
+        if ruta in {'consulta_precios', 'consulta_precios_pdf'}:return p('ventas_productos.porcentajeproducto')
+        if ruta=='precios':return [permisos('ventas_productos.'+modelo) for modelo in ('porcentajeproducto','escaladescuento','escalacomisionproducto')]
+        if ruta in {'historico_comisiones', 'historico_comisiones_por_producto'}:return [('ventas_productos.view_documentoproducto','liquidaciones.view_liquidacion')]
         comisiones={'escalas_comision':'view','nueva_escala_comision':'add','editar_escala_comision':'change'}
         if ruta in comisiones:return p('ventas_productos.escalacomisionproducto',comisiones[ruta])
         if ruta in {'reporte_prestador', 'historico', 'historico_detalle', 'historico_prestadores', 'historico_prestador_detalle'}:return p('ventas_productos.documentoproducto')
@@ -134,7 +146,8 @@ def entrada_modulo(usuario,modulo):
       'inventario':[('inventario:compras',{}),('inventario:productos',{}),('inventario:proveedores',{}),('inventario:unidades',{})],
       'control_inventario':[('control_inventario:stock',{}),('control_inventario:documentos',{}),('control_inventario:cierres',{})],
       'ventas':[('ventas:lista',{}),('ventas:consulta_pagos',{})],
-      'ventas_productos':[('ventas_productos:lista',{}),('ventas_productos:porcentajes',{}),('ventas_productos:descuentos',{})],
+      'ventas_productos':[('ventas_productos:lista',{})],
+      'precios':[('ventas_productos:precios',{})],
       'barberos':[('barberos:lista_barberos',{}),('horarios:listar_sillas',{}),('servicios:lista',{})],
       'gastos':[('gastos:inicio',{})]+[('gastos:catalogo',{'catalogo':c}) for c in ['grupos','tipos','proveedores','productos']],
     }

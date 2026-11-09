@@ -6,9 +6,14 @@ register = template.Library()
 
 @register.simple_tag(takes_context=True)
 def pagos_con_cuenta(context, pagos, origen):
+    request = context.get("request")
+    return filas_con_cuenta(request.user if request else None, pagos, origen)
+
+
+def filas_con_cuenta(usuario, pagos, origen):
     pagos = list(pagos)
     cuentas = {}
-    if context.get('request') and context['request'].user.has_perm('bancos.view_cuentabancaria'):
+    if usuario is not None and usuario.has_perm("bancos.view_cuentabancaria"):
         movimientos = MovimientoInterno.objects.filter(origen=origen, pago_id__in=[p.pk for p in pagos]).select_related('cuenta__banco')
         cuentas = {m.pago_id: m.cuenta for m in movimientos}
         if origen in ("SERVICIOS", "PRODUCTOS"):

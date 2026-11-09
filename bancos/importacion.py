@@ -53,28 +53,34 @@ def leer_csv(archivo, cuenta):
 
 
 @transaction.atomic
-def importar(cuenta, filas):
+def importar(cuenta, filas, *, reemplazar=True):
     cuenta = CuentaBancaria.objects.select_for_update().select_related('banco').get(pk=cuenta.pk)
     if not cuenta.activa or not cuenta.banco.activo:
         raise ValidationError('Selecciona una cuenta y un banco activos.')
     meses = {(d['fecha'].year, d['fecha'].month) for d in filas.values()}
     if len(meses) != 1:
-        raise ValidationError('Importa un archivo completo de un solo mes por cuenta.')
+        raise ValidationError('Importa un archivo de un solo mes por cuenta.')
     anio, mes = meses.pop()
     if CierreBancario.objects.filter(cuenta=cuenta, fecha_cierre__gte=date(anio, mes, 1)).exists():
-        raise ValidationError('El mes está cerrado. No se puede reemplazar su estado de cuenta.')
+        raise ValidationError('El mes está cerrado. No se pueden importar movimientos en ese período.')
     existentes = MovimientoBanco.objects.filter(cuenta=cuenta, fecha__year=anio, fecha__month=mes)
-    anteriores = {m.nro_transaccion: m for m in existentes.select_related('partida')}
+    anteriores = {m.nro_transaccion: m for m in existentes.select_related('partida', 'cargo_registrado')}
     for ref, m in anteriores.items():
         datos = filas.get(ref)
+        if not reemplazar:
+            if datos is not None and (m.fecha != datos['fecha'] or m.monto != datos['monto']):
+                raise ValidationError(f'La transacción {ref} ya existe con otra fecha o importe. Revisa la referencia antes de importar.')
+            continue
         iguales = datos and all(getattr(m, campo) == valor for campo, valor in datos.items())
+        if not iguales and hasattr(m, 'cargo_registrado'):
+            raise ValidationError(f'La transacción {ref} tiene un cargo bancario registrado y no puede cambiarse ni eliminarse.')
         if not iguales and hasattr(m, 'partida'):
             raise ValidationError(f'La transacción {ref} ya está conciliada y no puede cambiarse ni eliminarse.')
     if MovimientoBanco.objects.filter(cuenta=cuenta, nro_transaccion__in=filas).exclude(pk__in=existentes.values('pk')).exists():
         raise ValidationError('Una referencia del archivo ya pertenece a otro mes.')
     nuevos = repetidos = actualizados = retirados = 0
     for ref, m in anteriores.items():
-        if ref not in filas:
+        if reemplazar and ref not in filas:
             m.delete()
             retirados += 1
     for ref, datos in filas.items():
@@ -82,7 +88,7 @@ def importar(cuenta, filas):
         if m is None:
             MovimientoBanco.objects.create(cuenta=cuenta, nro_transaccion=ref, **datos)
             nuevos += 1
-        elif all(getattr(m, campo) == valor for campo, valor in datos.items()):
+        elif not reemplazar or all(getattr(m, campo) == valor for campo, valor in datos.items()):
             repetidos += 1
         else:
             for campo, valor in datos.items():
@@ -103,3 +109,35 @@ def agregar_movimiento(cuenta, fecha, nro_transaccion, descripcion, monto):
         raise ValidationError('Esa referencia ya existe en la cuenta seleccionada.')
     return MovimientoBanco.objects.create(cuenta=cuenta, fecha=fecha, nro_transaccion=nro_transaccion,
                                           descripcion=descripcion, monto=monto)
+
+
+def motivo_bloqueo_movimiento(movimiento, ultimo_cierre):
+    if ultimo_cierre is not None and movimiento.fecha <= ultimo_cierre:
+        return 'Mes cerrado'
+    if hasattr(movimiento, 'cargo_registrado'):
+        return 'Cargo bancario registrado'
+    if hasattr(movimiento, 'partida'):
+        return 'Conciliado'
+    return ''
+
+
+@transaction.atomic
+def corregir_movimiento(cuenta_id, movimiento_id, datos=None):
+    cuenta = CuentaBancaria.objects.select_for_update().get(pk=cuenta_id)
+    movimiento = MovimientoBanco.objects.filter(cuenta=cuenta, pk=movimiento_id).first()
+    if movimiento is None:
+        raise ValidationError('El movimiento ya no existe.')
+    ultimo = CierreBancario.objects.filter(cuenta=cuenta).values_list('fecha_cierre', flat=True).first()
+    motivo = motivo_bloqueo_movimiento(movimiento, ultimo)
+    if motivo:
+        raise ValidationError(f'No se puede modificar ni eliminar el movimiento: {motivo.lower()}.')
+    if datos is None:
+        movimiento.delete()
+        return
+    if ultimo is not None and datos['fecha'] <= ultimo:
+        raise ValidationError('La nueva fecha corresponde a un mes cerrado.')
+    if MovimientoBanco.objects.filter(cuenta=cuenta, nro_transaccion__iexact=datos['nro_transaccion']).exclude(pk=movimiento.pk).exists():
+        raise ValidationError('Esa referencia ya existe en la cuenta seleccionada.')
+    for campo in ('fecha', 'nro_transaccion', 'descripcion', 'monto'):
+        setattr(movimiento, campo, datos[campo])
+    movimiento.save(update_fields=['fecha', 'nro_transaccion', 'descripcion', 'monto'])

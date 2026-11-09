@@ -4,12 +4,17 @@
 <th scope="col" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="fecha">Fecha ↕</button></th>
 <th scope="col" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="texto">Referencia ↕</button></th>
 <th scope="col" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="texto">{% if lado == 'banco' %}Descripción{% else %}Origen / Pago{% endif %} ↕</button></th>
-<th scope="col" class="text-end" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="monto">Importe ↕</button></th></tr></thead>
+<th scope="col" class="text-end" aria-sort="none"><button type="button" class="btn btn-link p-0 text-body fw-semibold" data-orden="monto">Importe ↕</button></th>{% if lado == 'banco' %}<th scope="col">Acción</th>{% endif %}</tr></thead>
 <tbody>
 {% for m in filas %}{% with id=m.pk|stringformat:"s" %}
 <tr><td><input class="form-check-input" type="checkbox" name="{{ lado }}" value="{{ m.pk }}" data-monto="{{ m.monto|unlocalize }}" aria-label="Seleccionar movimiento {{ m.pk }}" {% if id in seleccion %}checked{% endif %}></td>
 <td data-valor="{{ m.fecha|date:'Y-m-d' }}">{{ m.fecha|date:'d/m/Y' }}</td>
-{% if lado == 'banco' %}<td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td>{% else %}<td>{{ m.referencia|default:'—' }}</td><td>{{ m.origen }} #{{ m.pago_id }}</td>{% endif %}
-<td class="text-end text-nowrap fw-semibold">{{ m.monto|monto_venta }}</td></tr>
-{% endwith %}{% empty %}<tr><td colspan="5">No hay movimientos pendientes.</td></tr>{% endfor %}
+{% if lado == 'banco' %}<td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td>{% else %}<td>{{ m.referencia|default:'—' }}</td><td>{% if m.cargo_bancario %}{{ m.cargo_bancario.concepto }}{% else %}{{ m.origen }} #{{ m.pago_id }}{% endif %}</td>{% endif %}
+<td class="text-end text-nowrap fw-semibold">{{ m.monto|monto_venta }}</td>
+{% if lado == 'banco' %}<td>
+{% if m.cargo_registrado and perms.bancos.delete_movimientointerno and perms.bancos.add_reversoconciliacion %}
+<a class="btn btn-outline-danger btn-sm" href="{% url 'bancos:anular_cargo_bancario' m.cuenta_id m.pk %}">Anular cargo bancario</a>
+{% elif m.monto < 0 and not m.cargo_registrado and perms.bancos.add_movimientointerno %}<a class="btn btn-outline-primary btn-sm" href="{% url 'bancos:registrar_cargo_bancario' m.cuenta_id m.pk %}">Registrar cargo bancario</a>{% endif %}
+</td>{% endif %}</tr>
+{% endwith %}{% empty %}<tr><td colspan="{% if lado == 'banco' %}6{% else %}5{% endif %}">No hay movimientos pendientes.</td></tr>{% endfor %}
 </tbody></table></div>

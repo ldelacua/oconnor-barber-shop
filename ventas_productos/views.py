@@ -139,6 +139,14 @@ def precio(request):
     return JsonResponse({**{k:format(v,".2f") for k,v in datos.items()}, "promocionable": producto.promocionable, "sin_comision": producto.sin_comision})
 
 @login_required(login_url="iniciar_sesion")
+@require_GET
+def precios(request):
+    if request.user.has_perm("ventas_productos.view_porcentajeproducto"):
+        return redirect("ventas_productos:consulta_precios")
+    return render(request, "ventas_productos/precios.html", {"seccion_precios": True})
+
+
+@login_required(login_url="iniciar_sesion")
 def configuracion(request,tipo):
     from .models import PorcentajeProducto,EscalaDescuento
     consulta=PorcentajeProducto.objects.select_related("producto","producto__unidad_medida") if tipo=="porcentajes" else EscalaDescuento.objects.all()
@@ -164,7 +172,7 @@ def configuracion(request,tipo):
                     regla.precio_venta_usd = dinero(regla.ultimo_costo_usd * (Decimal('1') + regla.porcentaje / Decimal('100')))
                     regla.recargo_usd = regla.precio_venta_usd - regla.ultimo_costo_usd
     return render(request,"ventas_productos/configuracion.html",{"tipo":tipo,"pagina":pagina,"query":params.urlencode(),
-        "regresar":regreso(request,"ventas_productos:lista"),"ruta_actual":request.get_full_path(),
+        "regresar":regreso(request,"ventas_productos:precios"),"seccion_precios":True,"ruta_actual":request.get_full_path(),
         "puede_agregar":tipo=="porcentajes" or EscalaDescuento.objects.count()<4})
 
 @login_required(login_url="iniciar_sesion")
@@ -181,13 +189,13 @@ def configurar(request,tipo,pk=None):
             regla.save(force_insert=instancia is None)
         except IntegrityError:form.add_error(None,"Ese producto, nivel o umbral ya está registrado.")
         else:return redirect(destino)
-    return render(request,"ventas_productos/configurar.html",{"form":form,"tipo":tipo,"regresar":destino})
+    return render(request,"ventas_productos/configurar.html",{"form":form,"tipo":tipo,"regresar":destino,"seccion_precios":True})
 
 @login_required(login_url='iniciar_sesion')
 def escalas_comision(request):
     from .models import EscalaComisionProducto
     return render(request, 'ventas_productos/escalas_comision.html',
-                  {'escalas': EscalaComisionProducto.objects.all()})
+                  {'escalas': EscalaComisionProducto.objects.all(), 'seccion_precios': True})
 
 
 @login_required(login_url='iniciar_sesion')
@@ -203,7 +211,7 @@ def editar_escala_comision(request, pk=None):
             form.add_error(None, 'Ya existe una escala con esa cantidad mínima.')
         else:
             return redirect('ventas_productos:escalas_comision')
-    return render(request, 'ventas_productos/escala_comision_form.html', {'form': form})
+    return render(request, 'ventas_productos/escala_comision_form.html', {'form': form, 'seccion_precios': True})
 
 
 @login_required(login_url='iniciar_sesion')

@@ -1,17 +1,68 @@
 {% extends "base.html" %}
 {% load ventas_formato %}
-{% block title %}Gasto {{ objeto.pk }}{% endblock %}
+{% block title %}Consultar gasto {{ objeto.pk }} | Gastos Operativos{% endblock %}
 {% block content %}
 {% include "gastos/nav.html" %}
-<div class="card card-body"><div class="d-flex justify-content-between align-items-center mb-3"><h3 class="h5">Registro de gasto {{ objeto.pk }}</h3>{% if not vinculado %}<a href="{% url 'gastos:editar' objeto.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>{% endif %}</div>
-<dl class="row"><dt class="col-md-4">Fecha</dt><dd class="col-md-8">{{ objeto.fecha_gasto|date:"d/m/Y" }}</dd><dt class="col-md-4">Grupo</dt><dd class="col-md-8">{{ objeto.gasto.grupo }}</dd><dt class="col-md-4">Tipo de gasto</dt><dd class="col-md-8">{{ objeto.gasto }}</dd><dt class="col-md-4">Proveedor</dt><dd class="col-md-8">{{ objeto.proveedor.descripcion }}</dd><dt class="col-md-4">RIF</dt><dd class="col-md-8">{{ objeto.proveedor.rif }}</dd><dt class="col-md-4">Factura</dt><dd class="col-md-8">{{ objeto.numero_factura }}</dd><dt class="col-md-4">Número de control</dt><dd class="col-md-8">{{ objeto.numero_control|default:"—" }}</dd><dt class="col-md-4">Moneda</dt><dd class="col-md-8">{{ objeto.get_moneda_display }}</dd><dt class="col-md-4">Monto del gasto</dt><dd class="col-md-8">{{ objeto.monto_gasto|monto_venta }}</dd><dt class="col-md-4">Impuesto manual ({{ objeto.porcentaje_impuesto|porcentaje_venta }}%)</dt><dd class="col-md-8">{{ objeto.monto_impuesto|monto_venta }}</dd><dt class="col-md-4">Total</dt><dd class="col-md-8 fw-bold">{{ objeto.total|monto_venta }} {{ objeto.get_moneda_display }}</dd></dl>
-<h4 class="h5 mt-3">Pago del gasto</h4>{% if cuenta_pago %}<p><strong>Banco y cuenta:</strong> {{ cuenta_pago }}</p>{% endif %}
-<dl class="row"><dt class="col-md-4">Forma de pago</dt><dd class="col-md-8">{{ objeto.nombre_tipo_pago|default:"Sin registrar" }}</dd>
-<dt class="col-md-4">Referencia</dt><dd class="col-md-8">{{ objeto.referencia_pago|default:"—" }}</dd></dl>
-<h4 class="h5 mt-3">Productos del gasto</h4>
-<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Producto</th><th class="text-end">Cantidad</th></tr></thead><tbody>
-{% for detalle in objeto.detalles.all %}<tr><td>{{ detalle.producto.descripcion }}</td><td class="text-end">{{ detalle.cantidad|floatformat:"-3" }}</td></tr>
-{% empty %}<tr><td colspan="2" class="text-muted">Este gasto no tiene productos registrados.</td></tr>{% endfor %}
-</tbody></table></div>
-<a href="{% url 'gastos:inicio' %}" class="btn btn-outline-secondary align-self-start">Volver</a></div>
+<div class="card card-body">
+    <h3 class="h5 mb-3">Consultar gasto {{ objeto.pk }}</h3>
+    <div class="row g-3">
+        {% include "gastos/campo_consulta.html" with id="fecha" etiqueta="Fecha del gasto" valor=objeto.fecha_gasto|date:"d/m/Y" %}
+        {% include "gastos/campo_consulta.html" with id="tipo" etiqueta="Tipo de gasto" valor=objeto.gasto %}
+        {% include "gastos/campo_consulta.html" with id="proveedor" etiqueta="Proveedor" valor=objeto.proveedor %}
+        {% include "gastos/campo_consulta.html" with id="factura" etiqueta="Número de factura" valor=objeto.numero_factura %}
+        {% include "gastos/campo_consulta.html" with id="control" etiqueta="Número de control" valor=objeto.numero_control|default:"—" %}
+    </div>
+
+    <section class="mt-4" aria-labelledby="consulta-productos">
+        <h4 class="h5" id="consulta-productos">Productos del gasto</h4>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>Producto</th><th style="width:160px">Cantidad</th><th class="text-end">Precio unitario</th><th class="text-end">Impuesto</th><th class="text-end">Total renglón</th></tr></thead>
+                <tbody>
+                {% for detalle in objeto.detalles.all %}
+                    <tr>
+                        <td>{{ detalle.producto.descripcion }} <span class="text-muted">({{ detalle.producto.get_unidad_medida_display }})</span></td>
+                        <td>{{ detalle.cantidad|floatformat:"-3" }}</td>
+                        <td class="text-end text-nowrap">{% if detalle.precio_unitario is not None %}{{ detalle.precio_unitario|monto_venta }} {{ objeto.get_moneda_display }}{% else %}—{% endif %}</td>
+                        <td class="text-end text-nowrap">{% if detalle.precio_unitario is not None %}{{ detalle.impuesto_linea|monto_venta }} {{ objeto.get_moneda_display }}{% else %}—{% endif %}</td>
+                        <td class="text-end text-nowrap">{% with total=detalle.total %}{% if total is not None %}{{ total|monto_venta }} {{ objeto.get_moneda_display }}{% else %}—{% endif %}{% endwith %}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-muted">Este gasto no tiene productos registrados.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <table class="table table-sm mt-3 w-auto ms-auto" aria-label="Totales del gasto">
+            <tbody>
+                <tr><th scope="row" class="text-end">Monto antes de impuesto</th><td class="ps-4 text-end">{{ objeto.monto_gasto|monto_venta }} {{ objeto.get_moneda_display }}</td></tr>
+                <tr><th scope="row" class="text-end">Impuesto</th><td class="ps-4 text-end">{{ objeto.monto_impuesto|monto_venta }} {{ objeto.get_moneda_display }}</td></tr>
+                <tr><th scope="row" class="text-end">Total del gasto</th><td class="ps-4 text-end fw-bold">{{ objeto.total|monto_venta }} {{ objeto.get_moneda_display }}</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="mt-4" aria-labelledby="pago-gasto">
+        <h4 id="pago-gasto" class="h5">Pago del gasto</h4>
+        <div class="row g-3">
+            {% include "gastos/campo_consulta.html" with id="forma" etiqueta="Forma de pago" valor=objeto.nombre_tipo_pago|default:"Sin registrar" %}
+            {% include "gastos/campo_consulta.html" with id="referencia" etiqueta="Referencia del pago" valor=objeto.referencia_pago|default:"—" %}
+            {% if cuenta_pago %}{% include "gastos/campo_consulta.html" with id="banco" etiqueta="Banco y cuenta" valor=cuenta_pago %}{% endif %}
+            {% include "gastos/campo_consulta.html" with id="moneda" etiqueta="Moneda" valor=objeto.get_moneda_display %}
+            {% if objeto.tipo_pago %}
+                {% include "gastos/campo_consulta.html" with id="pagado" etiqueta="Monto pagado" valor=objeto.total|monto_venta numerico=True %}
+            {% endif %}
+            {% include "gastos/campo_consulta.html" with id="tasa" etiqueta="Tasa BCV (Bs. por USD)" valor=objeto.tasa_bcv|monto_venta numerico=True %}
+            {% include "gastos/campo_consulta.html" with id="usd" etiqueta="Total pagado en USD o su equivalente" valor=objeto.monto_usd|monto_venta numerico=True %}
+        </div>
+    </section>
+
+    <div class="d-flex flex-wrap justify-content-end gap-2 mt-4">
+        <a href="{% url 'gastos:inicio' %}" class="btn btn-secondary">Volver</a>
+        {% if request.user.is_superuser %}
+        <a href="{% url 'gastos:editar' objeto.pk %}" class="btn btn-outline-primary">Editar</a>
+        <a href="{% url 'gastos:eliminar' objeto.pk %}" class="btn btn-outline-danger">Eliminar</a>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

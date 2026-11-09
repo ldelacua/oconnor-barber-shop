@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load ventas_formato %}
 {% block content %}
-<h2>Carga manual de estado de cuenta</h2>
+<h2>Carga Movimiento Manual</h2>
 <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <label for="cuenta-filtro">Cuenta:</label>
   <select name="cuenta" id="cuenta-filtro" required>
@@ -30,9 +30,11 @@
 <h3>Movimientos guardados</h3>
 <p>{{ cuenta }} · {{ pagina.paginator.count }} movimientos</p>
 <div class="table-responsive"><table class="table">
-  <thead><tr><th>Fecha</th><th>Transacción</th><th>Descripción</th><th class="text-end">Monto</th><th>Estado</th></tr></thead>
-  <tbody>{% for m in pagina %}<tr><td>{{ m.fecha|date:"d/m/Y" }}</td><td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td><td class="text-end">{{ m.monto|monto_venta }}</td><td>{% if m.partida %}Conciliado{% else %}Pendiente{% endif %}</td></tr>
-  {% empty %}<tr><td colspan="5">Esta cuenta todavía no tiene movimientos.</td></tr>{% endfor %}</tbody>
+  <thead><tr><th>Fecha</th><th>Transacción</th><th>Descripción</th><th class="text-end">Monto</th><th>Estado</th><th>Acciones</th></tr></thead>
+  <tbody>{% for m in pagina %}<tr><td>{{ m.fecha|date:"d/m/Y" }}</td><td>{{ m.nro_transaccion }}</td><td>{{ m.descripcion }}</td><td class="text-end">{{ m.monto|monto_venta }}</td><td>{{ m.bloqueo|default:"Pendiente" }}</td><td>
+    {% include 'bancos/acciones_movimiento.html' %}
+  </td></tr>
+  {% empty %}<tr><td colspan="6">Esta cuenta todavía no tiene movimientos.</td></tr>{% endfor %}</tbody>
 </table></div>
 {% if pagina.has_other_pages %}
 <nav aria-label="Páginas de movimientos">

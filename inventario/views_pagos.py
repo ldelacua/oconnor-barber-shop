@@ -2,13 +2,13 @@ import uuid
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, OperationalError
 from django.shortcuts import get_object_or_404, redirect, render
 from ventas.forms import PagoForm
 from ventas.pagos_calculos import leer_tipos_pago
-from .models import Compra
-from .pagos_proveedor import registrar_pago, saldo_compra
+from .models import Compra, PagoProveedor
+from .pagos_proveedor import corregir_pago, motivo_bloqueo_correccion, movimiento_proveedor, registrar_pago, saldo_compra
 
 
 class PagoProveedorForm(PagoForm):
@@ -42,8 +42,26 @@ def pagar_proveedor(request, compra_id):
             messages.success(request, 'Abono al proveedor registrado.')
             return redirect('pagos:proveedor', compra_id=compra.pk)
     saldo = saldo_compra(compra)
+    pagos = list(compra.pagos_proveedor.select_related("reverso"))
+    if request.user.is_superuser:
+        from bancos.models import CierreBancario, MovimientoInterno
+        movimientos = {m.pago_id: m for m in MovimientoInterno.objects.filter(
+            origen="PROVEEDOR", pago_id__in=[p.pk for p in pagos],
+        ).select_related("partida")}
+        cierres = {}
+        for cuenta_id, fecha in CierreBancario.objects.filter(
+            cuenta_id__in={m.cuenta_id for m in movimientos.values()},
+        ).values_list("cuenta_id", "fecha_cierre"):
+            if cuenta_id not in cierres or fecha > cierres[cuenta_id]:
+                cierres[cuenta_id] = fecha
+        for pago in pagos:
+            movimiento = movimientos.get(pago.pk)
+            cierre = cierres.get(movimiento.cuenta_id) if movimiento else None
+            pago.puede_corregir = not hasattr(pago, "reverso") and (
+                movimiento is None or (not hasattr(movimiento, "partida") and (cierre is None or movimiento.fecha > cierre))
+            )
     return render(request, 'inventario/pago_proveedor.html', {'compra': compra, 'form': form,
-        'saldo': saldo, 'conversion': {'total': str(saldo['total']), 'saldo': str(saldo['saldo']), 'divisa': compra.divisa}, 'pagos': compra.pagos_proveedor.select_related('reverso').all(), 'error': error, 'catalogo': catalogo})
+        'saldo': saldo, 'conversion': {'total': str(saldo['total']), 'saldo': str(saldo['saldo']), 'divisa': compra.divisa}, 'pagos': pagos, 'error': error, 'catalogo': catalogo})
 
 
 @login_required(login_url='iniciar_sesion')
@@ -92,7 +110,6 @@ class ReversoProveedorForm(forms.Form):
 
 @login_required(login_url='iniciar_sesion')
 def reverso_proveedor(request, pago_id):
-    from .models import PagoProveedor
     from .pagos_proveedor import reversar_pago
     pago = get_object_or_404(PagoProveedor.objects.select_related('compra__proveedor', 'reverso'), pk=pago_id)
     form = ReversoProveedorForm(request.POST if request.method == 'POST' else None)
@@ -107,3 +124,49 @@ def reverso_proveedor(request, pago_id):
             messages.success(request, 'Pago reversado. El importe volvió al saldo pendiente de la factura.')
             return redirect('pagos:proveedor', compra_id=pago.compra_id)
     return render(request, 'inventario/reverso_pago_proveedor.html', {'pago': pago, 'form': form})
+
+
+class RetiroProveedorForm(forms.Form):
+    motivo = forms.CharField(label="Motivo de la eliminación", max_length=980,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}))
+
+
+class CorreccionProveedorForm(PagoProveedorForm):
+    motivo = forms.CharField(label="Motivo de la corrección", max_length=980,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}))
+
+
+@login_required(login_url="iniciar_sesion")
+def corregir_proveedor(request, pago_id, eliminar=False):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    pago = get_object_or_404(PagoProveedor.objects.select_related("compra__proveedor", "reverso"), pk=pago_id)
+    movimiento = movimiento_proveedor(pago.pk).first()
+    bloqueo = motivo_bloqueo_correccion(pago, movimiento)
+    if bloqueo:
+        messages.warning(request, bloqueo)
+        return redirect("pagos:proveedor", compra_id=pago.compra_id)
+
+    datos = request.POST if request.method == "POST" else None
+    if eliminar:
+        form = RetiroProveedorForm(datos)
+    else:
+        inicial = {campo: getattr(pago, campo) for campo in ("tipo_pago", "fecha", "referencia", "observacion", "monto")}
+        inicial["cuenta_bancaria"] = movimiento.cuenta_id if movimiento else None
+        form = CorreccionProveedorForm(datos, initial=inicial, catalogo=leer_tipos_pago(),
+                                       usuario=request.user, exigir_cuenta=True)
+    if request.method == "POST" and form.is_valid():
+        campos = form.cleaned_data.copy()
+        motivo = campos.pop("motivo")
+        try:
+            corregir_pago(pago_id=pago.pk, motivo=motivo, usuario=request.user, reemplazo=None if eliminar else campos)
+        except ValidationError as exc:
+            form.add_error(None, exc)
+        except (IntegrityError, OperationalError):
+            form.add_error(None, "No se aplicó el cambio. Recarga y revisa el estado del pago.")
+        else:
+            messages.success(request, "Pago retirado y saldo actualizado." if eliminar else "Pago corregido y saldo actualizado.")
+            return redirect("pagos:proveedor", compra_id=pago.compra_id)
+    return render(request, "inventario/corregir_pago_proveedor.html", {
+        "pago": pago, "form": form, "eliminar": eliminar,
+    })

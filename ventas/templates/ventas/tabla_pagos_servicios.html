@@ -1,0 +1,19 @@
+{% load ventas_formato bancos_pagos %}
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle tabla-consulta-pagos">
+        <thead class="table-dark"><tr><th>Forma de pago</th><th>Banco y cuenta</th><th>Moneda</th><th>Fecha</th><th>Referencia</th><th>Observación</th><th class="text-end">Monto</th><th>Factura</th></tr></thead>
+        {% if not filas_pago %}{% pagos_con_cuenta pagos_mostrados "SERVICIOS" as filas_pago %}{% endif %}
+        <tbody>{% for pago, cuenta in filas_pago %}<tr>
+            <td>{{ pago.nombre_tipo_pago }}</td>
+            <td>{{ cuenta|default:"—" }}</td>
+            <td>{{ pago.get_moneda_display }}</td>
+            <td class="text-nowrap">{{ pago.fecha|date:"d/m/Y" }}</td>
+            <td>{{ pago.referencia|default:"—" }}</td>
+            <td>{{ pago.observacion|default:"—" }}</td>
+            <td class="text-end text-nowrap {% if pago.documento.tipo_documento == 'RE' %}text-danger{% endif %}">{{ pago.monto|monto_venta }}</td>
+            <td class="text-nowrap">{% if perms.ventas.view_documentoventa %}<a href="{% url 'ventas:ver' pago.documento_id %}?next={{ request.get_full_path|urlencode:'' }}" aria-label="Ver factura {{ pago.documento }}">{{ pago.documento }}</a>{% else %}{{ pago.documento }}{% endif %}</td>
+        </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No hay pagos con estos filtros.</td></tr>{% endfor %}</tbody>
+        {% if mostrar_totales %}<tfoot class="table-light">
+            <tr><th scope="row" colspan="6" class="text-end">Total USD</th><th class="text-end text-nowrap">{{ totales.usd|monto_venta }}</th><td></td></tr>
+            <tr><th scope="row" colspan="6" class="text-end">Total Bs.</th><th class="text-end text-nowrap">{{ totales.bs|monto_venta }}</th><td></td></tr>
+        </tfoot>{% endif %}
+    </table></div>

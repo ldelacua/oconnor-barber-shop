@@ -2,7 +2,7 @@ from decimal import Decimal, localcontext
 from django import forms
 from django.forms import inlineformset_factory, BaseInlineFormSet
 from django.db.models import Q
-from .models import Producto, Proveedor, Compra, DetalleCompra, UnidadMedida
+from .models import Producto, Proveedor, Compra, DetalleCompra, UnidadMedida, GrupoProducto
 from .condiciones import iva_vigente, tasa_para_fecha
 from .buscador_productos import BuscadorProductoWidget
 from .precision import configurar_decimales
@@ -31,6 +31,12 @@ class UnidadMedidaForm(EstiloForm):
         model = UnidadMedida
         fields = ["codigo", "nombre", "activo"]
 
+class GrupoProductoForm(EstiloForm):
+    class Meta:
+        model = GrupoProducto
+        fields = ["descripcion", "activo"]
+
+
 class ProductoForm(EstiloForm):
     volumen = forms.DecimalField(label="Volumen", max_digits=14, decimal_places=2,
                                 min_value=Decimal("0.01"))
@@ -40,10 +46,11 @@ class ProductoForm(EstiloForm):
         super().__init__(*args, **kwargs)
         self.fields["unidad_medida"].queryset = UnidadMedida.objects.filter(
             Q(activo=True) | Q(pk=self.instance.unidad_medida_id))
+        self.fields["grupo"].queryset = GrupoProducto.objects.filter(Q(activo=True) | Q(pk=self.instance.grupo_id))
 
     class Meta:
         model = Producto
-        fields = ["codigo_producto", "nombre_producto", "volumen", "unidad_medida", "observacion", "promocionable", "sin_comision", "activo"]
+        fields = ["codigo_producto", "nombre_producto", "grupo", "volumen", "unidad_medida", "observacion", "promocionable", "sin_comision", "comercializacion", "activo"]
         widgets = {"observacion": forms.Textarea(attrs={"rows": 3})}
 
 class ProveedorForm(EstiloForm):

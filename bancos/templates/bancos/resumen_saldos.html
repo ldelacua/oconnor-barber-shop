@@ -1,0 +1,18 @@
+{% load ventas_formato %}
+<section class="card card-body mb-3">
+<h3 class="h5">Resumen de conciliación · {{ cuenta.get_moneda_display }}</h3>
+<div class="table-responsive"><table class="table table-sm mb-2">
+<thead><tr><th>Concepto</th><th class="text-end">Banco</th><th class="text-end">Sistema</th></tr></thead>
+<tbody>
+<tr><th scope="row">Saldo inicial</th><td class="text-end">{{ saldos.inicial_banco|monto_venta }}</td><td class="text-end">{{ saldos.inicial_sistema|monto_venta }}</td></tr>
+<tr><th scope="row">Movimientos netos del mes</th><td class="text-end">{{ saldos.neto_banco|monto_venta }}</td><td class="text-end">{{ saldos.neto_sistema|monto_venta }}</td></tr>
+<tr><th scope="row">Saldo calculado al corte</th><td class="text-end">{{ saldos.calculado_banco|monto_venta }}</td><td class="text-end">{{ saldos.final_sistema|monto_venta }}</td></tr>
+<tr><th scope="row">Saldo final del extracto</th><td class="text-end">{{ saldos.final_extracto|monto_venta }}</td><td class="text-end">—</td></tr>
+<tr><th scope="row">Pendientes del otro lado</th><td class="text-end">{{ saldos.pendiente_sistema|monto_venta }}</td><td class="text-end">{{ saldos.pendiente_banco|monto_venta }}</td></tr>
+<tr class="table-light"><th scope="row">Saldo ajustado</th><td class="text-end fw-bold">{{ saldos.ajustado_banco|monto_venta }}</td><td class="text-end fw-bold">{{ saldos.ajustado_sistema|monto_venta }}</td></tr>
+</tbody></table></div>
+<div>Diferencia del extracto frente al saldo calculado: <strong>{{ saldos.diferencia_extracto|monto_venta }}</strong></div>
+<div>Diferencia entre saldos ajustados: <strong>{{ saldos.diferencia_final|monto_venta }}</strong></div>
+{% if errores_saldos %}<ul class="alert alert-danger mb-0 mt-3 ps-5">{% for error in errores_saldos %}<li>{{ error }}</li>{% endfor %}</ul>
+{% elif vista_previa and not form.errors %}<p class="alert alert-success mb-0 mt-3">Los saldos cuadran. Puedes guardar el cierre.</p>{% endif %}
+</section>

@@ -3,6 +3,6 @@
 <thead><tr><th>Fecha</th><th>Referencia</th>{% if lado == 'sistema' %}<th>Pago</th>{% endif %}<th class="text-end">Importe</th></tr></thead>
 <tbody>{% for p in partidas %}<tr>
 <td class="text-nowrap">{{ p.movimiento.fecha|date:'d/m/Y' }}</td>
-{% if lado == 'banco' %}<td>{{ p.movimiento.nro_transaccion }}</td>{% else %}<td>{{ p.movimiento.referencia|default:'—' }}</td><td>{{ p.movimiento.origen }} #{{ p.movimiento.pago_id }}</td>{% endif %}
+{% if lado == 'banco' %}<td>{{ p.movimiento.nro_transaccion }}</td>{% else %}<td>{{ p.movimiento.referencia|default:'—' }}</td><td>{% if p.movimiento.cargo_bancario %}{{ p.movimiento.cargo_bancario.concepto }}{% else %}{{ p.movimiento.origen }} #{{ p.movimiento.pago_id }}{% endif %}</td>{% endif %}
 <td class="text-end text-nowrap fw-semibold">{{ p.movimiento.monto|monto_venta }}</td></tr>{% endfor %}</tbody>
 </table>

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Histórico de compras{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2>Histórico de compras por producto</h2>
+    <a href="{% url 'inventario:compras' %}" class="btn btn-outline-secondary">Regresar a Compras</a>
+</div>
+<form method="get" class="card card-body mb-3">
+    {{ filtros.non_field_errors }}
+    <div class="row g-3">{% for campo in filtros %}<div class="col-sm-6 col-lg-2">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
+    <div class="mt-3"><button class="btn btn-primary">Consultar</button> <a href="{% url 'inventario:historico_compras' %}" class="btn btn-outline-secondary">Limpiar filtros</a></div>
+</form>
+<p class="small text-muted">Solo compras actualizadas. Los totales incluyen impuesto y se muestran en la moneda original.</p>
+<div class="card table-responsive">
+<table class="table align-middle mb-0" id="historico-compras">
+    <thead class="table-dark"><tr><th>Producto</th><th class="text-end">Cantidad</th><th class="text-end">Facturas</th><th class="text-end">Total Bs.</th><th class="text-end">Total USD</th></tr></thead>
+    <tbody>
+    {% for producto in pagina %}
+    <tr>
+        <td><button type="button" class="btn btn-success btn-sm fw-bold me-2" data-expandir-compra
+                aria-label="Facturas de {{ producto.producto__nombre_producto }}" aria-controls="compras-producto-{{ producto.producto_id }}" aria-expanded="false"><span aria-hidden="true">+</span></button>
+            {{ producto.producto__codigo_producto }} · {{ producto.producto__nombre_producto }}
+        </td>
+        <td class="text-end">{{ producto.cantidad|floatformat:"-3" }} {{ producto.producto__unidad_medida__nombre|default_if_none:"" }}</td>
+        <td class="text-end">{{ producto.facturas }}</td>
+        <td class="text-end">{{ producto.bs|monto_venta }}</td><td class="text-end">{{ producto.usd|monto_venta }}</td>
+    </tr>
+    <tr id="compras-producto-{{ producto.producto_id }}" hidden>
+        <td colspan="5" class="bg-light p-3">
+            <table class="table table-sm mb-0">
+                <caption class="caption-top">Facturas de {{ producto.producto__nombre_producto }}</caption>
+                <thead><tr><th>Factura</th><th>Fecha</th><th>Proveedor</th><th class="text-end">Cantidad</th><th>Moneda</th><th class="text-end">Total del producto</th></tr></thead>
+                <tbody>
+                {% for linea in producto.detalles %}{% with compra=linea.compra %}
+                <tr>
+                    <td><a href="{% url 'inventario:detalle' compra.pk %}?next={{ request.get_full_path|urlencode:'' }}">{{ compra.numero_factura }}</a></td>
+                    <td class="text-nowrap">{{ compra.fecha_compra|date:"d/m/Y" }}</td><td>{{ compra.proveedor.nombre }}</td>
+                    <td class="text-end">{{ linea.cantidad|floatformat:"-3" }}</td><td>{{ compra.get_divisa_display }}</td>
+                    <td class="text-end">{{ linea.total|monto_venta }}</td>
+                </tr>
+                {% endwith %}{% endfor %}
+                </tbody>
+            </table>
+        </td>
+    </tr>
+    {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No hay productos comprados con estos filtros.</td></tr>{% endfor %}
+    </tbody>
+</table>
+</div>
+{% include "ventas/paginacion_pagos.html" with unidad="productos" etiqueta_paginacion="Páginas de productos" %}
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.getElementById("historico-compras").addEventListener("click", (evento) => {
+    const boton = evento.target.closest("button[data-expandir-compra]");
+    if (!boton) return;
+    const fila = document.getElementById(boton.getAttribute("aria-controls"));
+    fila.hidden = !fila.hidden;
+    boton.setAttribute("aria-expanded", String(!fila.hidden));
+    boton.querySelector("span").textContent = fila.hidden ? "+" : "−";
+});
+</script>
+{% endblock %}

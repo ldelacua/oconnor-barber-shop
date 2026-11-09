@@ -7,7 +7,7 @@
 
     <div class="d-flex flex-wrap gap-2">
         <a
-            href="{% url 'ventas:reporte_servicios' %}"
+            href="{% if seccion_pagos %}{% url 'pagos:lista' %}{% else %}{% url 'ventas:reporte_servicios' %}{% endif %}"
             class="btn btn-outline-secondary btn-sm"
         >
             <i class="bi bi-arrow-left me-1"></i>
@@ -15,7 +15,7 @@
         </a>
 
         <a
-            href="{% url 'liquidaciones:lista' %}"
+            href="{% url 'liquidaciones:lista' %}{% if seccion_pagos %}?desde_pagos=1{% endif %}"
             class="btn btn-outline-primary btn-sm"
         >
             Consultar cancelaciones
@@ -24,6 +24,7 @@
 </div>
 <p class="small text-muted">La comisión usa el monto original antes del descuento. Cuando el servicio calcula IVA inverso, ese monto incluye el IVA; no se utiliza la base imponible.</p>
 <form method="get" class="card card-body mb-4">
+{% if seccion_pagos %}<input type="hidden" name="desde_pagos" value="1">{% endif %}
     {{ cabecera.non_field_errors }}
     <div class="row g-3 align-items-end">
         {% for campo in cabecera %}<div class="col-md-3"><label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endfor %}
@@ -34,6 +35,7 @@
 {% if consultado %}
 <p><strong>Prestador:</strong> {{ datos.prestador.nombre }} {{ datos.prestador.apellido }} · <strong>Comisión actual:</strong> {{ datos.prestador.porcentaje|porcentaje_venta }}% · <strong>Tasa Bs del pago:</strong> {% if tasa %}{{ tasa.tasa_bcv|monto_venta }}{% else %}No registrada{% endif %}</p>
 <form method="post" id="form-liquidacion">
+{% if seccion_pagos %}<input type="hidden" name="desde_pagos" value="1">{% endif %}
     {% csrf_token %}
     <input type="hidden" name="clave" value="{{ clave }}">
     <input type="hidden" name="prestador" value="{{ datos.prestador.pk }}">
@@ -73,7 +75,7 @@
         <h3 class="h5">Descuentos pendientes por reversos</h3>
         <p class="small text-muted">Se aplican obligatoriamente, aunque la venta sea de otro período. Se usa la comisión pagada originalmente.</p>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Reverso</th><th>Servicio</th><th>Cancelación original</th><th class="text-end">Descuento USD</th></tr></thead>
-        <tbody>{% for s in descuentos %}<tr><td><a href="{% url 'ventas:ver' s.linea.documento_id %}">{{ s.linea.documento }}</a></td><td>{{ s.linea.descripcion_servicio }}</td><td><a href="{% url 'liquidaciones:ver' s.ajuste_de.liquidacion_id %}">{{ s.ajuste_de.liquidacion }}</a></td><td class="text-end text-danger">{{ s.comision|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
+        <tbody>{% for s in descuentos %}<tr><td><a href="{% url 'ventas:ver' s.linea.documento_id %}">{{ s.linea.documento }}</a></td><td>{{ s.linea.descripcion_servicio }}</td><td><a href="{% url 'liquidaciones:ver' s.ajuste_de.liquidacion_id %}{% if seccion_pagos %}?desde_pagos=1{% endif %}">{{ s.ajuste_de.liquidacion }}</a></td><td class="text-end text-danger">{{ s.comision|monto_venta }}</td></tr>{% endfor %}</tbody></table></div>
     </div>{% endif %}
     <div id="resumen-liquidacion" class="text-end alert alert-info" aria-live="polite">Marca los servicios para calcular la comisión.</div>
     <div class="card card-body mb-4">

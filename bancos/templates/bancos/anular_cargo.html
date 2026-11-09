@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% load ventas_formato %}
+{% block content %}
+<h2>Anular cargo bancario</h2>
+{% with movimiento=cargo.movimiento_banco %}
+<p>{{ movimiento.cuenta }} · {{ movimiento.fecha|date:'d/m/Y' }} · Referencia {{ movimiento.nro_transaccion }} · {{ movimiento.monto|monto_venta }} {{ movimiento.cuenta.get_moneda_display }}</p>
+<p><strong>Concepto:</strong> {{ cargo.concepto }}</p>
+<p>La anulación retira el cargo de los movimientos del sistema y deja la línea del banco pendiente. Se guardarán los datos originales y el motivo de la anulación.</p>
+<form method="post" class="card card-body">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div class="d-flex gap-2">
+        <button class="btn btn-danger">Confirmar anulación</button>
+        <a class="btn btn-outline-secondary" href="{% url 'bancos:conciliar_cuenta' movimiento.cuenta_id %}">Regresar</a>
+    </div>
+</form>
+{% endwith %}
+{% endblock %}

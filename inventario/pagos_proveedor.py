@@ -65,3 +65,66 @@ def reversar_pago(*, pago_id, motivo, usuario):
     from bancos.vinculacion import reflejar_reverso_proveedor
     reflejar_reverso_proveedor(pago, reverso)
     return reverso
+
+
+def movimiento_proveedor(pago_id):
+    from bancos.models import MovimientoInterno
+    return MovimientoInterno.objects.filter(origen="PROVEEDOR", pago_id=pago_id)
+
+
+def motivo_bloqueo_correccion(pago, movimiento):
+    from bancos.models import CierreBancario, PartidaInterna
+
+    if hasattr(pago, "reverso"):
+        return "El pago ya fue reversado."
+    if movimiento is not None:
+        if PartidaInterna.objects.filter(movimiento_id=movimiento.pk).exists():
+            return "El pago está conciliado y no se puede editar ni eliminar."
+        if CierreBancario.objects.filter(cuenta_id=movimiento.cuenta_id, fecha_cierre__gte=movimiento.fecha).exists():
+            return "El pago pertenece a un período bancario cerrado."
+    return ""
+
+
+@transaction.atomic
+def corregir_pago(*, pago_id, motivo, usuario, reemplazo=None):
+    """Retira el abono pendiente y, si corresponde, registra el reemplazo."""
+    from django.core.exceptions import PermissionDenied
+    from django.utils import timezone
+    from bancos.models import CierreBancario, CuentaBancaria
+    from mysql_nuevo.bloqueos import serializar_operacion
+    from .models import ReversoPagoProveedor
+
+    if not usuario.is_superuser:
+        raise PermissionDenied
+    serializar_operacion()
+    pago = PagoProveedor.objects.select_for_update().get(pk=pago_id)
+    Compra.objects.select_for_update().get(pk=pago.compra_id)
+    movimiento = movimiento_proveedor(pago.pk).first()
+    nueva_cuenta = reemplazo.get("cuenta_bancaria") if reemplazo is not None else None
+    cuentas_ids = {c for c in (movimiento.cuenta_id if movimiento else None,
+                               nueva_cuenta.pk if nueva_cuenta else None) if c is not None}
+    list(CuentaBancaria.objects.select_for_update().filter(pk__in=cuentas_ids).order_by("pk"))
+    # Una vinculación concurrente puede haber creado el movimiento mientras se esperaba la cuenta.
+    actual = movimiento_proveedor(pago.pk).first()
+    if actual and actual.cuenta_id not in cuentas_ids:
+        raise ValidationError("La cuenta del pago cambió. Vuelve a abrir el pago.")
+    movimiento = actual
+    bloqueo = motivo_bloqueo_correccion(pago, movimiento)
+    if bloqueo:
+        raise ValidationError(bloqueo)
+    if nueva_cuenta and CierreBancario.objects.filter(
+        cuenta_id=nueva_cuenta.pk, fecha_cierre__gte=reemplazo["fecha"],
+    ).exists():
+        raise ValidationError("La fecha seleccionada pertenece a un período bancario cerrado.")
+    accion = "CORRECCIÓN" if reemplazo is not None else "ELIMINACIÓN"
+    motivo = motivo.strip()
+    if not motivo:
+        raise ValidationError("Indica el motivo del cambio.")
+    ReversoPagoProveedor.objects.create(pago=pago, fecha=timezone.localdate(),
+        motivo=f"{accion}: {motivo}", registrado_por=usuario.get_username())
+    if movimiento:
+        # El débito pendiente se retira; no hubo un reintegro del banco que conciliar.
+        movimiento.delete()
+    if reemplazo is not None:
+        return registrar_pago(compra_id=pago.compra_id, usuario=usuario, **reemplazo)
+    return None

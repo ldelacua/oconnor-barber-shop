@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .historico_compras import historico_compras
 from .buscador_productos import buscar_productos
 
 app_name = "inventario"
@@ -10,11 +11,15 @@ urlpatterns = [
     path("unidades/nueva/", views.maestro_form, {"tipo": "unidades"}, name="nueva_unidad"),
     path("unidades/<int:pk>/editar/", views.maestro_form, {"tipo": "unidades"}, name="editar_unidad"),
     path("", views.compras, name="compras"),
+    path("compras/historico/", historico_compras, name="historico_compras"),
     path("compras/nueva/", views.compra_form, name="nueva_compra"),
     path("compras/<int:pk>/", views.detalle, name="detalle"),
     path("compras/<int:pk>/editar/", views.compra_form, name="editar_compra"),
     path("compras/<int:pk>/actualizar/", views.actualizar, name="actualizar"),
     path("compras/<int:pk>/eliminar/", views.eliminar, name="eliminar"),
+    path("productos/grupos/", views.maestro_lista, {"tipo": "grupos"}, name="grupos"),
+    path("productos/grupos/nuevo/", views.maestro_form, {"tipo": "grupos"}, name="nuevo_grupo"),
+    path("productos/grupos/<int:pk>/editar/", views.maestro_form, {"tipo": "grupos"}, name="editar_grupo"),
     path("productos/", views.maestro_lista, {"tipo": "productos"}, name="productos"),
     path("productos/nuevo/", views.maestro_form, {"tipo": "productos"}, name="nuevo_producto"),
     path("productos/<int:pk>/editar/", views.maestro_form, {"tipo": "productos"}, name="editar_producto"),

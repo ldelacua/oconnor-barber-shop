@@ -1,0 +1,56 @@
+{% load ventas_formato %}
+<p class="small text-muted">Los grupos muestran los pagos de esta página. El total general incluye todos los resultados filtrados.</p>
+<div class="table-responsive">
+<table class="table align-middle mb-0">
+    <thead class="table-dark"><tr><th>{% if por_forma %}Forma de pago / Banco{% else %}Banco / Forma de pago{% endif %} / Documento de origen</th><th class="text-end">Pagos</th></tr></thead>
+    <tbody>
+    {% for padre in grupos_pagina %}
+        <tr>
+            <th><button type="button" class="btn btn-success btn-sm me-2 fw-bold" data-expandir-pagos
+                aria-controls="pagos-banco-{{ padre.id }}" aria-expanded="false"
+                aria-label="{% if por_forma %}Bancos de{% else %}Formas de pago de{% endif %} {{ padre.nombre }}"><span aria-hidden="true">+</span></button>{{ padre.nombre }}</th>
+            <td class="text-end">{{ padre.cantidad }}</td>
+        </tr>
+        <tr id="pagos-banco-{{ padre.id }}" hidden><td colspan="2" class="bg-light p-3">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-secondary"><tr><th>{% if por_forma %}Banco{% else %}Forma de pago{% endif %}</th><th class="text-end">Pagos</th></tr></thead>
+                <tbody>
+                {% for hijo in padre.hijos %}
+                    <tr>
+                        <th><button type="button" class="btn btn-success btn-sm me-2 fw-bold" data-expandir-pagos
+                            aria-controls="pagos-banco-{{ padre.id }}-forma-{{ hijo.id }}" aria-expanded="false"
+                            aria-label="Documentos de {{ hijo.nombre }}"><span aria-hidden="true">+</span></button>{{ hijo.nombre }}</th>
+                        <td class="text-end">{{ hijo.cantidad }}</td>
+                    </tr>
+                    <tr id="pagos-banco-{{ padre.id }}-forma-{{ hijo.id }}" hidden><td colspan="2" class="bg-white p-3">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light"><tr><th>Documento de origen</th><th class="text-end">Pagos</th></tr></thead>
+                            <tbody>
+                            {% for origen in hijo.origenes.values %}
+                                <tr>
+                                    <th><button type="button" class="btn btn-success btn-sm me-2 fw-bold" data-expandir-pagos
+                                        aria-controls="pagos-banco-{{ padre.id }}-forma-{{ hijo.id }}-{{ origen.id }}" aria-expanded="false"
+                                        aria-label="Detalle de {{ origen.nombre }}"><span aria-hidden="true">+</span></button>{{ origen.nombre }}</th>
+                                    <td class="text-end">{{ origen.filas|length }}</td>
+                                </tr>
+                                <tr id="pagos-banco-{{ padre.id }}-forma-{{ hijo.id }}-{{ origen.id }}" hidden><td colspan="2">
+                                    {% include "ventas/tabla_pagos_servicios.html" with filas_pago=origen.filas mostrar_totales=False %}
+                                </td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </td></tr>
+    {% empty %}
+        <tr><td colspan="2" class="text-center text-muted py-4">No hay pagos con estos filtros.</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot class="table-light">
+        <tr><th scope="row" class="text-end">Total USD</th><th class="text-end">{{ totales.usd|monto_venta }}</th></tr>
+        <tr><th scope="row" class="text-end">Total Bs.</th><th class="text-end">{{ totales.bs|monto_venta }}</th></tr>
+    </tfoot>
+</table>
+</div>

@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Bancos y cuentas</h2>
-{% if perms.bancos.view_movimientobanco and perms.bancos.add_movimientobanco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:importar_estado' %}">Importar estado de cuenta</a> <a class="btn btn-outline-primary mb-2" href="{% url 'bancos:cargar_movimiento' %}">Cargar movimiento a mano</a>{% endif %}
+{% if perms.bancos.view_movimientobanco and perms.bancos.add_movimientobanco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:importar_estado' %}">Importar estado de cuenta</a> <a class="btn btn-outline-primary mb-2" href="{% url 'bancos:cargar_movimiento' %}">Carga Movimiento Manual</a>{% endif %}
 <h3>Bancos</h3>
 {% if perms.bancos.add_banco %}<a class="btn btn-primary mb-2" href="{% url 'bancos:nuevo_banco' %}">Nuevo banco</a>{% endif %}
 <table class="table"><thead><tr><th>Banco</th><th>Activo</th><th></th></tr></thead><tbody>
-{% for b in bancos %}<tr><td>{{ b.nombre }}</td><td><input type="checkbox" disabled aria-label="Activo" {% if b.activo %}checked{% endif %}></td><td>{% if perms.bancos.change_banco %}<a href="{% url 'bancos:editar_banco' b.pk %}">Editar</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="3">No hay bancos registrados.</td></tr>{% endfor %}
+{% for b in bancos %}<tr><td>{{ b.nombre }}</td><td><input type="checkbox" disabled aria-label="Activo" {% if b.activo %}checked{% endif %}></td><td>{% if perms.bancos.change_banco %}<a href="{% url 'bancos:editar_banco' b.pk %}">Editar</a> · <a href="{% url 'bancos:formato_estado' b.pk %}">Formato del extracto</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="3">No hay bancos registrados.</td></tr>{% endfor %}
 </tbody></table>
 <h3>Cuentas bancarias</h3>
 {% if perms.bancos.add_cuentabancaria %}<a class="btn btn-primary mb-2" href="{% url 'bancos:nueva_cuenta' %}">Nueva cuenta</a>{% endif %}

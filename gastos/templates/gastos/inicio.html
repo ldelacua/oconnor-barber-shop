@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load ventas_formato %}
 
-{% block title %}Gastos | BarberPro{% endblock %}
+{% block title %}Consulta de gastos | BarberPro{% endblock %}
 
 {% block content %}
 {% include "gastos/nav.html" %}
@@ -66,6 +66,8 @@
                     <th class="text-end">Monto</th>
                     <th class="text-end">Impuesto</th>
                     <th class="text-end">Total</th>
+                    <th class="text-end">Tasa BCV</th>
+                    <th class="text-end">Total equivalente USD</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -84,14 +86,16 @@
                         <td>{{ g.numero_factura }}</td>
                         <td>{{ g.get_moneda_display }}</td>
                         <td class="text-end text-nowrap">
-                            {{ g.monto_gasto|monto_venta }}
+                            {{ g.monto_gasto|monto_venta }} {{ g.get_moneda_display }}
                         </td>
                         <td class="text-end text-nowrap">
-                            {{ g.monto_impuesto|monto_venta }}
+                            {{ g.monto_impuesto|monto_venta }} {{ g.get_moneda_display }}
                         </td>
                         <td class="text-end text-nowrap">
-                            {{ g.total|monto_venta }}
+                            {{ g.total|monto_venta }} {{ g.get_moneda_display }}
                         </td>
+                        <td class="text-end text-nowrap">{{ g.tasa_bcv|monto_venta }}</td>
+                        <td class="text-end text-nowrap">{{ g.monto_usd|monto_venta }}</td>
                         <td class="text-nowrap">
                             <a
                                 class="btn btn-outline-primary btn-sm"
@@ -102,6 +106,7 @@
                                 <i class="bi bi-receipt"></i>
                             </a>
 
+                            {% if request.user.is_superuser %}
                             <a
                                 class="btn btn-outline-secondary btn-sm"
                                 href="{% url 'gastos:editar' g.pk %}"
@@ -119,11 +124,12 @@
                             >
                                 <i class="bi bi-trash"></i>
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
 
                     <tr>
-                        <td colspan="10" class="bg-light pt-0 pb-3">
+                        <td colspan="12" class="bg-light pt-0 pb-3">
                             <div class="ps-3 border-start border-primary border-3">
                                 <p class="small fw-bold mb-1">
                                     Productos del gasto {{ g.pk }}
@@ -144,6 +150,7 @@
                                                     <th class="small text-muted text-end">
                                                         Cantidad
                                                     </th>
+                                                    <th class="small text-muted text-end">Monto del producto</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -157,6 +164,11 @@
                                                         </td>
                                                         <td class="text-end">
                                                             {{ detalle.cantidad|floatformat:"-3" }}
+                                                        </td>
+                                                        <td class="text-end text-nowrap">
+                                                            {% with monto=detalle.total %}
+                                                                {% if monto is not None %}{{ monto|monto_venta }} {{ g.get_moneda_display }}{% else %}—{% endif %}
+                                                            {% endwith %}
                                                         </td>
                                                     </tr>
                                                 {% endfor %}
@@ -173,7 +185,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-4">
+                        <td colspan="12" class="text-center text-muted py-4">
                             No hay gastos con estos filtros.
                         </td>
                     </tr>

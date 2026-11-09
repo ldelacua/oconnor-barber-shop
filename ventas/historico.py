@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
@@ -9,6 +11,7 @@ from django.views.decorators.http import require_GET
 from barberos.models import Barbero
 from servicios.models import Servicio
 from .models import DetalleVenta
+from .pagos_calculos import total_en_usd
 from .reportes import FiltrosServiciosForm
 
 
@@ -21,10 +24,62 @@ class FiltroHistorico(FiltrosServiciosForm):
     cliente = forms.CharField(required=False, max_length=100, label="Nombre del cliente")
 
 
+def _nombre_prestador(fila):
+    if fila["barbero_id"] is None:
+        return "Sin prestador registrado"
+    return f'{fila["barbero__nombre"]} {fila["barbero__apellido"]}'
+
+
+def _nombre_servicio(fila):
+    return f'{fila["servicio__codigo"]} · {fila["servicio__nombre"]}'
+
+
+def _anexar_facturas(lineas, pagina, importe, por_prestador):
+    clave = "barbero_id" if por_prestador else "servicio_id"
+    nombre = _nombre_prestador if por_prestador else _nombre_servicio
+    padres = {fila[clave]: fila for fila in pagina}
+    grupos = {pk: {} for pk in padres}
+    cero = Decimal("0.00")
+    total_usd = cero
+    filas = lineas.values(
+        "servicio_id", "servicio__nombre", "servicio__codigo", "barbero_id", "barbero__nombre", "barbero__apellido",
+        "documento_id", "documento__fecha", "documento__cliente__nombre",
+        "documento__cliente__apellido", "documento__reverso__sellado", "documento__tasa_bcv",
+    ).annotate(cantidad=Sum("cantidad_servicio"), total_bs=Sum(importe))
+    orden = ("servicio__nombre", "servicio_id") if por_prestador else ("barbero__nombre", "barbero__apellido", "barbero_id")
+    for factura in filas.order_by(*orden, "-documento__fecha", "-documento_id").iterator():
+        padre_id = factura[clave]
+        hijo_id = factura["servicio_id" if por_prestador else "barbero_id"]
+        vigente = not factura["documento__reverso__sellado"]
+        tasa = factura["documento__tasa_bcv"]
+        factura["total_usd"] = total_en_usd(factura["total_bs"], tasa) if tasa > 0 else None
+        importe_usd = factura["total_usd"] or cero
+        if vigente:
+            total_usd += importe_usd
+        if padre_id not in padres:
+            continue
+        hijo = grupos[padre_id].setdefault(hijo_id, {
+            "id": hijo_id or 0,
+            "nombre": _nombre_servicio(factura) if por_prestador else _nombre_prestador(factura),
+            "facturas": [], "cantidad": 0, "total_bs": cero, "total_usd": cero,
+        })
+        hijo["facturas"].append(factura)
+        if vigente:
+            hijo["cantidad"] += factura["cantidad"]
+            hijo["total_bs"] += factura["total_bs"]
+            hijo["total_usd"] += importe_usd
+    for pk, padre in padres.items():
+        padre["id"] = pk or 0
+        padre["nombre"] = nombre(padre)
+        padre["grupos"] = list(grupos[pk].values())
+        padre["total_usd"] = sum((h["total_usd"] for h in padre["grupos"]), cero)
+    return total_usd
+
+
 @login_required
 @permission_required("ventas.view_documentoventa", raise_exception=True)
 @require_GET
-def historico(request, servicio_id=None, prestador_id=None):
+def historico(request, servicio_id=None, prestador_id=None, por_prestador=False):
     filtro = FiltroHistorico(request.GET)
     servicio = get_object_or_404(Servicio, pk=servicio_id) if servicio_id is not None else None
     prestador = get_object_or_404(Barbero, pk=prestador_id) if prestador_id else None
@@ -64,6 +119,11 @@ def historico(request, servicio_id=None, prestador_id=None):
         filas = lineas.values("barbero_id", "barbero__nombre", "barbero__apellido").annotate(
             **sumas,
         ).order_by("barbero__nombre", "barbero__apellido", "barbero_id")
+    elif por_prestador:
+        nivel, nombre_total = "servicios", "general"
+        filas = lineas.values("barbero_id", "barbero__nombre", "barbero__apellido").annotate(
+            **sumas,
+        ).order_by("barbero__nombre", "barbero__apellido", "barbero_id")
     else:
         nivel, nombre_total = "servicios", "general"
         filas = lineas.values("servicio_id", "servicio__codigo", "servicio__nombre").annotate(
@@ -72,8 +132,14 @@ def historico(request, servicio_id=None, prestador_id=None):
 
     query = request.GET.copy()
     query.pop("page", None)
-    return render(request, "ventas/historico.html", {
+    pagina = Paginator(filas, 15).get_page(request.GET.get("page"))
+    plantilla = "ventas/historico.html"
+    total_usd = None
+    if nivel == "servicios":
+        total_usd = _anexar_facturas(lineas, pagina, importe, por_prestador)
+        plantilla = "ventas/historico_expandible.html"
+    return render(request, plantilla, {
         "filtro": filtro, "nivel": nivel, "servicio": servicio, "nombre_total": nombre_total,
-        "pagina": Paginator(filas, 15).get_page(request.GET.get("page")),
-        "total": total, "query": query.urlencode(),
+        "pagina": pagina, "por_prestador": por_prestador,
+        "total": total, "total_usd": total_usd, "query": query.urlencode(),
     })

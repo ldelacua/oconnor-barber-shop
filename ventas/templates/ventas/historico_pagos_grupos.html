@@ -1,0 +1,20 @@
+{% load ventas_formato %}
+<div class="table-responsive">
+<table class="table align-middle mb-0" id="formas-de-pago">
+    <thead class="table-dark"><tr><th>Forma de pago</th><th class="text-end">Pagos</th><th class="text-end">Total Bs.</th><th class="text-end">Total USD</th></tr></thead>
+    <tbody>
+        {% for grupo in pagina %}
+        <tr>
+            <td><button type="button" class="btn btn-success btn-sm me-2 fw-bold" data-expandir-pagos
+                    aria-label="Pagos de {{ grupo.nombre }}" aria-controls="pagos-forma-{{ grupo.tipo_pago }}" aria-expanded="false"><span aria-hidden="true">+</span></button>{{ grupo.nombre }}</td>
+            <td class="text-end">{{ grupo.cantidad }}</td>
+            <td class="text-end">{{ grupo.bs|monto_venta }}</td><td class="text-end">{{ grupo.usd|monto_venta }}</td>
+        </tr>
+        <tr id="pagos-forma-{{ grupo.tipo_pago }}" hidden><td colspan="4" class="bg-light p-3">
+            {% include "ventas/tabla_pagos_servicios.html" with pagos_mostrados=grupo.pagos totales=grupo mostrar_totales=True %}
+        </td></tr>
+        {% empty %}<tr><td colspan="4" class="text-center py-4">No hay pagos con estos filtros.</td></tr>{% endfor %}
+    </tbody>
+    <tfoot class="table-dark"><tr><th>Total general</th><th class="text-end">{{ cantidad_total }}</th><th class="text-end">{{ totales.bs|monto_venta }}</th><th class="text-end">{{ totales.usd|monto_venta }}</th></tr></tfoot>
+</table>
+</div>

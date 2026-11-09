@@ -1,4 +1,6 @@
+from decimal import Decimal
 from django import forms
+from django.forms.models import BaseInlineFormSet
 from django.db.models import Q
 from .models import GrupoGasto, TipoGasto, Proveedor, RegistroGasto
 
@@ -64,8 +66,16 @@ class RegistroForm(EstiloForm):
         fields=["fecha_gasto","gasto","proveedor","numero_factura","numero_control","moneda","monto_gasto","monto_impuesto","porcentaje_impuesto","tipo_pago","referencia_pago"]
         widgets={"fecha_gasto":forms.DateInput(format="%Y-%m-%d",attrs={"type":"date"})}
 
-    def __init__(self,*args,usuario=None,**kwargs):
+    def __init__(self,*args,usuario=None,registro_detallado=False,**kwargs):
         super().__init__(*args,**kwargs)
+        if registro_detallado:
+            for nombre in ("monto_gasto", "monto_impuesto", "porcentaje_impuesto", "moneda"):
+                self.fields[nombre].widget = forms.HiddenInput()
+            self.fields["monto_pago"] = forms.DecimalField(
+                label="Monto pagado", max_digits=19, decimal_places=2, min_value=Decimal("0.01"),
+                required=not self.instance.pk or bool(self.instance.tipo_pago),
+                initial=self.instance.total if self.instance.pk else None,
+                widget=forms.NumberInput(attrs={"class": "form-control text-end", "step": "0.01", "min": "0.01", "readonly": True}))
         from ventas.pagos_calculos import leer_tipos_pago
         self.catalogo_pagos = leer_tipos_pago()
         self.fields['tipo_pago'].widget.attrs['data-tipos-banco'] = ','.join(
@@ -79,6 +89,14 @@ class RegistroForm(EstiloForm):
         if self.instance.tipo_pago and self.instance.tipo_pago not in self.catalogo_pagos:
             self.catalogo_pagos[self.instance.tipo_pago] = {
                 'nombre': self.instance.nombre_tipo_pago, 'moneda': self.instance.moneda}
+        if registro_detallado and self.is_bound:
+            try:
+                codigo = int(self.data.get(self.add_prefix("tipo_pago")) or 0)
+            except ValueError:
+                codigo = 0
+            tipo = self.catalogo_pagos.get(codigo)
+            self.data = self.data.copy()
+            self.data[self.add_prefix("moneda")] = tipo["moneda"] if tipo else (self.instance.moneda or "BS")
         self.fields['tipo_pago'].choices = [('', 'Selecciona cómo se pagó')] + [
             (codigo, f"{tipo['nombre']} ({tipo['moneda']})") for codigo, tipo in self.catalogo_pagos.items()]
         self.fields['tipo_pago'].required = not self.instance.pk or bool(self.instance.tipo_pago)
@@ -92,6 +110,21 @@ class RegistroForm(EstiloForm):
 
     def clean(self):
         datos=super().clean()
+        if "monto_pago" in self.fields and datos.get("fecha_gasto"):
+            fecha = datos["fecha_gasto"]
+            if self.instance.pk and self.instance.fecha_gasto == fecha and self.instance.tasa_bcv is not None:
+                datos["tasa_bcv"] = self.instance.tasa_bcv
+            else:
+                from tasas_bcv.models import TasaBCV
+                tasa = TasaBCV.objects.filter(fecha=fecha).values_list("tasa_bcv", flat=True).first()
+                if tasa is None or tasa <= 0:
+                    self.add_error("fecha_gasto", "No hay una tasa BCV válida para esta fecha. Regístrala en Tasas Bs.")
+                else:
+                    datos["tasa_bcv"] = tasa
+        if "monto_pago" in self.fields and datos.get("monto_pago") is not None:
+            base, impuesto = datos.get("monto_gasto"), datos.get("monto_impuesto")
+            if base is not None and impuesto is not None and datos["monto_pago"] != base + impuesto:
+                self.add_error("monto_pago", f"El monto pagado debe ser igual al total del gasto: {base + impuesto:,.2f}.")
         codigo = datos.get('tipo_pago')
         tipo = self.catalogo_pagos.get(codigo)
         if tipo and datos.get('moneda') and tipo['moneda'] != datos['moneda']:
@@ -144,6 +177,7 @@ class ProductoForm(EstiloForm):
         fields = [
             "descripcion",
             "unidad_medida",
+            "facturable",
             "activo",
         ]
 
@@ -151,13 +185,26 @@ class ProductoForm(EstiloForm):
 class DetalleGastoForm(EstiloForm):
     class Meta:
         model = DetalleRegistroGasto
-        fields = ["producto", "cantidad"]
+        fields = ["producto", "cantidad", "precio_unitario", "impuesto_linea"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["producto"].queryset = Producto.objects.filter(
             Q(activo=True) | Q(pk=self.instance.producto_id))
+        self.fields["impuesto_linea"].required = False
+        self.fields["impuesto_linea"].initial = None
+        for campo in ("precio_unitario", "impuesto_linea"):
+            self.fields[campo].widget.attrs.update({"min": "0", "step": "0.01", "class": "form-control text-end"})
         self.fields["cantidad"].widget.attrs.update({"step": "0.001", "min": "0.001"})
+
+    def clean(self):
+        datos = super().clean()
+        datos["impuesto_linea"] = datos.get("impuesto_linea") or Decimal("0")
+        if datos.get("precio_unitario") is None and (
+            not self.instance.pk or self.instance.precio_unitario is not None or datos["impuesto_linea"]
+        ) and "precio_unitario" not in self.errors:
+            self.add_error("precio_unitario", "Indica el precio unitario antes de impuesto.")
+        return datos
 
     def clean_producto(self):
         producto = self.cleaned_data["producto"]
@@ -166,7 +213,22 @@ class DetalleGastoForm(EstiloForm):
         return producto
 
 
+class BaseDetalleGastoFormSet(BaseInlineFormSet):
+    totales = None
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        lineas = [f.instance for f in self.forms if f.cleaned_data and not f.cleaned_data.get("DELETE")]
+        valorizadas = [l for l in lineas if l.precio_unitario is not None]
+        if valorizadas and len(valorizadas) != len(lineas):
+            raise forms.ValidationError("Completa el precio de todos los productos para calcular el total del gasto.")
+        if valorizadas:
+            self.totales = (sum(l.subtotal for l in valorizadas), sum(l.impuesto_linea for l in valorizadas))
+
+
 DetalleGastoFormSet = inlineformset_factory(
-    RegistroGasto, DetalleRegistroGasto, form=DetalleGastoForm,
+    RegistroGasto, DetalleRegistroGasto, form=DetalleGastoForm, formset=BaseDetalleGastoFormSet,
     extra=1, can_delete=True, max_num=100, validate_max=True, absolute_max=200,
 )

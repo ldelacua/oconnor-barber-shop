@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Formato del extracto · {{ banco.nombre }}</h2>
+<p><strong>Formato en uso:</strong> {{ formato_guardado }}</p>
+<p>Esta configuración se aplica a todas las cuentas de este banco.</p>
+<div class="card card-body mb-3">
+    <h3 class="h5">Cómo indicar las posiciones</h3>
+    <p>Escribe un campo por línea. Las posiciones empiezan en 1. Puedes saltar columnas o rangos que no necesites.</p>
+    <div class="row g-3">
+        <div class="col-md-6"><strong>Campos separados</strong><pre class="mb-0">nro_cuenta: 1
+nro_transaccion: 3
+fecha: 2
+monto: 5</pre></div>
+        <div class="col-md-6"><strong>Ancho fijo (inicio y fin incluidos)</strong><pre class="mb-0">nro_cuenta: 1-10
+fecha: 11-18
+nro_transaccion: 19-24
+monto: 25-34</pre></div>
+    </div>
+    <p class="mt-2 mb-0">También puedes mapear <code>descripcion</code>. En archivos de ancho fijo las posiciones cuentan caracteres, incluidos los espacios. Para los importes, usa signo negativo en los débitos y omite el separador de miles.</p>
+</div>
+<form method="post" class="card card-body">
+    {% csrf_token %}
+    {% if form.errors %}<p class="alert alert-danger" role="alert">No se guardaron los cambios. Revisa los campos marcados.</p>{% endif %}
+    {{ form.as_p }}
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary">Guardar formato</button>
+        <a class="btn btn-outline-secondary" href="{% url 'bancos:lista' %}">Regresar</a>
+    </div>
+</form>
+{% endblock %}

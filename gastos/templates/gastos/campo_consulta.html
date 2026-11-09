@@ -1,0 +1,4 @@
+<div class="col-md-6">
+    <label class="form-label" for="consulta-{{ id }}">{{ etiqueta }}</label>
+    <input id="consulta-{{ id }}" class="form-control{% if numerico %} text-end{% endif %}" type="text" value="{{ valor|default_if_none:'—' }}" readonly>
+</div>

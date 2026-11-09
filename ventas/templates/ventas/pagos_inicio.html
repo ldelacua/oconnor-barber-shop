@@ -1,1 +1,48 @@
-{% extends 'base.html' %}{% block content %}<h2>Pagos</h2><p><a class="btn btn-success" href="{% url 'pagos:consulta' %}">Reporte general de pagos / Excel</a></p><div class="row g-3">{% if perms.liquidaciones.view_pagoliquidacion %}<div class="col-md-6"><div class="card card-body"><h3>Pagos a prestadores de servicio</h3><a class="btn btn-primary mb-2" href="{% url 'pagos:consulta' %}?origen=LIQUIDACION">Consultar pagos</a>{% if perms.liquidaciones.add_liquidacion %}<a class="btn btn-outline-primary" href="{% url 'liquidaciones:crear' %}">Registrar pago al prestador</a>{% endif %}</div></div>{% endif %}{% if perms.inventario.view_pagoproveedor %}<div class="col-md-6"><div class="card card-body"><h3>Pagos a proveedores</h3><a class="btn btn-primary mb-2" href="{% url 'pagos:consulta' %}?origen=PROVEEDOR">Consultar pagos</a>{% if perms.inventario.view_compra %}<a class="btn btn-outline-primary" href="{% url 'pagos:proveedores' %}">Facturas y abonos a proveedores</a>{% endif %}</div></div>{% endif %}</div><a class="btn btn-secondary mt-3" href="{% url 'dashboard' %}">Regresar</a>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Pagar/Cobrar | BarberPro{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <h2 class="mb-0">Pagar/Cobrar</h2>
+    <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Regresar</a>
+</div>
+
+<div class="row row-cols-1 row-cols-md-2 g-3">
+    <div class="col">
+        <section class="card card-body h-100">
+            <h3 class="h5 mb-3">Cobro</h3>
+            <div class="d-grid gap-2 mt-auto">
+                {% if perms.ventas.view_pagoventa or perms.ventas_productos.view_pagoproducto or perms.ventas.view_tarjetaregalo %}
+                <a class="btn btn-outline-primary" href="{% url 'pagos:cobros_clientes' %}">Cobranza de Clientes</a>
+                {% endif %}
+                <a class="btn btn-outline-primary" href="{% url 'pagos:consulta' %}">Reporte General Cobros</a>
+            </div>
+        </section>
+    </div>
+
+    {% if perms.ventas.view_pagoventa %}
+    <div class="col">
+        <section class="card card-body h-100">
+            <h3 class="h5 mb-3">Cobros x Servicios</h3>
+            <div class="d-grid gap-2 mt-auto">
+                <a class="btn btn-outline-primary" href="{% url 'ventas:consulta_pagos' %}">Consultar Cobranza</a>
+                <a class="btn btn-outline-primary" href="{% url 'ventas:historico_pagos' %}">Histórico por forma de pago</a>
+            </div>
+        </section>
+    </div>
+    {% endif %}
+
+    {% if perms.inventario.view_pagoproveedor %}
+    <div class="col">
+        <section class="card card-body h-100">
+            <h3 class="h5 mb-3">Pagos/Cobros Generales</h3>
+            <div class="d-grid gap-2 mt-auto">
+                <a class="btn btn-outline-primary" href="{% url 'pagos:consulta' %}?origen=PROVEEDOR">Consultar Movimientos</a>
+                {% if perms.inventario.view_compra %}
+                <a class="btn btn-outline-primary" href="{% url 'pagos:proveedores' %}">Facturas y abonos a proveedores</a>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

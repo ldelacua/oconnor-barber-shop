@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% load ventas_formato %}
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{% if tipo == 'porcentajes' %}Porcentajes de venta por producto{% else %}Descuentos por unidades de la factura{% endif %}</h2><div>
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-4"><h2>{% if tipo == 'porcentajes' %}Lista de precios{% else %}% Descuento por volumen{% endif %}</h2><div>
+{% if tipo == 'porcentajes' %}<a class="btn btn-outline-primary" href="{% url 'ventas_productos:consulta_precios' %}">Consulta de precios</a>{% endif %}
 {% if puede_agregar %}<a class="btn btn-primary" href="{% if tipo == 'porcentajes' %}{% url 'ventas_productos:nuevo_porcentaje' %}{% else %}{% url 'ventas_productos:nuevo_descuento' %}{% endif %}?next={{ ruta_actual|urlencode }}">Agregar</a>{% endif %}
-<a class="btn btn-outline-secondary" href="{{ regresar }}">Regresar</a></div></div>
+<a class="btn btn-outline-success" href="{{ regresar }}">Regresar</a></div></div>
 {% if tipo == 'porcentajes' %}
 <form class="d-flex gap-2 mb-3"><input class="form-control" name="q" value="{{ request.GET.q }}" placeholder="CÓDIGO O NOMBRE"><input type="hidden" name="next" value="{{ regresar }}"><button class="btn btn-primary">Buscar</button></form>
 {% else %}<p class="alert alert-info">Hasta cuatro tramos. Se suman las unidades de todos los productos y se aplica un solo descuento: el del mayor umbral alcanzado. Un tramo desde 10.00 unidades se aplica con 10.00 unidades o más.</p>{% endif %}

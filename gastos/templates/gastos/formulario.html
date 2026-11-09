@@ -4,8 +4,21 @@
 {% include "gastos/nav.html" %}
 <div class="card card-body"><h3 class="h5 mb-3">{{ titulo }}</h3>
 <form method="post">{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-<div class="row g-3">{% for campo in form %}<div class="col-md-6">{% if campo.field.widget.input_type == 'checkbox' %}<div class="form-check mt-4">{{ campo }}<label class="form-check-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label></div>{% else %}<label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{% endif %}{% if campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}{% for error in campo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}</div>
-{% if detalles %}{% include "gastos/detalles_form.html" %}{% endif %}
+{% for campo in form.hidden_fields %}{{ campo }}{% for error in campo.errors %}<div class="alert alert-danger">{{ campo.label }}: {{ error }}</div>{% endfor %}{% endfor %}
+<div class="row g-3">{% for campo in form.visible_fields %}
+{% if not detalles or campo.name != 'tipo_pago' and campo.name != 'referencia_pago' and campo.name != 'cuenta_bancaria' and campo.name != 'monto_pago' %}
+{% include "gastos/campo_form.html" %}
+{% endif %}{% endfor %}</div>
+{% if detalles %}
+{% include "gastos/detalles_form.html" %}
+<section class="mt-4" aria-labelledby="pago-gasto"><h4 id="pago-gasto" class="h5">Pago del gasto</h4>
+<p class="small text-muted">El monto pagado se completa con el total del gasto. La moneda se toma de la forma de pago. Al guardar, se registra la tasa BCV de la fecha del gasto y el equivalente del total en USD.</p>
+<div class="row g-3">
+{% for campo in form.visible_fields %}{% if campo.name == 'tipo_pago' or campo.name == 'referencia_pago' or campo.name == 'cuenta_bancaria' or campo.name == 'monto_pago' %}
+{% include "gastos/campo_form.html" %}
+{% endif %}{% endfor %}
+</div></section>
+{% endif %}
 <div class="d-flex justify-content-end gap-2 mt-4">{% if catalogo %}<a href="{% url 'gastos:catalogo' catalogo %}" class="btn btn-secondary">Cancelar</a>{% else %}<a href="{% url 'gastos:inicio' %}" class="btn btn-secondary">Cancelar</a>{% endif %}<button type="submit" class="btn btn-primary">Guardar</button></div>
 </form></div>
 {% endblock %}

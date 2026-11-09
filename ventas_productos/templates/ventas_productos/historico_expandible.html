@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load ventas_formato %}
+{% block title %}Histórico de ventas de productos{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+    <h2>Histórico de ventas de productos</h2>
+    <a class="btn btn-outline-success" href="{% url 'ventas_productos:lista' %}">Regresar</a>
+</div>
+<nav class="nav nav-pills gap-2 mb-3" aria-label="Orden del histórico de productos">
+    <a class="nav-link{% if not por_prestador %} active{% endif %}" {% if not por_prestador %}aria-current="page"{% endif %}
+       href="{% url 'ventas_productos:historico' %}{% if query %}?{{ query }}{% endif %}">Por grupo y producto</a>
+    <a class="nav-link{% if por_prestador %} active{% endif %}" {% if por_prestador %}aria-current="page"{% endif %}
+       href="{% url 'ventas_productos:historico_prestadores' %}{% if query %}?{{ query }}{% endif %}">Por prestador</a>
+</nav>
+<form method="get" class="card card-body mb-3">
+    {{ filtro.non_field_errors }}
+    <div class="row g-3">{% for campo in filtro %}<div class="col-sm-6 col-lg-2">{{ campo.label_tag }}{{ campo }}{{ campo.errors }}</div>{% endfor %}</div>
+    <div class="mt-3"><button class="btn btn-primary">Consultar</button> <a class="btn btn-outline-secondary" href="{{ request.path }}">Limpiar filtros</a></div>
+</form>
+<p class="small text-muted">Las facturas reversadas aparecen en el detalle y sus unidades no se suman a la cantidad vendida.</p>
+<div class="card table-responsive">
+<table class="table align-middle mb-0" id="historico-productos">
+    <thead class="table-dark"><tr><th>{% if por_prestador %}Venta realizada por{% else %}Grupo{% endif %}</th><th class="text-end">Cantidad vendida</th><th class="text-end">Facturas</th></tr></thead>
+    <tbody>
+    {% for grupo in pagina %}
+    <tr>
+        <td><button type="button" class="btn btn-success btn-sm fw-bold me-2" data-expandir
+                aria-label="{% if por_prestador %}Grupos de{% else %}Productos de{% endif %} {{ grupo.nombre }}" aria-controls="productos-historico-{{ grupo.id }}" aria-expanded="false"><span aria-hidden="true">+</span></button>{{ grupo.nombre }}</td>
+        <td class="text-end">{{ grupo.cantidad|floatformat:"-3" }}</td><td class="text-end">{{ grupo.facturas }}</td>
+    </tr>
+    <tr id="productos-historico-{{ grupo.id }}" hidden><td colspan="3" class="bg-light p-3">
+        {% if por_prestador %}
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-secondary"><tr><th>Grupo</th><th class="text-end">Cantidad vendida</th><th class="text-end">Facturas</th></tr></thead>
+            <tbody>
+            {% for subgrupo in grupo.grupos %}
+            <tr>
+                <td><button type="button" class="btn btn-success btn-sm fw-bold me-2" data-expandir
+                    aria-label="Productos de {{ subgrupo.nombre }}" aria-controls="grupo-prestador-{{ grupo.id }}-{{ subgrupo.id }}" aria-expanded="false"><span aria-hidden="true">+</span></button>{{ subgrupo.nombre }}</td>
+                <td class="text-end">{{ subgrupo.cantidad|floatformat:"-3" }}</td><td class="text-end">{{ subgrupo.facturas }}</td>
+            </tr>
+            <tr id="grupo-prestador-{{ grupo.id }}-{{ subgrupo.id }}" hidden><td colspan="3" class="bg-white p-3">
+                {% include "ventas_productos/historico_tabla_productos.html" with productos=subgrupo.productos padre_id=grupo.id %}
+            </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            {% include "ventas_productos/historico_tabla_productos.html" with productos=grupo.productos padre_id=grupo.id %}
+        {% endif %}
+    </td></tr>
+    {% empty %}<tr><td colspan="3" class="text-center py-4">No hay ventas para estos filtros.</td></tr>{% endfor %}
+    </tbody>
+</table>
+</div>
+{% if por_prestador %}
+{% include "ventas/paginacion_pagos.html" with parametros=query unidad="prestadores" etiqueta_paginacion="Páginas de prestadores" %}
+{% else %}
+{% include "ventas/paginacion_pagos.html" with parametros=query unidad="grupos" etiqueta_paginacion="Páginas de grupos" %}
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.getElementById("historico-productos").addEventListener("click", (evento) => {
+    const boton = evento.target.closest("button[data-expandir]");
+    if (!boton) return;
+    const fila = document.getElementById(boton.getAttribute("aria-controls"));
+    fila.hidden = !fila.hidden;
+    boton.setAttribute("aria-expanded", String(!fila.hidden));
+    boton.querySelector("span").textContent = fila.hidden ? "+" : "−";
+});
+</script>
+{% endblock %}

@@ -4,6 +4,12 @@ from control_inventario.saldos import costo_producto
 from ventas.calculos import dinero
 from .models import PorcentajeProducto, EscalaDescuento
 
+def precio_con_recargo(costo, porcentaje):
+    with localcontext() as contexto:
+        contexto.prec = 60
+        return dinero(dinero(costo) * (Decimal("1") + porcentaje / Decimal("100")))
+
+
 def precio_producto(producto,fecha):
     regla=PorcentajeProducto.objects.filter(producto=producto,activo=True).first()
     if not regla:
@@ -12,9 +18,7 @@ def precio_producto(producto,fecha):
     costo=dinero(costo)
     if costo<=0:
         raise ValidationError(f"{producto.codigo_producto} no tiene un último costo positivo en USD. Registra su costo antes de vender.")
-    with localcontext() as contexto:
-        contexto.prec=60
-        precio=dinero(costo*(Decimal("1")+regla.porcentaje/Decimal("100")))
+    precio = precio_con_recargo(costo, regla.porcentaje)
     if precio<=0 or precio>=Decimal("10000000000000000"):
         raise ValidationError("El precio calculado está fuera del límite permitido.")
     return {"costo_unitario_usd":costo,"porcentaje_venta":regla.porcentaje,"precio_unitario_usd":precio}
